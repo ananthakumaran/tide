@@ -1,4 +1,4 @@
-;;; spice.el --- Typescript Interactive Development Environment
+;;; spice.el --- Typescript Interactive Development Environment -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2015 Anantha Kumaran.
 
@@ -29,6 +29,7 @@
 (require 'etags)
 (require 'json)
 (require 'cl)
+(require 'eldoc)
 
 (defgroup spice nil
   "TypeScript Interactive Development Environment."
@@ -39,6 +40,11 @@
   "tsserver"
   "Typescript server executable path."
   :type 'string
+  :group 'spice)
+
+(defcustom spice-sync-request-timeout 2
+  "The number of seconds to wait for a sync response."
+  :type 'integer
   :group 'spice)
 
 (defun spice-make-variables-buffer-local (&rest variables)
@@ -66,6 +72,19 @@
 
 (defun spice-project-name ()
   (file-name-nondirectory (directory-file-name (spice-project-root))))
+
+;;; helpers
+
+(defun spice-plist-get (list &rest args)
+  (reduce
+   (lambda (object key)
+     (when object
+       (plist-get object key)))
+   args
+   :initial-value list))
+
+(defun spice-response-success-p (response)
+  (and response (equal (plist-get response :success) t)))
 
 ;;; server
 
@@ -96,6 +115,16 @@
       (puthash request-id callback spice-response-callbacks)
       (accept-process-output nil 0.01))))
 
+(defun spice-send-command-sync (name args)
+  (let* ((start-time (current-time))
+         (response nil))
+    (spice-send-command name args (lambda (resp) (setq response resp)))
+    (while (not response)
+      (accept-process-output nil 0.01)
+      (when (> (cadr (time-subtract (current-time) start-time))
+               spice-sync-request-timeout)
+        (error "sync request timed out %s" name)))
+    response))
 
 (defun spice-net-filter (process data)
   (with-current-buffer (process-buffer process)
@@ -155,10 +184,6 @@
 
 ;;; commands
 
-(defun spice-command:quickinfo ()
-  (interactive)
-  (spice-send-command "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))))
-
 (defun spice-command:configure ()
   (interactive)
   (spice-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions (:tabSize ,tab-width :convertTabToSpaces ,nil))))
@@ -168,20 +193,20 @@
   (spice-send-command "open" `(:file ,buffer-file-name)))
 
 (defun spice-command:definition ()
+  "Jump to definition at point."
   (interactive)
   (spice-send-command
    "definition"
    `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))
    (lambda (response)
-     (when (equal (plist-get response :success) t)
+     (when (spice-response-success-p response)
        (let* ((filespan (aref (plist-get response :body) 0)))
          (spice-jump-to-filespan filespan))))))
 
 (defun spice-jump-to-filespan (filespan)
   (let* ((file (plist-get filespan :file))
-         (start (plist-get filespan :start))
-         (line (plist-get start :line))
-         (offset (- (plist-get start :offset) 1)))
+         (line (spice-plist-get filespan :start :line))
+         (offset (- (spice-plist-get filespan :start :offset) 1)))
     (ring-insert find-tag-marker-ring (point-marker))
     (pop-to-buffer (find-file-noselect file) '((display-buffer-reuse-window display-buffer-same-window)))
     (save-restriction
@@ -189,6 +214,18 @@
       (goto-char (point-min))
       (forward-line (1- line)))
     (move-to-column offset)))
+
+
+;;; eldoc
+
+(defun spice-command:quickinfo ()
+  (let ((response (spice-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))))
+    (when (spice-response-success-p response)
+      (spice-plist-get response :body :displayString))))
+
+(defun spice-eldoc-function ()
+  (when (not (member last-command '(next-error previous-error)))
+    (spice-command:quickinfo)))
 
 (defvar spice-mode-map
   (let ((map (make-sparse-keymap)))
@@ -200,7 +237,9 @@
   (spice-start-server-if-required)
   (spice-mode 1)
   (spice-command:configure)
-  (spice-command:openfile))
+  (spice-command:openfile)
+  (set (make-local-variable 'eldoc-documentation-function)
+       'spice-eldoc-function))
 
 ;;;###autoload
 (define-minor-mode spice-mode
