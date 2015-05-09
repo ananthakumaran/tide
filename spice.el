@@ -265,6 +265,11 @@
 (defun spice-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
 
+(defun spice-member-completion-p (prefix)
+  (save-excursion
+    (backward-char (length prefix))
+    (equal (string (char-before (point))) ".")))
+
 (defun spice-annotate-completions (completions prefix file-location)
   (-map
    (lambda (completion)
@@ -279,6 +284,8 @@
 (defun spice-command:completions (prefix cb)
   (let* ((file-location
           `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(- (current-column) (length prefix)))))
+    (when (not (spice-member-completion-p prefix))
+      (plist-put file-location :prefix prefix))
     (spice-send-command
      "completions"
      file-location
