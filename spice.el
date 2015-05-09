@@ -94,6 +94,16 @@
 (defun spice-join (list)
   (mapconcat 'identity list ""))
 
+(defun spice-current-offset ()
+  (let ((p0 (point))
+        (offset 1))
+    (save-excursion
+      (beginning-of-line)
+      (while (< (point) p0)
+        (forward-char)
+        (incf offset))
+      offset)))
+
 ;;; server
 
 (defun spice-current-server ()
@@ -198,7 +208,7 @@
 
 (defun spice-command:configure ()
   (interactive)
-  (spice-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions (:tabSize ,tab-width :convertTabToSpaces ,nil))))
+  (spice-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions (:tabSize ,tab-width :indentSize ,typescript-indent-level :convertTabToSpaces ,(not indent-tabs-mode)))))
 
 (defun spice-command:openfile ()
   (interactive)
@@ -211,7 +221,7 @@
   (interactive)
   (spice-send-command
    "definition"
-   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))
+   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(spice-current-offset))
    (lambda (response)
      (when (spice-response-success-p response)
        (let* ((filespan (car (plist-get response :body))))
@@ -227,7 +237,7 @@
       (widen)
       (goto-char (point-min))
       (forward-line (1- line)))
-    (move-to-column offset)))
+    (forward-char offset)))
 
 
 ;;; Eldoc
@@ -256,10 +266,7 @@
   (let* ((response
           (spice-send-command-sync
            "signatureHelp"
-           (save-excursion
-             (forward-char 1)
-             (re-search-backward "[(,]")
-             `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))))))
+           `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(spice-current-offset)))))
     (when (spice-response-success-p response)
       (spice-annotate-signatures (plist-get response :body)))))
 
@@ -267,7 +274,7 @@
   (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
 
 (defun spice-command:quickinfo ()
-  (let ((response (spice-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))))
+  (let ((response (spice-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(spice-current-offset)))))
     (when (spice-response-success-p response)
       (spice-plist-get response :body :displayString))))
 
@@ -275,7 +282,7 @@
   (when (not (member last-command '(next-error previous-error)))
     (if (spice-method-call-p)
         (spice-command:signatureHelp)
-      (when (looking-at "\\sw")
+      (when (looking-at "\\s_\\|\\sw")
         (spice-command:quickinfo)))))
 
 ;;; Buffer Sync
@@ -323,7 +330,7 @@
 
 (defun spice-command:completions (prefix cb)
   (let* ((file-location
-          `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(- (current-column) (length prefix)))))
+          `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(- (spice-current-offset) (length prefix)))))
     (when (not (spice-member-completion-p prefix))
       (plist-put file-location :prefix prefix))
     (spice-send-command
@@ -365,11 +372,13 @@
     (define-key map (kbd "M-.") #'spice-command:definition)
     map))
 
+(defun spice-configure-buffer ()
+  (spice-command:configure)
+  (spice-command:openfile))
+
 (defun spice-setup ()
   (interactive)
   (spice-start-server-if-required)
-  (spice-command:configure)
-  (spice-command:openfile)
   (spice-mode 1)
   (set (make-local-variable 'eldoc-documentation-function)
        'spice-eldoc-function))
@@ -386,10 +395,13 @@
         (add-hook 'after-save-hook 'spice-command:reloadfile nil t)
         (add-hook 'after-change-functions 'spice-handle-change nil t)
         (add-hook 'kill-buffer-hook 'spice-remove-tmp-file nil t)
+        (add-hook 'hack-local-variables-hook 'spice-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'spice-command:reloadfile)
     (remove-hook 'after-change-functions 'spice-handle-change)
+    (remove-hook 'kill-buffer-hook 'spice-remove-tmp-file)
+    (remove-hook 'hack-local-variables-hook 'spice-configure-buffer)
     (spice-remove-tmp-file)))
 
 (provide 'spice)
