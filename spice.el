@@ -6,6 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/spice
 ;; Version: 0.1
 ;; Keywords: typescript
+;; Package-Requires: ((dash "2.10.0"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -30,6 +31,7 @@
 (require 'json)
 (require 'cl)
 (require 'eldoc)
+(require 'dash)
 
 (defgroup spice nil
   "TypeScript Interactive Development Environment."
@@ -47,18 +49,21 @@
   :type 'integer
   :group 'spice)
 
-(defun spice-make-variables-buffer-local (&rest variables)
-  (mapc #'make-variable-buffer-local variables))
+(defmacro spice-def-permanent-buffer-local (name &optional init-value)
+  `(progn
+     (defvar ,name ,init-value)
+     (make-variable-buffer-local ',name)
+     (put ',name 'permanent-local t)))
 
 (defvar spice-server-buffer-name "*spice-server*")
-(defvar spice-project-root nil)
 (defvar spice-request-counter 0)
+
+(spice-def-permanent-buffer-local spice-project-root nil)
+(spice-def-permanent-buffer-local spice-buffer-dirty nil)
+(spice-def-permanent-buffer-local spice-buffer-tmp-file nil)
 
 (defvar spice-servers (make-hash-table :test 'equal))
 (defvar spice-response-callbacks (make-hash-table :test 'equal))
-
-(spice-make-variables-buffer-local
- 'spice-project-root)
 
 (defun spice-project-root ()
   (or
@@ -106,6 +111,9 @@
   (when (not (spice-current-server))
     (error "Server does not exists"))
 
+  (when spice-buffer-dirty
+    (spice-sync-buffer-contents))
+
   (let* ((request-id (spice-next-request-id))
          (command `(:command ,name :seq ,request-id :arguments ,args))
          (encoded-command (json-encode command))
@@ -143,15 +151,15 @@
     (error "Server already exists"))
 
   (message "Starting tsserver...")
-  (let ((default-directory (spice-project-root))
-        (process-environment (append '("TSS_LOG=true") process-environment))
-        (buf (get-buffer-create spice-server-buffer-name)))
-    (let ((process (start-file-process "tsserver" buf spice-tsserver-executable)))
-      (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
-      (set-process-filter process #'spice-net-filter)
-      (set-process-sentinel process #'spice-net-sentinel)
-      (puthash (spice-project-name) process spice-servers)
-      (message "tsserver server started successfully."))))
+  (let* ((default-directory (spice-project-root))
+         (process-environment (append '("TSS_LOG=-level verbose") process-environment))
+         (buf (get-buffer-create spice-server-buffer-name))
+         (process (start-file-process "tsserver" buf spice-tsserver-executable)))
+    (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
+    (set-process-filter process #'spice-net-filter)
+    (set-process-sentinel process #'spice-net-sentinel)
+    (puthash (spice-project-name) process spice-servers)
+    (message "tsserver server started successfully.")))
 
 (defun spice-start-server-if-required ()
   (when (not (spice-current-server))
@@ -169,7 +177,8 @@
   (let ((source-buffer (current-buffer)))
     (with-current-buffer (process-buffer process)
       (let ((length (spice-decode-response-legth))
-            (json-object-type 'plist))
+            (json-object-type 'plist)
+            (json-array-type 'list))
         (when (and length (spice-enough-response-p length))
           (spice-dispatch
            (prog2
@@ -200,7 +209,7 @@
    `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))
    (lambda (response)
      (when (spice-response-success-p response)
-       (let* ((filespan (aref (plist-get response :body) 0)))
+       (let* ((filespan (car (plist-get response :body))))
          (spice-jump-to-filespan filespan))))))
 
 (defun spice-jump-to-filespan (filespan)
@@ -227,6 +236,76 @@
   (when (not (member last-command '(next-error previous-error)))
     (spice-command:quickinfo)))
 
+;;; Sync
+
+(defun spice-remove-tmp-file ()
+  (when spice-buffer-tmp-file
+    (delete-file spice-buffer-tmp-file)
+    (setq spice-buffer-tmp-file nil)))
+
+(defun spice-command:reloadfile ()
+  (interactive)
+  (spice-send-command "reload" `(:file ,buffer-file-name :tmpfile ,buffer-file-name)))
+
+(defun spice-handle-change (_beg _end _len)
+  (setq spice-buffer-dirty t))
+
+(defun spice-sync-buffer-contents ()
+  (setq spice-buffer-dirty nil)
+  (when (not spice-buffer-tmp-file)
+    (setq spice-buffer-tmp-file (make-temp-file "spice")))
+  (write-region (point-min) (point-max) spice-buffer-tmp-file nil 'no-message)
+  (spice-send-command "reload" `(:file ,buffer-file-name :tmpfile ,spice-buffer-tmp-file)))
+
+
+;;; auto completion
+
+(defun spice-completion-prefix ()
+  (company-grab-symbol-cons "\\." 1))
+
+(defun spice-annotate-completions (completions prefix file-location)
+  (-map
+   (lambda (completion)
+     (let ((name (plist-get completion :name)))
+       (put-text-property 0 1 'file-location file-location name)
+       name))
+   (-filter
+    (lambda (completion)
+      (string-prefix-p prefix (plist-get completion :name)))
+    completions)))
+
+(defun spice-command:completions (prefix)
+  (let* ((file-location `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))
+         (response (spice-send-command-sync "completions" file-location)))
+    (when (spice-response-success-p response)
+      (spice-annotate-completions (plist-get response :body) prefix file-location))))
+
+(defun spice-command:completion-entry-details (name)
+  (let ((arguments (-concat (get-text-property 0 'file-location name)
+                            `(:entryNames (,name)))))
+    (-when-let (response (spice-send-command-sync "completionEntryDetails" arguments))
+      (when (spice-response-success-p response)
+        (-when-let (detail (car (plist-get response :body)))
+          (mapconcat
+           'identity
+           (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))
+           ""))))))
+
+;;;###autoload
+(defun company-spice (command &optional arg &rest ignored)
+  (interactive (list 'interactive))
+  (cl-case command
+    (interactive (company-begin-backend 'company-spice))
+    (prefix (and
+             (derived-mode-p 'typescript-mode)
+             (spice-current-server)
+             (not (company-in-string-or-comment))
+             (or (spice-completion-prefix) 'stop)))
+    (candidates (let ((completion-ignore-case nil))
+                  (spice-command:completions arg)))
+    (sorted t)
+    (meta (spice-command:completion-entry-details arg))))
+
 (defvar spice-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'spice-command:definition)
@@ -235,9 +314,9 @@
 (defun spice-setup ()
   (interactive)
   (spice-start-server-if-required)
-  (spice-mode 1)
   (spice-command:configure)
   (spice-command:openfile)
+  (spice-mode 1)
   (set (make-local-variable 'eldoc-documentation-function)
        'spice-eldoc-function))
 
@@ -246,9 +325,16 @@
   "Minor mode for Typescript Interactive Development Environment.
 
 \\{spice-mode-map}"
-  nil
-  " spice"
-  spice-mode-map)
+  :lighter " spice"
+  :keymap spice-mode-map
+  (if spice-mode
+      (progn
+        (add-hook 'after-save-hook 'spice-command:reloadfile nil t)
+        (add-hook 'after-change-functions 'spice-handle-change nil t)
+        (add-hook 'kill-buffer-hook 'spice-remove-tmp-file nil t))
+    (remove-hook 'after-save-hook 'spice-command:reloadfile)
+    (remove-hook 'after-change-functions 'spice-handle-change)
+    (spice-remove-tmp-file)))
 
 (provide 'spice)
 
