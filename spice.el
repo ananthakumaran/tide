@@ -91,6 +91,9 @@
 (defun spice-response-success-p (response)
   (and response (equal (plist-get response :success) t)))
 
+(defun spice-join (list)
+  (mapconcat 'identity list ""))
+
 ;;; server
 
 (defun spice-current-server ()
@@ -229,6 +232,40 @@
 
 ;;; Eldoc
 
+(defun spice-annotate-display-part (display-part)
+  (plist-get display-part :text))
+
+(defun spice-annotate-signature-parameter (parameter)
+  (spice-join (-map #'spice-annotate-display-part (plist-get parameter :displayParts))))
+
+(defun spice-annotate-signature (signature)
+  (let ((separator (spice-join (-map #'spice-annotate-display-part (plist-get signature :separatorDisplayParts)))))
+    (spice-join
+     (-concat
+      (-map #'spice-annotate-display-part (plist-get signature :prefixDisplayParts))
+      (list
+       (-if-let (params (plist-get signature :parameters))
+           (mapconcat #'spice-annotate-signature-parameter params separator)
+         ""))
+      (-map #'spice-annotate-display-part (plist-get signature :suffixDisplayParts))))))
+
+(defun spice-annotate-signatures (body)
+  (mapconcat #'identity (-map #'spice-annotate-signature (plist-get body :items)) "\n"))
+
+(defun spice-command:signatureHelp ()
+  (let* ((response
+          (spice-send-command-sync
+           "signatureHelp"
+           (save-excursion
+             (forward-char 1)
+             (re-search-backward "[(,]")
+             `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column))))))
+    (when (spice-response-success-p response)
+      (spice-annotate-signatures (plist-get response :body)))))
+
+(defun spice-method-call-p ()
+  (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
+
 (defun spice-command:quickinfo ()
   (let ((response (spice-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))))
     (when (spice-response-success-p response)
@@ -236,7 +273,10 @@
 
 (defun spice-eldoc-function ()
   (when (not (member last-command '(next-error previous-error)))
-    (spice-command:quickinfo)))
+    (if (spice-method-call-p)
+        (spice-command:signatureHelp)
+      (when (looking-at "\\sw")
+        (spice-command:quickinfo)))))
 
 ;;; Buffer Sync
 
@@ -301,10 +341,8 @@
     (-when-let (response (spice-send-command-sync "completionEntryDetails" arguments))
       (when (spice-response-success-p response)
         (-when-let (detail (car (plist-get response :body)))
-          (mapconcat
-           'identity
-           (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))
-           ""))))))
+          (spice-join
+           (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))))))))
 
 ;;;###autoload
 (defun company-spice (command &optional arg &rest ignored)
@@ -347,7 +385,9 @@
       (progn
         (add-hook 'after-save-hook 'spice-command:reloadfile nil t)
         (add-hook 'after-change-functions 'spice-handle-change nil t)
-        (add-hook 'kill-buffer-hook 'spice-remove-tmp-file nil t))
+        (add-hook 'kill-buffer-hook 'spice-remove-tmp-file nil t)
+        (when (commandp 'typescript-insert-and-indent)
+          (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'spice-command:reloadfile)
     (remove-hook 'after-change-functions 'spice-handle-change)
     (spice-remove-tmp-file)))
