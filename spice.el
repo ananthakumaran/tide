@@ -191,7 +191,7 @@
           (when (>= (buffer-size) 16)
             (spice-decode-response process)))))))
 
-;;; commands
+;;; Initialization
 
 (defun spice-command:configure ()
   (interactive)
@@ -200,6 +200,8 @@
 (defun spice-command:openfile ()
   (interactive)
   (spice-send-command "open" `(:file ,buffer-file-name)))
+
+;;; Jump to definitions
 
 (defun spice-command:definition ()
   "Jump to definition at point."
@@ -225,7 +227,7 @@
     (move-to-column offset)))
 
 
-;;; eldoc
+;;; Eldoc
 
 (defun spice-command:quickinfo ()
   (let ((response (spice-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))))
@@ -236,7 +238,7 @@
   (when (not (member last-command '(next-error previous-error)))
     (spice-command:quickinfo)))
 
-;;; Sync
+;;; Buffer Sync
 
 (defun spice-remove-tmp-file ()
   (when spice-buffer-tmp-file
@@ -258,7 +260,7 @@
   (spice-send-command "reload" `(:file ,buffer-file-name :tmpfile ,spice-buffer-tmp-file)))
 
 
-;;; auto completion
+;;; Auto completion
 
 (defun spice-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
@@ -274,11 +276,17 @@
       (string-prefix-p prefix (plist-get completion :name)))
     completions)))
 
-(defun spice-command:completions (prefix)
-  (let* ((file-location `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(current-column)))
-         (response (spice-send-command-sync "completions" file-location)))
-    (when (spice-response-success-p response)
-      (spice-annotate-completions (plist-get response :body) prefix file-location))))
+(defun spice-command:completions (prefix cb)
+  (let* ((file-location
+          `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(- (current-column) (length prefix)))))
+    (spice-send-command
+     "completions"
+     file-location
+     (lambda (response)
+       (funcall
+        cb
+        (when (spice-response-success-p response)
+          (spice-annotate-completions (plist-get response :body) prefix file-location)))))))
 
 (defun spice-command:completion-entry-details (name)
   (let ((arguments (-concat (get-text-property 0 'file-location name)
@@ -301,8 +309,9 @@
              (spice-current-server)
              (not (company-in-string-or-comment))
              (or (spice-completion-prefix) 'stop)))
-    (candidates (let ((completion-ignore-case nil))
-                  (spice-command:completions arg)))
+    (candidates (cons :async
+                      (lambda (cb)
+                        (spice-command:completions arg cb))))
     (sorted t)
     (meta (spice-command:completion-entry-details arg))))
 
