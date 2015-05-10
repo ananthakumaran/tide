@@ -393,59 +393,6 @@
     (sorted t)
     (meta (tide-command:completion-entry-details arg))))
 
-;;; Error
-
-(defun tide-command:geterr ()
-  (tide-send-command "geterr"
-                     `(:delay 0 :files (,buffer-file-name))))
-
-(defun tide-parse-error (event checker)
-  (-map
-   (lambda (diagnostic)
-     (let* ((start (plist-get diagnostic :start))
-            (line (plist-get start :line))
-            (column (tide-column line (plist-get start :offset))))
-       (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
-                              :checker checker)))
-   (tide-plist-get event :body :diagnostics)))
-
-(defun tide-flycheck-send-response (callback checker events)
-  (condition-case err
-      (funcall callback 'finished (-mapcat (lambda (event) (tide-parse-error event checker)) events))
-    (error (funcall callback 'errored (error-message-string err)))))
-
-(defun tide-flycheck-start (checker callback)
-  (let* ((response-count 0)
-         (events '())
-         (error-collector (lambda (event)
-                            (push event events)
-                            (incf response-count)
-                            (when (eql response-count 2)
-                              (tide-flycheck-send-response callback checker events)))))
-    (setq tide-event-queue
-          (nconc tide-event-queue (list error-collector error-collector)))
-    (tide-command:geterr)))
-
-(defun tide-flycheck-verify (_checker)
-  (list
-   (flycheck-verification-result-new
-    :label "Typescript server"
-    :message (if (tide-current-server) "running" "not running")
-    :face (if (tide-current-server) 'success '(bold error)))
-   (flycheck-verification-result-new
-    :label "Tide mode"
-    :message (if tide-mode "enabled" "disabled")
-    :face (if tide-mode 'success '(bold warning)))))
-
-(flycheck-define-generic-checker 'typescript-tide
-  "A syntax checker for Typescript using Tide Mode."
-  :start #'tide-flycheck-start
-  :verify #'tide-flycheck-verify
-  :modes '(typescript-mode)
-  :predicate (lambda () (and tide-mode (tide-current-server))))
-
-(add-to-list 'flycheck-checkers 'typescript-tide)
-
 ;;; Mode
 
 (defvar tide-mode-map
@@ -488,6 +435,62 @@
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
     (tide-cleanup-buffer)))
+
+
+;;; Error highlighting
+
+(defun tide-command:geterr ()
+  (tide-send-command "geterr"
+                     `(:delay 0 :files (,buffer-file-name))))
+
+(defun tide-parse-error (event checker)
+  (-map
+   (lambda (diagnostic)
+     (let* ((start (plist-get diagnostic :start))
+            (line (plist-get start :line))
+            (column (tide-column line (plist-get start :offset))))
+       (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
+                              :checker checker)))
+   (tide-plist-get event :body :diagnostics)))
+
+(defun tide-flycheck-send-response (callback checker events)
+  (condition-case err
+      (funcall callback 'finished (-mapcat (lambda (event) (tide-parse-error event checker)) events))
+    (error (funcall callback 'errored (error-message-string err)))))
+
+(defun tide-flycheck-start (checker callback)
+  (let* ((response-count 0)
+         (events '())
+         (error-collector (lambda (event)
+                            (push event events)
+                            (incf response-count)
+                            (when (eql response-count 2)
+                              (tide-flycheck-send-response callback checker events)))))
+    (setq tide-event-queue
+          (nconc tide-event-queue (list error-collector error-collector)))
+    (tide-command:geterr)))
+
+
+(defun tide-flycheck-verify (_checker)
+  (list
+   (flycheck-verification-result-new
+    :label "Typescript server"
+    :message (if (tide-current-server) "running" "not running")
+    :face (if (tide-current-server) 'success '(bold error)))
+   (flycheck-verification-result-new
+    :label "Tide mode"
+    :message (if tide-mode "enabled" "disabled")
+    :face (if tide-mode 'success '(bold warning)))))
+
+(flycheck-define-generic-checker 'typescript-tide
+  "A syntax checker for Typescript using Tide Mode."
+  :start #'tide-flycheck-start
+  :verify #'tide-flycheck-verify
+  :modes '(typescript-mode)
+  :predicate (lambda () (and tide-mode (tide-current-server))))
+
+(add-to-list 'flycheck-checkers 'typescript-tide)
+
 
 (provide 'tide)
 
