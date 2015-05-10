@@ -393,6 +393,10 @@
     (sorted t)
     (meta (tide-command:completion-entry-details arg))))
 
+(eval-after-load 'company
+  '(progn
+     (pushnew 'company-tide company-backends)))
+
 ;;; Mode
 
 (defvar tide-mode-map
