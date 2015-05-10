@@ -78,7 +78,7 @@
 (defun spice-project-name ()
   (file-name-nondirectory (directory-file-name (spice-project-root))))
 
-;;; helpers
+;;; Helpers
 
 (defun spice-plist-get (list &rest args)
   (reduce
@@ -207,12 +207,13 @@
 ;;; Initialization
 
 (defun spice-command:configure ()
-  (interactive)
   (spice-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions (:tabSize ,tab-width :indentSize ,typescript-indent-level :convertTabToSpaces ,(not indent-tabs-mode)))))
 
 (defun spice-command:openfile ()
-  (interactive)
   (spice-send-command "open" `(:file ,buffer-file-name)))
+
+(defun spice-command:closefile ()
+  (spice-send-command "close" `(:file ,buffer-file-name)))
 
 ;;; Jump to definitions
 
@@ -293,7 +294,6 @@
     (setq spice-buffer-tmp-file nil)))
 
 (defun spice-command:reloadfile ()
-  (interactive)
   (spice-send-command "reload" `(:file ,buffer-file-name :tmpfile ,buffer-file-name)))
 
 (defun spice-handle-change (_beg _end _len)
@@ -367,6 +367,8 @@
     (sorted t)
     (meta (spice-command:completion-entry-details arg))))
 
+;;; Mode
+
 (defvar spice-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'spice-command:definition)
@@ -375,6 +377,10 @@
 (defun spice-configure-buffer ()
   (spice-command:configure)
   (spice-command:openfile))
+
+(defun spice-cleanup-buffer ()
+  (spice-command:closefile)
+  (spice-remove-tmp-file))
 
 (defun spice-setup ()
   (interactive)
@@ -394,15 +400,15 @@
       (progn
         (add-hook 'after-save-hook 'spice-command:reloadfile nil t)
         (add-hook 'after-change-functions 'spice-handle-change nil t)
-        (add-hook 'kill-buffer-hook 'spice-remove-tmp-file nil t)
+        (add-hook 'kill-buffer-hook 'spice-cleanup-buffer nil t)
         (add-hook 'hack-local-variables-hook 'spice-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'spice-command:reloadfile)
     (remove-hook 'after-change-functions 'spice-handle-change)
-    (remove-hook 'kill-buffer-hook 'spice-remove-tmp-file)
+    (remove-hook 'kill-buffer-hook 'spice-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'spice-configure-buffer)
-    (spice-remove-tmp-file)))
+    (spice-cleanup-buffer)))
 
 (provide 'spice)
 
