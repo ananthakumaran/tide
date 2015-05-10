@@ -1,5 +1,5 @@
 (source gnu)
 (source melpa)
 
-(package-file "spice.el")
+(package-file "tide.el")
 
