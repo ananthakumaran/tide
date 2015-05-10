@@ -33,6 +33,7 @@
 (require 'eldoc)
 (require 'dash)
 (require 'flycheck)
+(require 'typescript)
 
 (defgroup tide nil
   "TypeScript Interactive Development Environment."
