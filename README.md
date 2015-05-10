@@ -20,6 +20,9 @@
             (company-mode-on)
             (tide-setup)
             (turn-on-eldoc-mode)))
+
+(setq company-tooltip-align-annotations t) ;; aligns annotation to the right hand side
+
 ````
 
 ### Notes

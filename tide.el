@@ -335,6 +335,35 @@
 
 ;;; Auto completion
 
+(defun tide-completion-annotation (completion)
+  (pcase (plist-get completion :kind)
+    ("keyword" " k")
+    ("module" " M")
+    ("class" " C")
+    ("interface" " I")
+    ("type" " T")
+    ("enum" " E")
+    ("var" " v")
+    ("local var" " v")
+    ("function" " ƒ")
+    ("local function" " ƒ")
+    ("method" " m")
+    ("getter" " m")
+    ("setter" " m")
+    ("property" " p")
+    ("constructor" " c")
+    ("call" " m")
+    ("index" " i")
+    ("construct" " m")
+    ("parameter" " p")
+    ("type parameter" " T")
+    ("primitive type" " T")
+    ("label" " l")
+    ("alias" " A")
+    ("const" " c")
+    ("let" " l")
+    (t nil)))
+
 (defun tide-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
 
@@ -348,6 +377,7 @@
    (lambda (completion)
      (let ((name (plist-get completion :name)))
        (put-text-property 0 1 'file-location file-location name)
+       (put-text-property 0 1 'completion completion name)
        name))
    (-filter
     (lambda (completion)
@@ -391,7 +421,8 @@
                       (lambda (cb)
                         (tide-command:completions arg cb))))
     (sorted t)
-    (meta (tide-command:completion-entry-details arg))))
+    (meta (tide-command:completion-entry-details arg))
+    (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))))
 
 (eval-after-load 'company
   '(progn
