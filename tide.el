@@ -398,14 +398,39 @@
         (when (tide-response-success-p response)
           (tide-annotate-completions (plist-get response :body) prefix file-location)))))))
 
+(defun tide-format-detail-type (detail)
+  (tide-join
+   (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))))
+
 (defun tide-command:completion-entry-details (name)
   (let ((arguments (-concat (get-text-property 0 'file-location name)
                             `(:entryNames (,name)))))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
       (when (tide-response-success-p response)
-        (-when-let (detail (car (plist-get response :body)))
-          (tide-join
-           (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))))))))
+        response))))
+
+(defun tide-completion-entry-details (name)
+  (-if-let (detail-response (get-text-property 0 'completion-detail name))
+      detail-response
+    (let ((detail-response (tide-command:completion-entry-details name)))
+      (put-text-property 0 1 'completion-detail detail-response name)
+      detail-response)))
+
+(defun tide-completion-meta (name)
+  (-when-let (response (tide-completion-entry-details name))
+    (-when-let (detail (car (plist-get response :body)))
+      (tide-format-detail-type detail))))
+
+(defun tide-doc-buffer (name)
+  (-when-let (response (tide-completion-entry-details name))
+    (-when-let (detail (car (plist-get response :body)))
+      (-when-let (documentation (plist-get detail :documentation))
+       (company-doc-buffer
+        (mapconcat
+         #'identity
+         (list (tide-format-detail-type detail)
+               (tide-join (-map #'tide-annotate-display-part documentation)))
+         "\n\n"))))))
 
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
@@ -421,8 +446,9 @@
                       (lambda (cb)
                         (tide-command:completions arg cb))))
     (sorted t)
-    (meta (tide-command:completion-entry-details arg))
-    (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))))
+    (meta (tide-completion-meta arg))
+    (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))
+    (doc-buffer (tide-doc-buffer arg))))
 
 (eval-after-load 'company
   '(progn
