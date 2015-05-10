@@ -21,3 +21,9 @@
             (tide-setup)
             (turn-on-eldoc-mode)))
 ````
+
+### Notes
+
+* Make sure to add
+  [tsconfig.json](https://github.com/Microsoft/TypeScript/wiki/tsconfig.json)
+  in the project root folder.
