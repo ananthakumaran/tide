@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 0.1
 ;; Keywords: typescript
-;; Package-Requires: ((dash "2.10.0"))
+;; Package-Requires: ((dash "2.10.0") (flycheck "0.23") (emacs "24.1"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 (require 'cl)
 (require 'eldoc)
 (require 'dash)
+(require 'flycheck)
 
 (defgroup tide nil
   "TypeScript Interactive Development Environment."
@@ -61,6 +62,7 @@
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
 (tide-def-permanent-buffer-local tide-buffer-tmp-file nil)
+(tide-def-permanent-buffer-local tide-event-queue '())
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
@@ -104,7 +106,19 @@
         (incf offset))
       offset)))
 
-;;; server
+(defun tide-column (line offset)
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (forward-line (1- line))
+      (beginning-of-line)
+      (while (> offset 1)
+        (forward-char)
+        (decf offset))
+      (1+ (current-column)))))
+
+;;; Server
 
 (defun tide-current-server ()
   (gethash (tide-project-name) tide-servers))
@@ -112,13 +126,26 @@
 (defun tide-next-request-id ()
   (number-to-string (incf tide-request-counter)))
 
-(defun tide-dispatch (response source-buffer)
+(defun tide-dispatch-response (response)
   (let* ((request-id (plist-get response :request_seq))
          (callback (gethash request-id tide-response-callbacks)))
     (when callback
-      (with-current-buffer source-buffer
-        (apply callback (list response)))
+      (with-current-buffer (car callback)
+        (apply (cdr callback) (list response)))
       (remhash request-id tide-response-callbacks))))
+
+(defun tide-dispatch-event (response)
+  (let* ((file (tide-plist-get response :body :file))
+         (buffer (get-file-buffer file)))
+    (when buffer
+      (with-current-buffer buffer
+        (-when-let (cb (pop tide-event-queue))
+          (apply cb (list response)))))))
+
+(defun tide-dispatch (response)
+  (case (intern (plist-get response :type))
+    ('response (tide-dispatch-response response))
+    ('event (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
@@ -133,7 +160,7 @@
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
     (when callback
-      (puthash request-id callback tide-response-callbacks)
+      (puthash request-id (cons (current-buffer) callback) tide-response-callbacks)
       (accept-process-output nil 0.01))))
 
 (defun tide-send-command-sync (name args)
@@ -187,22 +214,20 @@
   (>= (- (position-bytes (point-max)) (position-bytes (point))) (+ length 1)))
 
 (defun tide-decode-response (process)
-  (let ((source-buffer (current-buffer)))
-    (with-current-buffer (process-buffer process)
-      (let ((length (tide-decode-response-legth))
-            (json-object-type 'plist)
-            (json-array-type 'list))
-        (when (and length (tide-enough-response-p length))
-          (tide-dispatch
-           (prog2
-               (progn
-                 (search-forward "{")
-                 (backward-char 1))
-               (json-read-object)
-             (delete-region (point-min) (point)))
-           source-buffer)
-          (when (>= (buffer-size) 16)
-            (tide-decode-response process)))))))
+  (with-current-buffer (process-buffer process)
+    (let ((length (tide-decode-response-legth))
+          (json-object-type 'plist)
+          (json-array-type 'list))
+      (when (and length (tide-enough-response-p length))
+        (tide-dispatch
+         (prog2
+             (progn
+               (search-forward "{")
+               (backward-char 1))
+             (json-read-object)
+           (delete-region (point-min) (point))))
+        (when (>= (buffer-size) 16)
+          (tide-decode-response process))))))
 
 ;;; Initialization
 
@@ -215,7 +240,7 @@
 (defun tide-command:closefile ()
   (tide-send-command "close" `(:file ,buffer-file-name)))
 
-;;; Jump to definitions
+;;; Jump to definition
 
 (defun tide-command:definition ()
   "Jump to definition at point."
@@ -366,6 +391,59 @@
                         (tide-command:completions arg cb))))
     (sorted t)
     (meta (tide-command:completion-entry-details arg))))
+
+;;; Error
+
+(defun tide-command:geterr ()
+  (tide-send-command "geterr"
+                     `(:delay 0 :files (,buffer-file-name))))
+
+(defun tide-parse-error (event checker)
+  (-map
+   (lambda (diagnostic)
+     (let* ((start (plist-get diagnostic :start))
+            (line (plist-get start :line))
+            (column (tide-column line (plist-get start :offset))))
+       (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
+                              :checker checker)))
+   (tide-plist-get event :body :diagnostics)))
+
+(defun tide-flycheck-send-response (callback checker events)
+  (condition-case err
+      (funcall callback 'finished (-mapcat (lambda (event) (tide-parse-error event checker)) events))
+    (error (funcall callback 'errored (error-message-string err)))))
+
+(defun tide-flycheck-start (checker callback)
+  (let* ((response-count 0)
+         (events '())
+         (error-collector (lambda (event)
+                            (push event events)
+                            (incf response-count)
+                            (when (eql response-count 2)
+                              (tide-flycheck-send-response callback checker events)))))
+    (setq tide-event-queue
+          (nconc tide-event-queue (list error-collector error-collector)))
+    (tide-command:geterr)))
+
+(defun tide-flycheck-verify (_checker)
+  (list
+   (flycheck-verification-result-new
+    :label "Typescript server"
+    :message (if (tide-current-server) "running" "not running")
+    :face (if (tide-current-server) 'success '(bold error)))
+   (flycheck-verification-result-new
+    :label "Tide mode"
+    :message (if tide-mode "enabled" "disabled")
+    :face (if tide-mode 'success '(bold warning)))))
+
+(flycheck-define-generic-checker 'typescript-tide
+  "A syntax checker for Typescript using Tide Mode."
+  :start #'tide-flycheck-start
+  :verify #'tide-flycheck-verify
+  :modes '(typescript-mode)
+  :predicate (lambda () (and tide-mode (tide-current-server))))
+
+(add-to-list 'flycheck-checkers 'typescript-tide)
 
 ;;; Mode
 
