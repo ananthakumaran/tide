@@ -6,12 +6,13 @@
 
 * Install dash, flycheck and company via M-x package-install
 * clone https://github.com/ananthakumaran/tide
-* clone and build https://github.com/Microsoft/TypeScript
+* clone and build https://github.com/Microsoft/TypeScript (tested on 3d0daef8eb08104920f9272b32d414b9266a5d78)
 
 
 ````cl
 (add-to-list 'load-path "path/to/tide/")
 (require 'tide)
+(add-to-list 'auto-mode-alist '("\\.ts$" . typescript-mode))
 (setq tide-tsserver-executable "path/to/typescript/bin/tsserver")
 (add-hook 'typescript-mode-hook
           (lambda ()
