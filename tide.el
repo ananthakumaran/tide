@@ -97,6 +97,15 @@
 (defun tide-join (list)
   (mapconcat 'identity list ""))
 
+(defun tide-each-buffer (project-name fn)
+  (-each (buffer-list)
+    (lambda (buffer)
+      (with-current-buffer buffer
+        (when (and (boundp tide-mode)
+                   tide-mode
+                   (equal (tide-project-name) project-name))
+          (funcall fn))))))
+
 (defun tide-current-offset ()
   (let ((p0 (point))
         (offset 1))
@@ -150,7 +159,7 @@
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
-    (error "Server does not exists"))
+    (error "Server does not exists. Run M-x tide-restart-server to start it again."))
 
   (when tide-buffer-dirty
     (tide-sync-buffer-contents))
@@ -182,10 +191,11 @@
   (tide-decode-response process))
 
 (defun tide-net-sentinel (process message)
-  (message "tss server exists: %s." message)
-  (with-current-buffer (process-buffer process)
-    (remhash (tide-project-name) tide-servers))
-  (kill-buffer (process-buffer process)))
+  (let ((project-name (process-get process 'project-name)))
+    (message "(%s) tss server exists: %s." project-name message)
+    (ignore-errors
+      (kill-buffer (process-buffer process)))
+    (tide-cleanup-project project-name)))
 
 (defun tide-start-server ()
   (when (tide-current-server)
@@ -199,8 +209,26 @@
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
+    (process-put process 'project-name (tide-project-name))
     (puthash (tide-project-name) process tide-servers)
     (message "tsserver server started successfully.")))
+
+(defun tide-cleanup-buffer-callbacks ()
+  (let ((error-response `(:success ,nil)))
+    (-each tide-event-queue (lambda (cb) (funcall cb error-response)))
+    (setq tide-event-queue '())
+    (maphash
+     (lambda (id callback)
+       (when (equal (current-buffer) (car callback))
+         (funcall (cdr callback) error-response)
+         (remhash id tide-response-callbacks)))
+     tide-response-callbacks)))
+
+(defun tide-cleanup-project (project-name)
+  (tide-each-buffer project-name
+                    (lambda ()
+                      (tide-cleanup-buffer-callbacks)))
+  (remhash project-name tide-servers))
 
 (defun tide-start-server-if-required ()
   (when (not (tide-current-server))
@@ -552,6 +580,15 @@
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
 
+;;; Utility commands
+
+(defun tide-restart-server ()
+  "Restarts tsserver."
+  (interactive)
+  (-when-let (server (tide-current-server))
+    (delete-process server))
+  (tide-start-server)
+  (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
 (provide 'tide)
 
