@@ -31,3 +31,8 @@
 * Make sure to add
   [tsconfig.json](https://github.com/Microsoft/TypeScript/wiki/tsconfig.json)
   in the project root folder.
+
+* tsserver mangles output
+  sometimes [issue - #2758](https://github.com/Microsoft/TypeScript/issues/2758),
+  which will result in json parse error. Try node version 0.12.x if
+  you get this error.
