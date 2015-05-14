@@ -302,6 +302,7 @@
       (forward-line (1- line)))
     (forward-char offset)))
 
+(defalias 'tide-jump-back 'pop-tag-mark)
 
 ;;; Eldoc
 
@@ -535,6 +536,7 @@
 (defvar tide-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'tide-command:definition)
+    (define-key map (kbd "M-,") #'tide-jump-back)
     (define-key map (kbd "C-c d") #'tide-documentation-at-point)
     map))
 
