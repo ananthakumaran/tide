@@ -467,20 +467,19 @@
       detail-response)))
 
 (defun tide-completion-meta (name)
-  (-when-let (response (tide-completion-entry-details name))
-    (-when-let (detail (car (plist-get response :body)))
-      (tide-format-detail-type detail))))
+  (-when-let* ((response (tide-completion-entry-details name))
+               (detail (car (plist-get response :body))))
+    (tide-format-detail-type detail)))
 
 (defun tide-completion-doc-buffer (name)
-  (-when-let (response (tide-completion-entry-details name))
-    (-when-let (detail (car (plist-get response :body)))
-      (-when-let (documentation (plist-get detail :documentation))
-       (tide-doc-buffer
-        (mapconcat
-         #'identity
-         (list (tide-format-detail-type detail)
-               (tide-join (-map #'tide-annotate-display-part documentation)))
-         "\n\n"))))))
+  (-when-let* ((response (tide-completion-entry-details name))
+               (detail (car (plist-get response :body)))
+               (documentation (plist-get detail :documentation)))
+    (tide-doc-buffer
+     (tide-join
+      (list (tide-format-detail-type detail)
+            "\n\n"
+            (tide-join (-map #'tide-annotate-display-part documentation)))))))
 
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
