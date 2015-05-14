@@ -128,6 +128,14 @@
         (decf offset))
       (1+ (current-column)))))
 
+(defun tide-doc-buffer (string)
+  (with-current-buffer (get-buffer-create "*tide-documentation*")
+    (erase-buffer)
+    (when string
+      (save-excursion
+        (insert string)))
+    (current-buffer)))
+
 ;;; Server
 
 (defun tide-current-server ()
@@ -331,14 +339,28 @@
 (defun tide-command:quickinfo ()
   (let ((response (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset)))))
     (when (tide-response-success-p response)
-      (tide-plist-get response :body :displayString))))
+      response)))
 
 (defun tide-eldoc-function ()
   (when (not (member last-command '(next-error previous-error)))
     (if (tide-method-call-p)
         (tide-command:signatureHelp)
       (when (looking-at "\\s_\\|\\sw")
-        (tide-command:quickinfo)))))
+        (-when-let (quick-info (tide-command:quickinfo))
+          (tide-plist-get quick-info :body :displayString))))))
+
+
+(defun tide-documentation-at-point ()
+  (interactive)
+  (let ((documentation
+         (-when-let* ((quick-info (tide-command:quickinfo))
+                      (display-string (tide-plist-get quick-info :body :displayString))
+                      (documentation (tide-plist-get quick-info :body :documentation)))
+           (when (not (equal documentation ""))
+             (tide-join (list display-string "\n\n" documentation))))))
+    (if documentation
+        (display-buffer (tide-doc-buffer documentation) t)
+      (message "No documentation available"))))
 
 ;;; Buffer Sync
 
@@ -449,11 +471,11 @@
     (-when-let (detail (car (plist-get response :body)))
       (tide-format-detail-type detail))))
 
-(defun tide-doc-buffer (name)
+(defun tide-completion-doc-buffer (name)
   (-when-let (response (tide-completion-entry-details name))
     (-when-let (detail (car (plist-get response :body)))
       (-when-let (documentation (plist-get detail :documentation))
-       (company-doc-buffer
+       (tide-doc-buffer
         (mapconcat
          #'identity
          (list (tide-format-detail-type detail)
@@ -476,7 +498,7 @@
     (sorted t)
     (meta (tide-completion-meta arg))
     (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))
-    (doc-buffer (tide-doc-buffer arg))))
+    (doc-buffer (tide-completion-doc-buffer arg))))
 
 (eval-after-load 'company
   '(progn
@@ -487,6 +509,7 @@
 (defvar tide-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'tide-command:definition)
+    (define-key map (kbd "C-c d") #'tide-documentation-at-point)
     map))
 
 (defun tide-configure-buffer ()
