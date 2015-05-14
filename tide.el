@@ -306,7 +306,34 @@
 ;;; Eldoc
 
 (defun tide-annotate-display-part (display-part)
-  (plist-get display-part :text))
+  (let ((text (plist-get display-part :text))
+        (face (pcase (plist-get display-part :kind)
+                ("aliasName" 'font-lock-type-face)
+                ("className" 'font-lock-type-face)
+                ("enumName" 'font-lock-type-face)
+                ("fieldName" nil)
+                ("interfaceName" 'font-lock-type-face)
+                ("keyword" 'font-lock-keyword-face)
+                ("lineBreak" nil)
+                ("numericLiteral" nil)
+                ("stringLiteral" 'font-lock-string-face)
+                ("localName" 'font-lock-variable-name-face)
+                ("methodName" nil)
+                ("moduleName" nil)
+                ("operator" nil)
+                ("parameterName" nil)
+                ("propertyName" nil)
+                ("punctuation" nil)
+                ("space" nil)
+                ("text" nil)
+                ("typeParameterName" 'font-lock-variable-name-face)
+                ("enumMemberName" 'font-lock-constant-face)
+                ("functionName" 'font-lock-function-name-face)
+                ("regularExpressionLiteral" 'font-lock-string-face))))
+    (if face
+        (propertize text 'face face)
+      text)))
+
 
 (defun tide-annotate-signature-parameter (parameter)
   (tide-join (-map #'tide-annotate-display-part (plist-get parameter :displayParts))))
@@ -450,7 +477,7 @@
 
 (defun tide-format-detail-type (detail)
   (tide-join
-   (-map (lambda (part) (plist-get part :text)) (plist-get detail :displayParts))))
+   (-map (lambda (part) (tide-annotate-display-part part)) (plist-get detail :displayParts))))
 
 (defun tide-command:completion-entry-details (name)
   (let ((arguments (-concat (get-text-property 0 'file-location name)
