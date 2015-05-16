@@ -329,7 +329,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 ;;; Eldoc
 
-(defun tide-annotate-display-part (display-part)
+(defun tide-annotate-display-part (display-part &optional highlight)
   (let ((text (plist-get display-part :text))
         (face (pcase (plist-get display-part :kind)
                 ("aliasName" 'font-lock-type-face)
@@ -345,7 +345,7 @@ LINE is one based, OFFSET is one based and column is zero based"
                 ("methodName" nil)
                 ("moduleName" nil)
                 ("operator" nil)
-                ("parameterName" nil)
+                ("parameterName" (and highlight 'eldoc-highlight-function-argument))
                 ("propertyName" nil)
                 ("punctuation" nil)
                 ("space" nil)
@@ -359,22 +359,33 @@ LINE is one based, OFFSET is one based and column is zero based"
       text)))
 
 
-(defun tide-annotate-signature-parameter (parameter)
-  (tide-join (-map #'tide-annotate-display-part (plist-get parameter :displayParts))))
+(defun tide-annotate-signature-parameter (parameter highlight)
+  (tide-join
+   (-map
+    (lambda (part) (tide-annotate-display-part part highlight))
+    (plist-get parameter :displayParts))))
 
-(defun tide-annotate-signature (signature)
+(defun tide-annotate-signature (signature selected-arg-index)
   (let ((separator (tide-join (-map #'tide-annotate-display-part (plist-get signature :separatorDisplayParts)))))
     (tide-join
      (-concat
       (-map #'tide-annotate-display-part (plist-get signature :prefixDisplayParts))
       (list
-       (-if-let (params (plist-get signature :parameters))
-           (mapconcat #'tide-annotate-signature-parameter params separator)
-         ""))
+       (mapconcat
+        #'identity
+        (-map-indexed
+         (lambda (i parameter)
+           (tide-annotate-signature-parameter parameter (eq i selected-arg-index)))
+         (plist-get signature :parameters))
+        separator))
       (-map #'tide-annotate-display-part (plist-get signature :suffixDisplayParts))))))
 
 (defun tide-annotate-signatures (body)
-  (mapconcat #'identity (-map #'tide-annotate-signature (plist-get body :items)) "\n"))
+  (let ((selected-index (plist-get body :selectedItemIndex))
+        (selected-arg-index (plist-get body :argumentIndex)))
+    (tide-annotate-signature
+     (nth selected-index (plist-get body :items))
+     selected-arg-index)))
 
 (defun tide-command:signatureHelp ()
   (let* ((response
@@ -610,7 +621,7 @@ LINE is one based, OFFSET is one based and column is zero based"
     (put-text-property start end 'tide-reference reference line-text)))
 
 (defun tide-insert-references (references)
-  "Creates a buffer with the give REFERENCES.
+  "Create a buffer with the give REFERENCES.
 
 Assumes references are grouped by file name and sorted by line
 number."
