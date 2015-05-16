@@ -51,6 +51,21 @@
   :type 'integer
   :group 'tide)
 
+(defface tide-file
+  '((t (:inherit dired-header)))
+  "Face for file names in references output."
+  :group 'tide)
+
+(defface tide-line-number
+  '((t (:inherit compilation-line-number)))
+  "Face for line numbers in references output."
+  :group 'tide)
+
+(defface tide-match
+  '((t (:inherit match)))
+  "Face for matched symbol in references output."
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   `(progn
      (defvar ,name ,init-value)
@@ -288,14 +303,17 @@
    (lambda (response)
      (when (tide-response-success-p response)
        (let* ((filespan (car (plist-get response :body))))
-         (tide-jump-to-filespan filespan))))))
+         (tide-jump-to-filespan filespan t))))))
 
-(defun tide-jump-to-filespan (filespan)
+(defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
   (let* ((file (plist-get filespan :file))
          (line (tide-plist-get filespan :start :line))
          (offset (- (tide-plist-get filespan :start :offset) 1)))
-    (ring-insert find-tag-marker-ring (point-marker))
-    (pop-to-buffer (find-file-noselect file) '((display-buffer-reuse-window display-buffer-same-window)))
+    (unless no-marker
+      (ring-insert find-tag-marker-ring (point-marker)))
+    (if reuse-window
+        (pop-to-buffer (find-file-noselect file) '((display-buffer-reuse-window display-buffer-same-window)))
+      (pop-to-buffer (find-file-noselect file)))
     (save-restriction
       (widen)
       (goto-char (point-min))
@@ -530,6 +548,110 @@
 (eval-after-load 'company
   '(progn
      (pushnew 'company-tide company-backends)))
+
+;;; References
+
+(defun tide-find-next-reference (pos arg)
+  (interactive "d\np")
+  (setq arg (* 2 arg))
+  (unless (get-text-property pos 'tide-reference)
+    (setq arg (1- arg)))
+  (dotimes (_i arg)
+    (setq pos (next-single-property-change pos 'tide-reference))
+    (unless pos
+      (error "Moved past last reference")))
+  (goto-char pos))
+
+(defun tide-find-previous-reference (pos arg)
+  (interactive "d\np")
+  (dotimes (_i (* 2 arg))
+    (setq pos (previous-single-property-change pos 'tide-reference))
+    (unless pos
+      (error "Moved back before first reference")))
+  (goto-char pos))
+
+(defun tide-goto-reference ()
+  (interactive)
+  (-when-let (reference (get-text-property (point) 'tide-reference))
+    (tide-jump-to-filespan reference nil t)))
+
+(defvar tide-references-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "n") #'tide-find-next-reference)
+    (define-key map (kbd "p") #'tide-find-previous-reference)
+    (define-key map (kbd "C-m") #'tide-goto-reference)
+    map))
+
+(define-derived-mode tide-references-mode nil "tide-references"
+  "Major mode for tide references list.
+
+\\{tide-references-mode-map}"
+  (use-local-map tide-references-mode-map)
+  (setq buffer-read-only t))
+
+(defun tide-command:references ()
+  (tide-send-command-sync
+   "references"
+   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))))
+
+(defun tide-annotate-line (reference line-text)
+  (let ((start (1- (tide-plist-get reference :start :offset)))
+        (end (1- (tide-plist-get reference :end :offset))))
+    (put-text-property start end 'face 'tide-match line-text)
+    (put-text-property start end 'tide-reference reference line-text)))
+
+(defun tide-insert-references (references)
+  "Creates a buffer with the give REFERENCES.
+
+Assumes references are grouped by file name and sorted by line
+number."
+  (let ((buffer (get-buffer-create "*tide-references*"))
+        (inhibit-read-only t)
+        (width tab-width)
+        (project-root (tide-project-root))
+        (last-file-name nil))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (tide-references-mode)
+      (setq tab-width width)
+      (while references
+        (let* ((reference (car references))
+               (full-file-name (plist-get reference :file))
+               (file-name (file-relative-name full-file-name project-root))
+               (line-number (tide-plist-get reference :start :line))
+               (line-text (plist-get reference :lineText)))
+
+          ;; file
+          (when (not (equal last-file-name file-name))
+            (setq last-file-name file-name)
+            (insert (propertize file-name 'face 'tide-file))
+            (insert "\n"))
+
+          ;; line number
+          (insert (propertize (format "%5d" line-number) 'face 'tide-line-number))
+          (insert ":")
+
+          ;; line text
+          (tide-annotate-line reference line-text)
+          (while (-when-let* ((next (cadr references))
+                              (full-file-name0 (plist-get next :file))
+                              (line-number0 (tide-plist-get next :start :line)))
+                   (and (equal full-file-name0 full-file-name) (eq line-number0 line-number)))
+            (tide-annotate-line (cadr references) line-text)
+            (pop references))
+          (insert line-text)
+
+          (insert "\n"))
+        (pop references))
+      (goto-char (point-min))
+      (current-buffer))))
+
+(defun tide-show-references ()
+  (interactive)
+  (let ((response (tide-command:references)))
+    (if (tide-response-success-p response)
+        (display-buffer (tide-insert-references (tide-plist-get response :body :refs)))
+      (message (plist-get response :message)))))
 
 ;;; Mode
 
