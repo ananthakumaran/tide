@@ -67,6 +67,7 @@
   :group 'tide)
 
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
+  "Declare NAME as buffer local variable."
   `(progn
      (defvar ,name ,init-value)
      (make-variable-buffer-local ',name)
@@ -84,11 +85,12 @@
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
 
 (defun tide-project-root ()
+  "Project root folder determined based on the presence of tsconfig.json."
   (or
    tide-project-root
    (let ((root (locate-dominating-file default-directory "tsconfig.json")))
      (unless root
-       (error "Couldn't locate project root folder. Please make sure to add tsconfig.json in project root folder."))
+       (error "Couldn't locate project root folder.  Please make sure to add tsconfig.json in project root folder"))
      (let ((full-path (expand-file-name root)))
        (setq tide-project-root full-path)
        full-path))))
@@ -113,6 +115,7 @@
   (mapconcat 'identity list ""))
 
 (defun tide-each-buffer (project-name fn)
+  "Callback FN for each buffer within PROJECT-NAME with tide-mode enabled."
   (-each (buffer-list)
     (lambda (buffer)
       (with-current-buffer buffer
@@ -122,6 +125,9 @@
           (funcall fn))))))
 
 (defun tide-current-offset ()
+  "Number of characters present from the begining of line to cursor in current line.
+
+offset is one based."
   (let ((p0 (point))
         (offset 1))
     (save-excursion
@@ -132,6 +138,9 @@
       offset)))
 
 (defun tide-column (line offset)
+  "Return column number corresponds to the LINE and OFFSET.
+
+LINE is one based, OFFSET is one based and column is zero based"
   (save-excursion
     (save-restriction
       (widen)
@@ -182,7 +191,7 @@
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
-    (error "Server does not exists. Run M-x tide-restart-server to start it again."))
+    (error "Server does not exists.  Run M-x tide-restart-server to start it again"))
 
   (when tide-buffer-dirty
     (tide-sync-buffer-contents))
@@ -204,7 +213,7 @@
       (accept-process-output nil 0.01)
       (when (> (cadr (time-subtract (current-time) start-time))
                tide-sync-request-timeout)
-        (error "sync request timed out %s" name)))
+        (error "Sync request timed out %s" name)))
     response))
 
 (defun tide-net-filter (process data)
@@ -295,7 +304,7 @@
 ;;; Jump to definition
 
 (defun tide-command:definition ()
-  "Jump to definition at point."
+  "Jump to the definition of the symbol at point."
   (interactive)
   (tide-send-command
    "definition"
@@ -397,6 +406,7 @@
 
 
 (defun tide-documentation-at-point ()
+  "Show documentation of the symbol at point."
   (interactive)
   (let ((documentation
          (-when-let* ((quick-info (tide-command:quickinfo))
@@ -552,6 +562,7 @@
 ;;; References
 
 (defun tide-find-next-reference (pos arg)
+  "Move to next reference."
   (interactive "d\np")
   (setq arg (* 2 arg))
   (unless (get-text-property pos 'tide-reference)
@@ -563,6 +574,7 @@
   (goto-char pos))
 
 (defun tide-find-previous-reference (pos arg)
+  "Move back to previous reference."
   (interactive "d\np")
   (dotimes (_i (* 2 arg))
     (setq pos (previous-single-property-change pos 'tide-reference))
@@ -571,6 +583,7 @@
   (goto-char pos))
 
 (defun tide-goto-reference ()
+  "Jump to reference location in the file."
   (interactive)
   (-when-let (reference (get-text-property (point) 'tide-reference))
     (tide-jump-to-filespan reference nil t)))
@@ -647,6 +660,7 @@ number."
       (current-buffer))))
 
 (defun tide-show-references ()
+  "List all references to the symbol at point."
   (interactive)
   (let ((response (tide-command:references)))
     (if (tide-response-success-p response)
@@ -671,6 +685,7 @@ number."
   (tide-remove-tmp-file))
 
 (defun tide-setup ()
+  "Setup `tide-mode' in current buffer."
   (interactive)
   (tide-start-server-if-required)
   (tide-mode 1)
