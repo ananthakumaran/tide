@@ -659,7 +659,7 @@ number."
       (goto-char (point-min))
       (current-buffer))))
 
-(defun tide-show-references ()
+(defun tide-find-references ()
   "List all references to the symbol at point."
   (interactive)
   (let ((response (tide-command:references)))
