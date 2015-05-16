@@ -272,7 +272,10 @@ LINE is one based, OFFSET is one based and column is zero based"
     (string-to-number (match-string 1))))
 
 (defun tide-enough-response-p (length)
-  (>= (- (position-bytes (point-max)) (position-bytes (point))) (+ length 1)))
+  (save-excursion
+    (when (search-forward "{" nil t)
+      (backward-char 1)
+      (>= (- (position-bytes (point-max)) (position-bytes (point))) (1- length)))))
 
 (defun tide-decode-response (process)
   (with-current-buffer (process-buffer process)
