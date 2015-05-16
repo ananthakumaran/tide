@@ -128,14 +128,7 @@
   "Number of characters present from the begining of line to cursor in current line.
 
 offset is one based."
-  (let ((p0 (point))
-        (offset 1))
-    (save-excursion
-      (beginning-of-line)
-      (while (< (point) p0)
-        (forward-char)
-        (incf offset))
-      offset)))
+  (1+ (- (point) (line-beginning-position))))
 
 (defun tide-column (line offset)
   "Return column number corresponds to the LINE and OFFSET.
