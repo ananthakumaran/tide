@@ -79,6 +79,7 @@
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
 
 (defvar tide-source-root-directory (file-name-directory load-file-name))
+(defvar tide-tsserver-directory (expand-file-name "tsserver" tide-source-root-directory))
 
 (defun tide-project-root ()
   "Project root folder determined based on the presence of tsconfig.json."
@@ -226,7 +227,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append '("TSS_LOG=-level verbose") process-environment))
          (buf (get-buffer-create tide-server-buffer-name))
-         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" (expand-file-name "tsserver" tide-source-root-directory)))))
+         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
@@ -767,7 +768,7 @@ number."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
   :modes '(typescript-mode)
-  :predicate (lambda () (and tide-mode (tide-current-server))))
+  :predicate (lambda () (and tide-mode (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory)))))
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
 
