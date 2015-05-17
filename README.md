@@ -1,4 +1,6 @@
-## Tide
+# Tide
+
+*TypeScript Interactive Development Environment for Emacs*
 
 [screencast](http://i.imgur.com/jEwgPsd.gif)
 
