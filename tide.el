@@ -40,12 +40,6 @@
   :prefix "tide-"
   :group 'tools)
 
-(defcustom tide-tsserver-executable
-  "tsserver"
-  "Typescript server executable path."
-  :type 'string
-  :group 'tide)
-
 (defcustom tide-sync-request-timeout 2
   "The number of seconds to wait for a sync response."
   :type 'integer
@@ -83,6 +77,8 @@
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
+
+(defvar tide-source-root-directory (file-name-directory load-file-name))
 
 (defun tide-project-root ()
   "Project root folder determined based on the presence of tsconfig.json."
@@ -230,7 +226,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append '("TSS_LOG=-level verbose") process-environment))
          (buf (get-buffer-create tide-server-buffer-name))
-         (process (start-file-process "tsserver" buf tide-tsserver-executable)))
+         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" (expand-file-name "tsserver" tide-source-root-directory)))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
