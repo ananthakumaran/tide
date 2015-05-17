@@ -1,6 +1,6 @@
 ## Tide
 
-![](https://i.imgur.com/5hPRts8.gif)
+[screencast](http://i.imgur.com/jEwgPsd.gif)
 
 ### Installation
 
