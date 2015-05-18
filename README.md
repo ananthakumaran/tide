@@ -44,7 +44,7 @@
 Keyboard shortcuts                  | Description
 ------------------------------------|----------
 <kbd>C-c d</kbd>                    | Show documentation for the symbol at point.
-<kbd>M-.</kbd>                      | Jump to the definition of the symbol at point.
+<kbd>M-.</kbd>                      | Jump to the definition of the symbol at point. With a prefix arg, Jump to the type definition.
 <kbd>M-,</kbd>                      | Return to your pre-jump position.
 
 <kbd>M-x tide-restart-server</kbd>:  Restart tsserver. Currently

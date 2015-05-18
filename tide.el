@@ -296,16 +296,30 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 ;;; Jump to definition
 
-(defun tide-command:definition ()
-  "Jump to the definition of the symbol at point."
-  (interactive)
+(defun tide-command:definition (cb)
   (tide-send-command
    "definition"
    `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))
-   (lambda (response)
-     (when (tide-response-success-p response)
-       (let* ((filespan (car (plist-get response :body))))
-         (tide-jump-to-filespan filespan t))))))
+   cb))
+
+(defun tide-command:type-definition (cb)
+  (tide-send-command
+   "typeDefinition"
+   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))
+   cb))
+
+(defun tide-jump-to-definition (&optional arg)
+  "Jump to the definition of the symbol at point.
+
+With a prefix arg, Jump to the type definition."
+  (interactive "P")
+  (let ((cb (lambda (response)
+              (when (tide-response-success-p response)
+                (let ((filespan (car (plist-get response :body))))
+                  (tide-jump-to-filespan filespan t))))))
+    (if arg
+        (tide-command:type-definition cb)
+      (tide-command:definition cb))))
 
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
   (let* ((file (plist-get filespan :file))
@@ -675,7 +689,7 @@ number."
 
 (defvar tide-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "M-.") #'tide-command:definition)
+    (define-key map (kbd "M-.") #'tide-jump-to-definition)
     (define-key map (kbd "M-,") #'tide-jump-back)
     (define-key map (kbd "C-c d") #'tide-documentation-at-point)
     map))
