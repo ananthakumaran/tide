@@ -46,6 +46,11 @@
   :type 'integer
   :group 'tide)
 
+(defcustom tide-tsserver-process-environment '()
+  "List of extra environment variables to use when starting tsserver."
+  :type '(repeat string)
+  :group 'tide)
+
 (defface tide-file
   '((t (:inherit dired-header)))
   "Face for file names in references output."
@@ -239,7 +244,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
   (message "Starting tsserver...")
   (let* ((default-directory (tide-project-root))
-         (process-environment (append '("TSS_LOG=-level verbose") process-environment))
+         (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (get-buffer-create tide-server-buffer-name))
          (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
