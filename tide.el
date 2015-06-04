@@ -34,6 +34,7 @@
 (require 'dash)
 (require 'flycheck)
 (require 'typescript)
+(require 'imenu)
 
 (defgroup tide nil
   "TypeScript Interactive Development Environment."
@@ -144,6 +145,16 @@ LINE is one based, OFFSET is one based and column is zero based"
         (forward-char)
         (decf offset))
       (1+ (current-column)))))
+
+(defun tide-span-to-position (span)
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (forward-line (1- (plist-get span :line)))
+      (beginning-of-line)
+      (forward-char (1- (plist-get span :offset)))
+      (point))))
 
 (defun tide-doc-buffer (string)
   (with-current-buffer (get-buffer-create "*tide-documentation*")
@@ -693,6 +704,26 @@ number."
         (display-buffer (tide-insert-references (tide-plist-get response :body :refs)))
       (message (plist-get response :message)))))
 
+
+;;; Imenu
+
+(defun tide-flatten-navitem (items)
+  (if items
+      (nconc items (apply #'nconc (-map (lambda (item) (tide-flatten-navitem (plist-get item :childItems))) items)))
+    '()))
+
+(defun tide-command:navbar ()
+  (tide-send-command-sync "navbar" `(:file ,buffer-file-name)))
+
+(defun tide-imenu-index ()
+  (let ((response (tide-command:navbar)))
+    (when (tide-response-success-p response)
+      (-map
+       (lambda (item)
+         (cons (concat (plist-get item :text) " " (plist-get item :kind))
+               (tide-span-to-position (plist-get (car (plist-get item :spans)) :start))))
+       (tide-flatten-navitem (plist-get response :body))))))
+
 ;;; Mode
 
 (defvar tide-mode-map
@@ -716,7 +747,10 @@ number."
   (tide-start-server-if-required)
   (tide-mode 1)
   (set (make-local-variable 'eldoc-documentation-function)
-       'tide-eldoc-function))
+       'tide-eldoc-function)
+  (set (make-local-variable 'imenu-auto-rescan) t)
+  (set (make-local-variable 'imenu-create-index-function)
+       'tide-imenu-index))
 
 ;;;###autoload
 (define-minor-mode tide-mode
