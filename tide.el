@@ -66,6 +66,11 @@
   "Face for matched symbol in references output."
   :group 'tide)
 
+(defface tide-imenu-type-face
+  '((t (:inherit font-lock-type-face)))
+  "Face for type in imenu list."
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -725,7 +730,7 @@ number."
     (when (tide-response-success-p response)
       (-map
        (lambda (item)
-         (cons (concat (plist-get item :text) " " (plist-get item :kind))
+         (cons (concat (plist-get item :text) " " (propertize (plist-get item :kind) 'face 'tide-imenu-type-face))
                (tide-span-to-position (plist-get (car (plist-get item :spans)) :start))))
        (tide-flatten-navitem (plist-get response :body))))))
 
