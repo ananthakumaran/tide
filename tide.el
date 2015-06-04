@@ -73,13 +73,16 @@
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
 (tide-def-permanent-buffer-local tide-buffer-tmp-file nil)
-(tide-def-permanent-buffer-local tide-event-queue '())
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
 
 (defvar tide-source-root-directory (file-name-directory load-file-name))
 (defvar tide-tsserver-directory (expand-file-name "tsserver" tide-source-root-directory))
+
+(defvar tide-event-queue '())
+(defvar tide-err-response-pending nil)
+(defvar tide-err-request-queue '())
 
 (defun tide-project-root ()
   "Project root folder determined based on the presence of tsconfig.json."
@@ -237,6 +240,11 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-cleanup-buffer-callbacks ()
   (let ((error-response `(:success ,nil)))
+    (-each tide-err-request-queue
+      (lambda (req)
+        (with-current-buffer (cdr req)
+          (funcall (car req) '()))))
+    (setq tide-err-request-queue nil)
     (-each tide-event-queue (lambda (cb) (funcall cb error-response)))
     (setq tide-event-queue '())
     (maphash
@@ -734,6 +742,30 @@ number."
 
 ;;; Error highlighting
 
+(defun tide-send-error-request ()
+  (when (not tide-err-response-pending)
+    (-when-let (top (pop tide-err-request-queue))
+      (setq tide-err-response-pending t)
+      (let* ((events '())
+             (response-count 0)
+             (cb (car top))
+             (buffer (cdr top))
+             (error-collector (lambda (event)
+                                (push event events)
+                                (incf response-count)
+                                (when (eql response-count 2)
+                                  (funcall cb events)
+                                  (setq tide-err-response-pending nil)
+                                  (tide-send-error-request)))))
+        (setq tide-event-queue
+              (nconc tide-event-queue (list error-collector error-collector)))
+        (with-current-buffer buffer
+          (tide-command:geterr))))))
+
+(defun tide-get-err (cb)
+  (push (cons cb (current-buffer)) tide-err-request-queue)
+  (tide-send-error-request))
+
 (defun tide-command:geterr ()
   (tide-send-command "geterr"
                      `(:delay 0 :files (,buffer-file-name))))
@@ -754,17 +786,9 @@ number."
     (error (funcall callback 'errored (error-message-string err)))))
 
 (defun tide-flycheck-start (checker callback)
-  (let* ((response-count 0)
-         (events '())
-         (error-collector (lambda (event)
-                            (push event events)
-                            (incf response-count)
-                            (when (eql response-count 2)
-                              (tide-flycheck-send-response callback checker events)))))
-    (setq tide-event-queue
-          (nconc tide-event-queue (list error-collector error-collector)))
-    (tide-command:geterr)))
-
+  (tide-get-err
+   (lambda (events)
+     (tide-flycheck-send-response callback checker events))))
 
 (defun tide-flycheck-verify (_checker)
   (list
