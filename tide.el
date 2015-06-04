@@ -238,7 +238,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-net-sentinel (process message)
   (let ((project-name (process-get process 'project-name)))
-    (message "(%s) tss server exists: %s." project-name message)
+    (message "(%s) tsserver exists: %s." project-name (string-trim message))
     (ignore-errors
       (kill-buffer (process-buffer process)))
     (tide-cleanup-project project-name)))
@@ -247,27 +247,20 @@ LINE is one based, OFFSET is one based and column is zero based"
   (when (tide-current-server)
     (error "Server already exists"))
 
-  (message "Starting tsserver...")
+  (message "(%s) Starting tsserver..." (tide-project-name))
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
-         (buf (get-buffer-create tide-server-buffer-name))
+         (buf (generate-new-buffer tide-server-buffer-name))
          (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
     (process-put process 'project-name (tide-project-name))
     (puthash (tide-project-name) process tide-servers)
-    (message "tsserver server started successfully.")))
+    (message "(%s) tsserver server started successfully." (tide-project-name))))
 
 (defun tide-cleanup-buffer-callbacks ()
   (let ((error-response `(:success ,nil)))
-    (-each tide-err-request-queue
-      (lambda (req)
-        (with-current-buffer (cdr req)
-          (funcall (car req) '()))))
-    (setq tide-err-request-queue nil)
-    (-each tide-event-queue (lambda (cb) (funcall cb error-response)))
-    (setq tide-event-queue '())
     (maphash
      (lambda (id callback)
        (when (equal (current-buffer) (car callback))
@@ -276,6 +269,13 @@ LINE is one based, OFFSET is one based and column is zero based"
      tide-response-callbacks)))
 
 (defun tide-cleanup-project (project-name)
+  (-each tide-err-request-queue
+    (lambda (req)
+      (with-current-buffer (cdr req)
+        (funcall (car req) '()))))
+  (setq tide-err-request-queue nil)
+  (-each tide-event-queue (lambda (cb) (funcall cb `(:success ,nil))))
+  (setq tide-event-queue '())
   (tide-each-buffer project-name
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
