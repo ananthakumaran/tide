@@ -350,20 +350,23 @@ With a prefix arg, Jump to the type definition."
         (tide-command:type-definition cb)
       (tide-command:definition cb))))
 
+(defun tide-move-to-span (span)
+  (let* ((line (plist-get span :line))
+         (offset (plist-get span :offset)))
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (forward-line (1- line)))
+    (forward-char (1- offset))))
+
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
-  (let* ((file (plist-get filespan :file))
-         (line (tide-plist-get filespan :start :line))
-         (offset (- (tide-plist-get filespan :start :offset) 1)))
+  (let ((file (plist-get filespan :file)))
     (unless no-marker
       (ring-insert find-tag-marker-ring (point-marker)))
     (if reuse-window
         (pop-to-buffer (find-file-noselect file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (find-file-noselect file)))
-    (save-restriction
-      (widen)
-      (goto-char (point-min))
-      (forward-line (1- line)))
-    (forward-char offset)))
+    (tide-move-to-span (plist-get filespan :start))))
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
@@ -734,6 +737,61 @@ number."
                (tide-span-to-position (plist-get (car (plist-get item :spans)) :start))))
        (tide-flatten-navitem (plist-get response :body))))))
 
+
+;;; Rename
+
+(defun tide-command:rename ()
+  (tide-send-command-sync "rename" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))))
+
+(defun tide-rename-symbol-at-location (location new-symbol)
+  (let ((file (plist-get location :file)))
+    (save-excursion
+      (with-current-buffer (find-file-noselect file)
+        (-each
+            (-map (lambda (filespan)
+                    (tide-move-to-span (plist-get filespan :start))
+                    (cons (point-marker) filespan))
+                  (plist-get location :locs))
+          (lambda (pointer)
+            (let* ((marker (car pointer))
+                   (filespan (cdr pointer)))
+              (goto-char marker)
+              (delete-char (- (tide-plist-get filespan :end :offset) (tide-plist-get filespan :start :offset)))
+              (insert new-symbol))))
+        (basic-save-buffer)
+        (length (plist-get location :locs))))))
+
+(defun tide-read-new-symbol (old-symbol)
+  (let ((new-symbol (read-from-minibuffer (format "Rename %s to " old-symbol))))
+    (if (string-blank-p new-symbol)
+        (error "Invalid name")
+      new-symbol)))
+
+(defun tide-rename-symbol ()
+  (interactive)
+  (let ((response (tide-command:rename)))
+    (when (tide-response-success-p response)
+      (if (eq (tide-plist-get response :body :info :canRename) :json-false)
+          (message "%s" (tide-plist-get response :body :info :localizedErrorMessage))
+        (let* ((old-symbol (tide-plist-get response :body :info :fullDisplayName))
+               (new-symbol (tide-read-new-symbol old-symbol))
+               (locs (tide-plist-get response :body :locs))
+               (count 0))
+          (cl-flet ((current-file-p (loc)
+                                    (file-equal-p (expand-file-name buffer-file-name)
+                                                  (plist-get loc :file))))
+
+            ;; Saving current file will trigger a compilation
+            ;; check. So make sure all the other files are saved
+            ;; before saving current file.
+
+            (-each (nconc (-reject #'current-file-p locs)
+                          (-select #'current-file-p locs))
+              (lambda (loc)
+                (incf count (tide-rename-symbol-at-location loc new-symbol))))
+
+            (message "Renamed %d occurences." count)))))))
+
 ;;; Mode
 
 (defvar tide-mode-map
@@ -771,13 +829,13 @@ number."
   :keymap tide-mode-map
   (if tide-mode
       (progn
-        (add-hook 'after-save-hook 'tide-command:reloadfile nil t)
+        (add-hook 'after-save-hook 'tide-sync-buffer-contents nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
-    (remove-hook 'after-save-hook 'tide-command:reloadfile)
+    (remove-hook 'after-save-hook 'tide-sync-buffer-contents)
     (remove-hook 'after-change-functions 'tide-handle-change)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
