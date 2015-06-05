@@ -55,3 +55,12 @@ handy after you edit tsconfig.json.
 at point in a buffer. References can be navigated using <kbd>n</kbd>
 and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 
+
+### Features
+
+* Eldoc
+* Autocomplete
+* Flycheck
+* Jump to definition, Jump to type definition
+* Find occurence
+* Imenu
