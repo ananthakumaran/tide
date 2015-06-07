@@ -2065,6 +2065,9 @@ Key bindings:
   '(when (fboundp 'folding-add-to-marks-list)
      (folding-add-to-marks-list 'typescript-mode "// {{{" "// }}}" )))
 
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.ts$" . typescript-mode))
+
 (provide 'typescript)
 
 ;;; typescript.el ends here
