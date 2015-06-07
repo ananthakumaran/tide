@@ -809,6 +809,7 @@ number."
   (tide-command:closefile)
   (tide-remove-tmp-file))
 
+;;;###autoload
 (defun tide-setup ()
   "Setup `tide-mode' in current buffer."
   (interactive)
