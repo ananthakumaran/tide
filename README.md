@@ -14,7 +14,6 @@
 ````cl
 (add-to-list 'load-path "path/to/tide/")
 (require 'tide)
-(add-to-list 'auto-mode-alist '("\\.ts$" . typescript-mode))
 (add-hook 'typescript-mode-hook
           (lambda ()
             (flycheck-mode t)

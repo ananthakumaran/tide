@@ -768,6 +768,7 @@ number."
       new-symbol)))
 
 (defun tide-rename-symbol ()
+  "Rename symbol at point."
   (interactive)
   (let ((response (tide-command:rename)))
     (when (tide-response-success-p response)
@@ -822,7 +823,7 @@ number."
        'tide-imenu-index)
 
   ;; Call configure command right away if called interactively, all
-  ;; the local variables should be set by this time
+  ;; the local variables should be set by this time.
   (when (called-interactively-p 'interactive)
     (tide-configure-buffer)))
 
