@@ -819,7 +819,12 @@ number."
        'tide-eldoc-function)
   (set (make-local-variable 'imenu-auto-rescan) t)
   (set (make-local-variable 'imenu-create-index-function)
-       'tide-imenu-index))
+       'tide-imenu-index)
+
+  ;; Call configure command right away if called interactively, all
+  ;; the local variables should be set by this time
+  (when (called-interactively-p 'interactive)
+    (tide-configure-buffer)))
 
 ;;;###autoload
 (define-minor-mode tide-mode
