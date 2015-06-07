@@ -33,7 +33,6 @@
 (require 'eldoc)
 (require 'dash)
 (require 'flycheck)
-(require 'typescript)
 (require 'imenu)
 
 (defgroup tide nil
