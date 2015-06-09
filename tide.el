@@ -90,10 +90,6 @@
 (defvar tide-source-root-directory (file-name-directory load-file-name))
 (defvar tide-tsserver-directory (expand-file-name "tsserver" tide-source-root-directory))
 
-(defvar tide-event-queue '())
-(defvar tide-err-response-pending nil)
-(defvar tide-err-request-queue '())
-
 (defun tide-project-root ()
   "Project root folder determined based on the presence of tsconfig.json."
   (or
@@ -189,18 +185,9 @@ LINE is one based, OFFSET is one based and column is zero based"
         (apply (cdr callback) (list response)))
       (remhash request-id tide-response-callbacks))))
 
-(defun tide-dispatch-event (response)
-  (let* ((file (tide-plist-get response :body :file))
-         (buffer (get-file-buffer file)))
-    (when buffer
-      (with-current-buffer buffer
-        (-when-let (cb (pop tide-event-queue))
-          (apply cb (list response)))))))
-
 (defun tide-dispatch (response)
   (case (intern (plist-get response :type))
-    ('response (tide-dispatch-response response))
-    ('event (tide-dispatch-event response))))
+    ('response (tide-dispatch-response response))))
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
@@ -268,13 +255,6 @@ LINE is one based, OFFSET is one based and column is zero based"
      tide-response-callbacks)))
 
 (defun tide-cleanup-project (project-name)
-  (-each tide-err-request-queue
-    (lambda (req)
-      (with-current-buffer (cdr req)
-        (funcall (car req) '()))))
-  (setq tide-err-request-queue nil)
-  (-each tide-event-queue (lambda (cb) (funcall cb `(:success ,nil))))
-  (setq tide-event-queue '())
   (tide-each-buffer project-name
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
@@ -485,7 +465,7 @@ With a prefix arg, Jump to the type definition."
   (when (not tide-buffer-tmp-file)
     (setq tide-buffer-tmp-file (make-temp-file "tide")))
   (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
-  (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file)))
+  (tide-command:reloadfile))
 
 
 ;;; Auto completion
@@ -850,35 +830,13 @@ number."
 
 ;;; Error highlighting
 
-(defun tide-send-error-request ()
-  (when (not tide-err-response-pending)
-    (-when-let (top (pop tide-err-request-queue))
-      (setq tide-err-response-pending t)
-      (let* ((events '())
-             (response-count 0)
-             (cb (car top))
-             (buffer (cdr top))
-             (error-collector (lambda (event)
-                                (push event events)
-                                (incf response-count)
-                                (when (eql response-count 2)
-                                  (funcall cb events)
-                                  (setq tide-err-response-pending nil)
-                                  (tide-send-error-request)))))
-        (setq tide-event-queue
-              (nconc tide-event-queue (list error-collector error-collector)))
-        (with-current-buffer buffer
-          (tide-command:geterr))))))
+(defun tide-command:geterr (cb)
+  (tide-send-command
+   "geterr"
+   `(:responseType "response" :files (,buffer-file-name))
+   cb))
 
-(defun tide-get-err (cb)
-  (push (cons cb (current-buffer)) tide-err-request-queue)
-  (tide-send-error-request))
-
-(defun tide-command:geterr ()
-  (tide-send-command "geterr"
-                     `(:delay 0 :files (,buffer-file-name))))
-
-(defun tide-parse-error (event checker)
+(defun tide-parse-error (response checker)
   (-map
    (lambda (diagnostic)
      (let* ((start (plist-get diagnostic :start))
@@ -886,17 +844,21 @@ number."
             (column (tide-column line (plist-get start :offset))))
        (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
                               :checker checker)))
-   (tide-plist-get event :body :diagnostics)))
+   (let ((diagnostic (car (tide-plist-get response :body))))
+     (-concat (plist-get diagnostic :syntaxDiag)
+              (plist-get diagnostic :semanticDiag)))))
 
-(defun tide-flycheck-send-response (callback checker events)
+(defun tide-flycheck-send-response (callback checker response)
   (condition-case err
-      (funcall callback 'finished (-mapcat (lambda (event) (tide-parse-error event checker)) events))
+      (funcall callback 'finished (tide-parse-error response checker))
     (error (funcall callback 'errored (error-message-string err)))))
 
 (defun tide-flycheck-start (checker callback)
-  (tide-get-err
-   (lambda (events)
-     (tide-flycheck-send-response callback checker events))))
+  (tide-command:geterr
+   (lambda (response)
+     (if (tide-response-success-p response)
+         (tide-flycheck-send-response callback checker response)
+       (funcall callback 'errored (plist-get response :message))))))
 
 (defun tide-flycheck-verify (_checker)
   (list
