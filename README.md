@@ -18,7 +18,7 @@
             (flycheck-mode t)
             (setq flycheck-check-syntax-automatically '(save mode-enabled))
             (eldoc-mode t)
-            ;; company is an optional dependency. you have to
+            ;; company is an optional dependency. You have to
             ;; install it separately via package-install
             (company-mode-on)))
 
