@@ -6,23 +6,24 @@
 
 ### Installation
 
-* Install [node.js](https://nodejs.org/) v0.12.x
-* Install dash, flycheck and company via <kbd>M-x package-install</kbd>
-* clone https://github.com/ananthakumaran/tide
-
+* Install [node.js](https://nodejs.org/) v0.12.0 or greater.
+* Tide is available in [melpa](http://melpa.org/#/tide). You can
+  install tide via package-install <kbd>M-x package-install [ret] tide</kbd>
 
 ````cl
-(add-to-list 'load-path "path/to/tide/")
-(require 'tide)
+;; sample config
 (add-hook 'typescript-mode-hook
           (lambda ()
+            (tide-setup)
             (flycheck-mode t)
             (setq flycheck-check-syntax-automatically '(save mode-enabled))
-            (company-mode-on)
-            (tide-setup)
-            (turn-on-eldoc-mode)))
+            (eldoc-mode t)
+            ;; company is an optional dependency. you have to
+            ;; install it separately via package-install
+            (company-mode-on)))
 
-(setq company-tooltip-align-annotations t) ;; aligns annotation to the right hand side
+;; aligns annotation to the right hand side
+(setq company-tooltip-align-annotations t)
 
 ````
 
