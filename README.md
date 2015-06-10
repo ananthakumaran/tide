@@ -51,7 +51,7 @@ Keyboard shortcuts                  | Description
 tsserver doesn't pickup tsconfig.json file changes. This would come in
 handy after you edit tsconfig.json.
 
-<kbd>M-x tide-find-references</kbd> List all references to the symbol
+<kbd>M-x tide-references</kbd> List all references to the symbol
 at point in a buffer. References can be navigated using <kbd>n</kbd>
 and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 
