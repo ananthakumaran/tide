@@ -771,7 +771,7 @@ number."
               (lambda (loc)
                 (incf count (tide-rename-symbol-at-location loc new-symbol))))
 
-            (message "Renamed %d occurences." count)))))))
+            (message "Renamed %d occurrences." count)))))))
 
 ;;; Mode
 
