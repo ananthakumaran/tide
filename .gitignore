@@ -1,3 +1,5 @@
 .cask
 *.elc
 tsserver/.log*
+dist
+todo

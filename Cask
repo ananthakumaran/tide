@@ -1,6 +1,6 @@
 (source gnu)
 (source melpa)
 
-(files "tide.el" "tsserver")
+(files "*.el" "tsserver")
 (package-file "tide.el")
 
