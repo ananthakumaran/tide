@@ -466,7 +466,7 @@ With a prefix arg, Jump to the type definition."
   (when (not tide-buffer-tmp-file)
     (setq tide-buffer-tmp-file (make-temp-file "tide")))
   (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
-  (tide-command:reloadfile))
+  (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file)))
 
 
 ;;; Auto completion
