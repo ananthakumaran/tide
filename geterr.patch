@@ -1,21 +1,22 @@
 diff --git a/src/server/protocol.d.ts b/src/server/protocol.d.ts
-index ef9ad79..fa2528f 100644
+index ce918ab..83406ab 100644
 --- a/src/server/protocol.d.ts
 +++ b/src/server/protocol.d.ts
-@@ -870,6 +870,8 @@ declare module ts.server.protocol {
+@@ -944,6 +944,9 @@ declare namespace ts.server.protocol {
            * errors for the files in the file list
            */
          delay: number;
 +
 +        responseType?: string;
++
      }
  
      /**
 diff --git a/src/server/session.ts b/src/server/session.ts
-index a4cb3e5..4fdc00e 100644
+index da044e7..438b050 100644
 --- a/src/server/session.ts
 +++ b/src/server/session.ts
-@@ -693,6 +693,29 @@ module ts.server {
+@@ -740,6 +740,29 @@ namespace ts.server {
              }
          }
  
@@ -42,21 +43,19 @@ index a4cb3e5..4fdc00e 100644
 +            })
 +        }
 +
-         change(line: number, offset: number, endLine: number, endOffset: number, insertString: string, fileName: string) {
+         private change(line: number, offset: number, endLine: number, endOffset: number, insertString: string, fileName: string) {
              var file = ts.normalizePath(fileName);
              var project = this.projectService.getProjectForFile(file);
-@@ -911,8 +934,12 @@ module ts.server {
-                     }    
-                     case CommandNames.Geterr: {
-                         var geterrArgs = <protocol.GeterrRequestArgs>request.arguments;
--                        response = this.getDiagnostics(geterrArgs.delay, geterrArgs.files);
--                        responseRequired = false;
-+                        if (geterrArgs.responseType === 'response') {
-+                            response = this.getErrorResponse(geterrArgs.files);
-+                        } else {
-+                            response = this.getDiagnostics(geterrArgs.delay, geterrArgs.files);
-+                            responseRequired = false;
-+                        }
-                         break;
-                     }
-                     case CommandNames.Change: {
+@@ -981,7 +1004,11 @@ namespace ts.server {
+             },
+             [CommandNames.Geterr]: (request: protocol.Request) => {
+                 var geterrArgs = <protocol.GeterrRequestArgs>request.arguments;
+-                return {response: this.getDiagnostics(geterrArgs.delay, geterrArgs.files), responseRequired: false};
++                if (geterrArgs.responseType === 'response') {
++                    return {response: this.getErrorResponse(geterrArgs.files), responseRequired: false};
++                } else {
++                    return {response: this.getDiagnostics(geterrArgs.delay, geterrArgs.files), responseRequired: false};
++                }
+             },
+             [CommandNames.GeterrForProject]: (request: protocol.Request) => {
+                 let { file, delay } = <protocol.GeterrForProjectRequestArgs>request.arguments;
