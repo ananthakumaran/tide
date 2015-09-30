@@ -78,6 +78,8 @@
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
+(defvar tide-supported-modes '(typescript-mode web-mode))
+
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
 
@@ -573,7 +575,7 @@ With a prefix arg, Jump to the type definition."
   (cl-case command
     (interactive (company-begin-backend 'company-tide))
     (prefix (and
-             (derived-mode-p 'typescript-mode)
+             (-any-p #'derived-mode-p tide-supported-modes)
              (tide-current-server)
              (not (company-in-string-or-comment))
              (or (tide-completion-prefix) 'stop)))
@@ -876,7 +878,7 @@ number."
   "A syntax checker for Typescript using Tide Mode."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(typescript-mode)
+  :modes tide-supported-modes
   :predicate (lambda () (and tide-mode (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory)))))
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
