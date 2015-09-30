@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "jsx": "React",
+    "module": "commonjs"
+  },
+
+  "files": [
+    "all.d.ts",
+    "reactComponent.tsx",
+    "test.ts"
+  ]
+}
