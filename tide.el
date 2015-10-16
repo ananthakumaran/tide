@@ -128,8 +128,7 @@
   (-each (buffer-list)
     (lambda (buffer)
       (with-current-buffer buffer
-        (when (and (boundp tide-mode)
-                   tide-mode
+        (when (and (bound-and-true-p tide-mode)
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
 
