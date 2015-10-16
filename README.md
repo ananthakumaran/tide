@@ -10,14 +10,14 @@
 * Tide is available in [melpa](http://melpa.org/#/tide). You can
   install tide via package-install <kbd>M-x package-install [ret] tide</kbd>
 
-````cl
+```cl
 ;; sample config
 (add-hook 'typescript-mode-hook
           (lambda ()
             (tide-setup)
-            (flycheck-mode t)
+            (flycheck-mode +1)
             (setq flycheck-check-syntax-automatically '(save mode-enabled))
-            (eldoc-mode t)
+            (eldoc-mode +1)
             ;; company is an optional dependency. You have to
             ;; install it separately via package-install
             (company-mode-on)))
@@ -32,12 +32,12 @@
           (lambda ()
             (when (string-equal "tsx" (file-name-extension buffer-file-name))
               (tide-setup)
-              (flycheck-mode t)
+              (flycheck-mode +1)
               (setq flycheck-check-syntax-automatically '(save mode-enabled))
-              (eldoc-mode t)
+              (eldoc-mode +1)
               (company-mode-on))))
 
-````
+```
 
 ### Notes
 
