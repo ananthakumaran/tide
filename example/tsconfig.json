@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "jsx": "React",
-    "module": "commonjs"
+    "module": "commonjs",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "ES5"
   },
 
   "files": [
