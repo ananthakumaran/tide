@@ -752,7 +752,7 @@ number."
 
 (defun tide-read-new-symbol (old-symbol)
   (let ((new-symbol (read-from-minibuffer (format "Rename %s to " old-symbol))))
-    (if (string-blank-p new-symbol)
+    (if (string-match-p "\\`[ \t\n\r]*\\'" new-symbol)
         (error "Invalid name")
       new-symbol)))
 
