@@ -1,8 +1,8 @@
 diff --git a/src/server/protocol.d.ts b/src/server/protocol.d.ts
-index ce918ab..83406ab 100644
+index 3a66975..cf41bd6 100644
 --- a/src/server/protocol.d.ts
 +++ b/src/server/protocol.d.ts
-@@ -944,6 +944,9 @@ declare namespace ts.server.protocol {
+@@ -949,6 +949,9 @@ declare namespace ts.server.protocol {
            * errors for the files in the file list
            */
          delay: number;
@@ -13,10 +13,10 @@ index ce918ab..83406ab 100644
  
      /**
 diff --git a/src/server/session.ts b/src/server/session.ts
-index da044e7..438b050 100644
+index c1bafdf..74f2f2b 100644
 --- a/src/server/session.ts
 +++ b/src/server/session.ts
-@@ -740,6 +740,29 @@ namespace ts.server {
+@@ -753,6 +753,29 @@ namespace ts.server {
              }
          }
  
@@ -44,18 +44,18 @@ index da044e7..438b050 100644
 +        }
 +
          private change(line: number, offset: number, endLine: number, endOffset: number, insertString: string, fileName: string) {
-             var file = ts.normalizePath(fileName);
-             var project = this.projectService.getProjectForFile(file);
-@@ -981,7 +1004,11 @@ namespace ts.server {
+             const file = ts.normalizePath(fileName);
+             const project = this.projectService.getProjectForFile(file);
+@@ -997,7 +1020,11 @@ namespace ts.server {
              },
              [CommandNames.Geterr]: (request: protocol.Request) => {
-                 var geterrArgs = <protocol.GeterrRequestArgs>request.arguments;
+                 const geterrArgs = <protocol.GeterrRequestArgs>request.arguments;
 -                return {response: this.getDiagnostics(geterrArgs.delay, geterrArgs.files), responseRequired: false};
 +                if (geterrArgs.responseType === 'response') {
-+                    return {response: this.getErrorResponse(geterrArgs.files), responseRequired: false};
++                    return {response: <any>this.getErrorResponse(geterrArgs.files), responseRequired: true};
 +                } else {
 +                    return {response: this.getDiagnostics(geterrArgs.delay, geterrArgs.files), responseRequired: false};
 +                }
              },
              [CommandNames.GeterrForProject]: (request: protocol.Request) => {
-                 let { file, delay } = <protocol.GeterrForProjectRequestArgs>request.arguments;
+                 const { file, delay } = <protocol.GeterrForProjectRequestArgs>request.arguments;
