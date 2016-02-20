@@ -201,7 +201,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
-    (error "Server does not exists.  Run M-x tide-restart-server to start it again"))
+    (error "Server does not exist. Run M-x tide-restart-server to start it again"))
 
   (when tide-buffer-dirty
     (tide-sync-buffer-contents))
@@ -653,7 +653,7 @@ With a prefix arg, Jump to the type definition."
     (put-text-property start end 'tide-reference reference line-text)))
 
 (defun tide-insert-references (references)
-  "Create a buffer with the give REFERENCES.
+  "Create a buffer with the given REFERENCES.
 
 Assumes references are grouped by file name and sorted by line
 number."
