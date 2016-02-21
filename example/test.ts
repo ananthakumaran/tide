@@ -2,7 +2,7 @@ var x = 'string';
 
 var len = x.length;
 
-len.toString().substring(0, 1);
+len.substring(0, 1);
 
 
 @readonly
