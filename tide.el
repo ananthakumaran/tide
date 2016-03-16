@@ -97,7 +97,7 @@
   "Project root folder determined based on the presence of tsconfig.json."
   (or
    tide-project-root
-   (let ((root (locate-dominating-file default-directory "tsconfig.json")))
+   (let ((root (or (locate-dominating-file default-directory "tsconfig.json") default-directory)))
      (unless root
        (error "Couldn't locate project root folder.  Please make sure to add tsconfig.json in project root folder"))
      (let ((full-path (expand-file-name root)))
