@@ -141,6 +141,14 @@
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
 
+(defun tide-line-number-at-pos ()
+  (if (= (point-min) 1)
+      (line-number-at-pos)
+    (save-excursion
+      (save-restriction
+        (widen)
+        (line-number-at-pos)))))
+
 (defun tide-current-offset ()
   "Number of characters present from the begining of line to cursor in current line.
 
@@ -318,13 +326,13 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-command:definition (cb)
   (tide-send-command
    "definition"
-   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
    cb))
 
 (defun tide-command:type-definition (cb)
   (tide-send-command
    "typeDefinition"
-   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
    cb))
 
 (defun tide-jump-to-definition (&optional arg)
@@ -424,7 +432,7 @@ With a prefix arg, Jump to the type definition."
   (let* ((response
           (tide-send-command-sync
            "signatureHelp"
-           `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset)))))
+           `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)))))
     (when (tide-response-success-p response)
       (tide-annotate-signatures (plist-get response :body)))))
 
@@ -432,7 +440,7 @@ With a prefix arg, Jump to the type definition."
   (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
 
 (defun tide-command:quickinfo ()
-  (let ((response (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset)))))
+  (let ((response (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)))))
     (when (tide-response-success-p response)
       response)))
 
@@ -532,7 +540,7 @@ With a prefix arg, Jump to the type definition."
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location
-          `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(- (tide-current-offset) (length prefix)))))
+          `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)))))
     (when (not (tide-member-completion-p prefix))
       (plist-put file-location :prefix prefix))
     (tide-send-command
@@ -645,7 +653,7 @@ With a prefix arg, Jump to the type definition."
 (defun tide-command:references ()
   (tide-send-command-sync
    "references"
-   `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))))
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-annotate-line (reference line-text)
   (let ((start (1- (tide-plist-get reference :start :offset)))
@@ -731,7 +739,7 @@ number."
 ;;; Rename
 
 (defun tide-command:rename ()
-  (tide-send-command-sync "rename" `(:file ,buffer-file-name :line ,(count-lines 1 (point)) :offset ,(tide-current-offset))))
+  (tide-send-command-sync "rename" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-rename-symbol-at-location (location new-symbol)
   (let ((file (plist-get location :file)))
