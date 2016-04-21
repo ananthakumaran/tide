@@ -77,6 +77,15 @@
   :group 'tide
   )
 
+(defcustom tide-tsserver-executable nil
+  "Name of tsserver executable to run instead of the bundled tsserver.
+This may either be a path or a name to be looked up in the PATH.
+Note that some versions of TypeScript may not be compatible with
+this package."
+  :type '(choice (const nil) string)
+  :group 'tide
+  )
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -268,7 +277,9 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
-         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
+         (process (if tide-tsserver-executable
+                      (start-file-process "tsserver" buf tide-tsserver-executable)
+                    (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
