@@ -71,6 +71,12 @@
   "Face for type in imenu list."
   :group 'tide)
 
+(defcustom tide-jump-to-definition-reuse-window t
+  "Reuse existing window when jumping to definition."
+  :type 'boolean
+  :group 'tide
+  )
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -343,7 +349,7 @@ With a prefix arg, Jump to the type definition."
   (let ((cb (lambda (response)
               (tide-on-response-success response
                 (let ((filespan (car (plist-get response :body))))
-                  (tide-jump-to-filespan filespan t))))))
+                  (tide-jump-to-filespan filespan tide-jump-to-definition-reuse-window))))))
     (if arg
         (tide-command:type-definition cb)
       (tide-command:definition cb))))
