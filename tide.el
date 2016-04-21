@@ -504,11 +504,12 @@ With a prefix arg, Jump to the type definition."
   (setq tide-buffer-dirty t))
 
 (defun tide-sync-buffer-contents ()
-  (setq tide-buffer-dirty nil)
-  (when (not tide-buffer-tmp-file)
-    (setq tide-buffer-tmp-file (make-temp-file "tide")))
-  (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
-  (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file)))
+  (when tide-buffer-dirty
+    (setq tide-buffer-dirty nil)
+    (when (not tide-buffer-tmp-file)
+      (setq tide-buffer-tmp-file (make-temp-file "tide")))
+    (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
+    (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file))))
 
 
 ;;; Auto completion
