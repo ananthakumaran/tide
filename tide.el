@@ -283,6 +283,7 @@ LINE is one based, OFFSET is one based and column is zero based"
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
+    (set-process-query-on-exit-flag process nil)
     (process-put process 'project-name (tide-project-name))
     (puthash (tide-project-name) process tide-servers)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
