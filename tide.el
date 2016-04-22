@@ -71,6 +71,21 @@
   "Face for type in imenu list."
   :group 'tide)
 
+(defcustom tide-jump-to-definition-reuse-window t
+  "Reuse existing window when jumping to definition."
+  :type 'boolean
+  :group 'tide
+  )
+
+(defcustom tide-tsserver-executable nil
+  "Name of tsserver executable to run instead of the bundled tsserver.
+This may either be a path or a name to be looked up in the PATH.
+Note that some versions of TypeScript may not be compatible with
+this package."
+  :type '(choice (const nil) string)
+  :group 'tide
+  )
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -204,9 +219,15 @@ LINE is one based, OFFSET is one based and column is zero based"
         (apply (cdr callback) (list response)))
       (remhash request-id tide-response-callbacks))))
 
+(defun tide-dispatch-event (response)
+  (let ((event-type (intern (plist-get response :event))))
+    (case event-type
+      ((syntaxDiag semanticDiag) (tide-dispatch-diagnostic event-type response)))))
+
 (defun tide-dispatch (response)
   (case (intern (plist-get response :type))
-    ('response (tide-dispatch-response response))))
+    (response (tide-dispatch-response response))
+    (event (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
@@ -256,10 +277,13 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
-         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
+         (process (if tide-tsserver-executable
+                      (start-file-process "tsserver" buf tide-tsserver-executable)
+                    (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
+    (set-process-query-on-exit-flag process nil)
     (process-put process 'project-name (tide-project-name))
     (puthash (tide-project-name) process tide-servers)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
@@ -343,7 +367,7 @@ With a prefix arg, Jump to the type definition."
   (let ((cb (lambda (response)
               (tide-on-response-success response
                 (let ((filespan (car (plist-get response :body))))
-                  (tide-jump-to-filespan filespan t))))))
+                  (tide-jump-to-filespan filespan t tide-jump-to-definition-reuse-window))))))
     (if arg
         (tide-command:type-definition cb)
       (tide-command:definition cb))))
@@ -480,11 +504,12 @@ With a prefix arg, Jump to the type definition."
   (setq tide-buffer-dirty t))
 
 (defun tide-sync-buffer-contents ()
-  (setq tide-buffer-dirty nil)
-  (when (not tide-buffer-tmp-file)
-    (setq tide-buffer-tmp-file (make-temp-file "tide")))
-  (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
-  (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file)))
+  (when tide-buffer-dirty
+    (setq tide-buffer-dirty nil)
+    (when (not tide-buffer-tmp-file)
+      (setq tide-buffer-tmp-file (make-temp-file "tide")))
+    (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
+    (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file))))
 
 
 ;;; Auto completion
@@ -849,13 +874,38 @@ number."
 
 ;;; Error highlighting
 
-(defun tide-command:geterr (cb)
+(defun tide-command:geterr ()
   (tide-send-command
    "geterr"
-   `(:responseType "response" :files (,buffer-file-name))
-   cb))
+   `(:files (,buffer-file-name) :delay 0)))
 
-(defun tide-parse-error (response checker)
+(defvar tide--pending-flycheck nil
+  "If non-nil, indicates flycheck is waiting for diagnostics for
+the current buffer.  This variable should contain a plist with
+the keys `:callback', `:checker', `:deadline', and `:timer'.")
+(make-variable-buffer-local 'tide--pending-flycheck)
+
+(defvar tide--pending-flycheck-diagnostics-plist nil
+  "Plist of pending diagnostics for the current buffer.  The keys
+of this plist should be the diagnostic event types used by
+tsserver, which are `syntaxDiag' and `semanticDiag'.")
+(make-variable-buffer-local 'tide--pending-flycheck-diagnostics-plist)
+
+(defun tide-dispatch-diagnostic (event-type response)
+  (let* ((body (plist-get response :body))
+         (file (plist-get body :file))
+         (diagnostics (plist-get body :diagnostics))
+         (buffer (find-buffer-visiting file)))
+    (when buffer
+      (with-current-buffer buffer
+        (when tide--pending-flycheck
+          (setq tide--pending-flycheck-diagnostics-plist
+                (plist-put tide--pending-flycheck-diagnostics-plist event-type diagnostics))
+          (when (and (plist-member tide--pending-flycheck-diagnostics-plist 'syntaxDiag)
+                     (plist-member tide--pending-flycheck-diagnostics-plist 'semanticDiag))
+            (tide-flycheck-finish)))))))
+
+(defun tide-parse-diagnostics (diagnostics-plist checker)
   (-map
    (lambda (diagnostic)
      (let* ((start (plist-get diagnostic :start))
@@ -863,21 +913,65 @@ number."
             (column (tide-column line (plist-get start :offset))))
        (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
                               :checker checker)))
-   (let ((diagnostic (car (tide-plist-get response :body))))
-     (-concat (plist-get diagnostic :syntaxDiag)
-              (plist-get diagnostic :semanticDiag)))))
+   (-concat (plist-get diagnostics-plist 'syntaxDiag)
+            (plist-get diagnostics-plist 'semanticDiag))))
 
-(defun tide-flycheck-send-response (callback checker response)
-  (condition-case err
-      (funcall callback 'finished (tide-parse-error response checker))
-    (error (funcall callback 'errored (error-message-string err)))))
+(defun tide-flycheck-clear-state ()
+    (setq tide--pending-flycheck-diagnostics-plist nil
+          tide--pending-flycheck nil))
+
+(defun tide-flycheck-finish ()
+  (let ((diagnostics-plist tide--pending-flycheck-diagnostics-plist)
+        (callback (plist-get tide--pending-flycheck :callback))
+        (checker (plist-get tide--pending-flycheck :checker))
+        (timer (plist-get tide--pending-flycheck :timer)))
+    (cancel-timer timer)
+    (tide-flycheck-clear-state)
+    (condition-case err
+        (funcall callback 'finished (tide-parse-diagnostics diagnostics-plist checker))
+      (error (funcall callback 'errored (error-message-string err))))))
+
+(defvar tide-retry-diagnostics-interval 2.0
+  "Interval at which diagnostics will be re-requested until
+either they are received or `tide-flycheck-timeout' is reached.")
+
+(defvar tide-flycheck-timeout 10.0
+  "Maximum amount of time to wait for diagnostics from tsserver."
+  )
+
+(defun tide-flycheck-make-retry-timer ()
+  "Registers a timer to retry requesting diagnostics after
+`tide-retry-diagnostics-interval' seconds if diagnostics have not already
+been received."
+  (run-at-time tide-retry-diagnostics-interval nil
+               'tide-flycheck-maybe-retry (current-buffer)))
+
+(defun tide-flycheck-maybe-retry (buffer)
+  "Re-requests diagnostics."
+  (with-current-buffer buffer
+    (let ((state tide--pending-flycheck))
+      (when state
+        (let ((cur-time (float-time))
+              (deadline (plist-get state :deadline)))
+          (if (> cur-time deadline)
+              (progn
+                (funcall (plist-get state :callback) 'errored (format "No diagnostics received within %s seconds." tide-flycheck-timeout))
+                (tide-flycheck-clear-state))
+            (tide-command:geterr)
+            (setq tide--pending-flycheck (plist-put state :timer (tide-flycheck-make-retry-timer)))))))))
 
 (defun tide-flycheck-start (checker callback)
-  (tide-command:geterr
-   (lambda (response)
-     (if (tide-response-success-p response)
-         (tide-flycheck-send-response callback checker response)
-       (funcall callback 'errored (plist-get response :message))))))
+  (when tide--pending-flycheck
+    (funcall (plist-get tide--pending-flycheck :callback) 'interrupted)
+    (cancel-timer (plist-get tide--pending-flycheck :timer)))
+  (tide-command:geterr)
+  (setq tide--pending-flycheck-diagnostics-plist nil)
+  (setq tide--pending-flycheck (list :checker checker
+                                     :callback callback
+                                     :deadline (+ (float-time) tide-flycheck-timeout)
+                                     :timer (tide-flycheck-make-retry-timer)
+                                     ))
+  )
 
 (defun tide-flycheck-verify (_checker)
   (list
