@@ -218,8 +218,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (when (not (tide-current-server))
     (error "Server does not exist. Run M-x tide-restart-server to start it again"))
 
-  (when tide-buffer-dirty
-    (tide-sync-buffer-contents))
+  (tide-sync-buffer-contents)
 
   (let* ((request-id (tide-next-request-id))
          (command `(:command ,name :seq ,request-id :arguments ,args))
