@@ -531,7 +531,8 @@ With a prefix arg, Jump to the type definition."
 (defun tide-member-completion-p (prefix)
   (save-excursion
     (backward-char (length prefix))
-    (equal (string (char-before (point))) ".")))
+    (and (> (point) (point-min))
+         (equal (string (char-before (point))) "."))))
 
 (defun tide-annotate-completions (completions prefix file-location)
   (-map
