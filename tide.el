@@ -51,6 +51,9 @@
   :type '(repeat string)
   :group 'tide)
 
+(defvar tide-format-options '()
+  "Format options plist.")
+
 (defface tide-file
   '((t (:inherit dired-header)))
   "Face for file names in references output."
@@ -74,8 +77,7 @@
 (defcustom tide-jump-to-definition-reuse-window t
   "Reuse existing window when jumping to definition."
   :type 'boolean
-  :group 'tide
-  )
+  :group 'tide)
 
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
@@ -124,6 +126,20 @@
    args
    :initial-value list))
 
+(defun tide-combine-plists (&rest plists)
+  "Create a single property list from all plists in PLISTS.
+The process starts by copying the first list, and then setting properties
+from the other lists. Settings in the last list are the most significant
+ones and overrule settings in the other lists."
+  (let ((rtn (copy-sequence (pop plists)))
+        p v ls)
+    (while plists
+      (setq ls (pop plists))
+      (while ls
+        (setq p (pop ls) v (pop ls))
+        (setq rtn (plist-put rtn p v))))
+    rtn))
+
 (defun tide-response-success-p (response)
   (and response (equal (plist-get response :success) t)))
 
@@ -147,19 +163,27 @@
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
 
-(defun tide-line-number-at-pos ()
-  (if (= (point-min) 1)
-      (line-number-at-pos)
-    (save-excursion
-      (save-restriction
-        (widen)
-        (line-number-at-pos)))))
+(defun tide-line-number-at-pos (&optional pos)
+  (let ((p (or pos (point))))
+    (if (= (point-min) 1)
+        (line-number-at-pos p)
+      (save-excursion
+        (save-restriction
+          (widen)
+          (line-number-at-pos p))))))
 
 (defun tide-current-offset ()
   "Number of characters present from the begining of line to cursor in current line.
 
 offset is one based."
   (1+ (- (point) (line-beginning-position))))
+
+(defun tide-offset (pos)
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char pos)
+      (tide-current-offset))))
 
 (defun tide-column (line offset)
   "Return column number corresponds to the LINE and OFFSET.
@@ -318,8 +342,13 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 ;;; Initialization
 
+(defun tide-file-format-options ()
+  (tide-combine-plists
+   `(:tabSize ,tab-width :indentSize ,typescript-indent-level :convertTabToSpaces ,(not indent-tabs-mode))
+   tide-format-options))
+
 (defun tide-command:configure ()
-  (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions (:tabSize ,tab-width :indentSize ,typescript-indent-level :convertTabToSpaces ,(not indent-tabs-mode)))))
+  (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
 
 (defun tide-command:openfile ()
   (tide-send-command "open" `(:file ,buffer-file-name)))
@@ -354,14 +383,19 @@ With a prefix arg, Jump to the type definition."
         (tide-command:type-definition cb)
       (tide-command:definition cb))))
 
-(defun tide-move-to-span (span)
-  (let* ((line (plist-get span :line))
-         (offset (plist-get span :offset)))
+(defun tide-move-to-location (location)
+  (let* ((line (plist-get location :line))
+         (offset (plist-get location :offset)))
     (save-restriction
       (widen)
       (goto-char (point-min))
       (forward-line (1- line)))
     (forward-char (1- offset))))
+
+(defun tide-location-to-point (location)
+  (save-excursion
+    (tide-move-to-location location)
+    (point)))
 
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
   (let ((file (plist-get filespan :file)))
@@ -370,7 +404,7 @@ With a prefix arg, Jump to the type definition."
     (if reuse-window
         (pop-to-buffer (find-file-noselect file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (find-file-noselect file)))
-    (tide-move-to-span (plist-get filespan :start))))
+    (tide-move-to-location (plist-get filespan :start))))
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
@@ -755,7 +789,7 @@ number."
       (with-current-buffer (find-file-noselect file)
         (-each
             (-map (lambda (filespan)
-                    (tide-move-to-span (plist-get filespan :start))
+                    (tide-move-to-location (plist-get filespan :start))
                     (cons (point-marker) filespan))
                   (plist-get location :locs))
           (lambda (pointer)
@@ -798,6 +832,43 @@ number."
                 (incf count (tide-rename-symbol-at-location loc new-symbol))))
 
             (message "Renamed %d occurrences." count)))))))
+
+;;; Format
+
+(defun tide-format-before-save ()
+  "Before save hook to format the buffer before each save."
+  (interactive)
+  (when (bound-and-true-p tide-mode)
+    (tide-format)))
+
+;;;###autoload
+(defun tide-format ()
+  "Format the current region or buffer."
+  (interactive)
+  (if (use-region-p)
+      (tide-format-region (region-beginning) (region-end))
+    (tide-format-region (point-min) (point-max))))
+
+(defun tide-apply-edit (edit)
+  (goto-char (tide-location-to-point (plist-get edit :start)))
+  (delete-region (point) (tide-location-to-point (plist-get edit :end)))
+  (insert (plist-get edit :newText)))
+
+(defun tide-apply-edits (edits)
+  (save-excursion
+    (-each (nreverse edits)
+      (lambda (edit) (tide-apply-edit edit)))))
+
+(defun tide-format-region (start end)
+  (let ((response (tide-send-command-sync
+                "format"
+                `(:file ,buffer-file-name
+                  :line ,(tide-line-number-at-pos start)
+                  :offset ,(tide-offset start)
+                  :endLine ,(tide-line-number-at-pos end)
+                  :endOffset ,(tide-offset end)))))
+    (tide-on-response-success response
+      (tide-apply-edits (plist-get response :body)))))
 
 ;;; Mode
 

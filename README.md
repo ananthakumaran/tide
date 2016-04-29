@@ -25,6 +25,13 @@
 ;; aligns annotation to the right hand side
 (setq company-tooltip-align-annotations t)
 
+;; formats the buffer before saving
+(add-hook 'before-save-hook 'tide-format-before-save)
+
+;; format options
+(setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
+;; see https://github.com/Microsoft/TypeScript/blob/cc58e2d7eb144f0b2ff89e6a6685fb4deaa24fde/src/server/protocol.d.ts#L421-473 for the full list available options
+
 ;; Tide can be used along with web-mode to edit tsx files
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
@@ -70,6 +77,7 @@ and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 <kbd>M-x tide-rename-symbol</kbd> Rename all occurrences of the symbol
 at point.
 
+<kbd>M-x tide-format</kbd> Format the current region or buffer.
 
 ### Features
 
