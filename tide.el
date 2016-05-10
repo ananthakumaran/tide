@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 1.8.10
 ;; Keywords: typescript
-;; Package-Requires: ((dash "2.10.0") (flycheck "0.23") (emacs "24.1") (typescript-mode "0.1"))
+;; Package-Requires: ((dash "2.10.0") (flycheck "27") (emacs "24.1") (typescript-mode "0.1"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -977,6 +977,7 @@ number."
   :predicate (lambda () (and tide-mode (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory)))))
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
+(flycheck-add-next-checker 'typescript-tide '(warning . typescript-tslint) 'append)
 
 ;;; Utility commands
 
