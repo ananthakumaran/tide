@@ -88,3 +88,15 @@ at point.
 * Find occurrences
 * Rename symbol
 * Imenu
+
+### Debugging
+
+Tide uses
+[tsserver](https://github.com/Microsoft/TypeScript/pull/2041) as the
+backend for most of the features. It writes out a comprehensive log
+file which can be captured by setting
+`tide-tsserver-process-environment` variable.
+
+```lisp
+(setq tide-tsserver-process-environment '("TSS_LOG=-level verbose -file /tmp/tss.log"))
+```
