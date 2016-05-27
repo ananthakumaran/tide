@@ -351,7 +351,12 @@ LINE is one based, OFFSET is one based and column is zero based"
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
 
 (defun tide-command:openfile ()
-  (tide-send-command "open" `(:file ,buffer-file-name)))
+  (tide-send-command "open"
+                     (append `(:file ,buffer-file-name)
+                             (let ((extension (upcase (file-name-extension buffer-file-name))))
+                               (if (member extension '("TS" "JS" "TSX" "JSX"))
+                                   `(:scriptKindName ,extension)
+                                 nil)))))
 
 (defun tide-command:closefile ()
   (tide-send-command "close" `(:file ,buffer-file-name)))
