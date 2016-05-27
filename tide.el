@@ -344,7 +344,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-file-format-options ()
   (tide-combine-plists
-   `(:tabSize ,tab-width :indentSize ,typescript-indent-level :convertTabToSpaces ,(not indent-tabs-mode))
+   `(:tabSize ,tab-width :indentSize ,typescript-indent-level)
    tide-format-options))
 
 (defun tide-command:configure ()
@@ -880,8 +880,8 @@ number."
     map))
 
 (defun tide-configure-buffer ()
-  (tide-command:configure)
-  (tide-command:openfile))
+  (tide-command:openfile)
+  (tide-command:configure))
 
 (defun tide-cleanup-buffer ()
   (tide-command:closefile)
