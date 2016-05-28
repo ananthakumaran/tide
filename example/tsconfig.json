@@ -10,6 +10,7 @@
   "files": [
     "all.d.ts",
     "reactComponent.tsx",
-    "test.ts"
+    "test.ts",
+    "test.js"
   ]
 }
