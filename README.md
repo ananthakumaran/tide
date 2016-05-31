@@ -20,7 +20,7 @@
             (eldoc-mode +1)
             ;; company is an optional dependency. You have to
             ;; install it separately via package-install
-            (company-mode-on)))
+            (company-mode)))
 
 ;; aligns annotation to the right hand side
 (setq company-tooltip-align-annotations t)
@@ -42,7 +42,7 @@
               (flycheck-mode +1)
               (setq flycheck-check-syntax-automatically '(save mode-enabled))
               (eldoc-mode +1)
-              (company-mode-on))))
+              (company-mode))))
 
 ```
 
