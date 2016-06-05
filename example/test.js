@@ -9,4 +9,3 @@ names.shift();
 var x = {
     another: 'name'
 };
-

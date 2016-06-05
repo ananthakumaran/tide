@@ -86,7 +86,7 @@
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode web-mode javascript-mode js2-mode))
+(defvar tide-supported-modes '(typescript-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
@@ -344,7 +344,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-file-format-options ()
   (tide-combine-plists
-   `(:tabSize ,tab-width :indentSize ,typescript-indent-level)
+   `(:tabSize ,tab-width)
    tide-format-options))
 
 (defun tide-command:configure ()
@@ -975,15 +975,45 @@ number."
     :message (if (bound-and-true-p tide-mode) "enabled" "disabled")
     :face (if (bound-and-true-p tide-mode) 'success '(bold warning)))))
 
+(defun tide-flycheck-predicate ()
+  (and (bound-and-true-p tide-mode) (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
+
 (flycheck-define-generic-checker 'typescript-tide
-  "A syntax checker for Typescript using Tide Mode."
+  "A TypeScript syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes tide-supported-modes
-  :predicate (lambda () (and (bound-and-true-p tide-mode) (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory)))))
+  :modes '(typescript-mode)
+  :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
 (flycheck-add-next-checker 'typescript-tide '(warning . typescript-tslint) 'append)
+
+(flycheck-define-generic-checker 'javascript-tide
+  "A Javascript syntax checker using tsserver."
+  :start #'tide-flycheck-start
+  :verify #'tide-flycheck-verify
+  :modes '(js-mode js2-mode js3-mode)
+  :predicate #'tide-flycheck-predicate)
+
+(add-to-list 'flycheck-checkers 'javascript-tide t)
+
+(flycheck-define-generic-checker 'jsx-tide
+  "A JSX syntax checker using tsserver."
+  :start #'tide-flycheck-start
+  :verify #'tide-flycheck-verify
+  :modes '(web-mode js2-jsx-mode)
+  :predicate #'tide-flycheck-predicate)
+
+(add-to-list 'flycheck-checkers 'jsx-tide t)
+
+(flycheck-define-generic-checker 'tsx-tide
+  "A TSX syntax checker using tsserver."
+  :start #'tide-flycheck-start
+  :verify #'tide-flycheck-verify
+  :modes '(web-mode)
+  :predicate #'tide-flycheck-predicate)
+
+(add-to-list 'flycheck-checkers 'tsx-tide)
 
 ;;; Utility commands
 
