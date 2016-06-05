@@ -70,7 +70,7 @@ jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck
 
 * Make sure to add
   [tsconfig.json](https://github.com/Microsoft/TypeScript/wiki/tsconfig.json)
-  in the project root folder.
+  or jsconfig.json in the project root folder.
 
 * tsserver mangles output
   sometimes [issue - #2758](https://github.com/Microsoft/TypeScript/issues/2758),
