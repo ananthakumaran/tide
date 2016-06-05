@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 1.8.10
 ;; Keywords: typescript
-;; Package-Requires: ((dash "2.10.0") (flycheck "27") (emacs "24.1") (typescript-mode "0.1"))
+;; Package-Requires: ((dash "2.10.0") (flycheck "27") (emacs "24.1") (typescript-mode "0.1") (cl-lib "0.5"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 (require 'typescript-mode)
 (require 'etags)
 (require 'json)
-(require 'cl)
+(require 'cl-lib)
 (require 'eldoc)
 (require 'dash)
 (require 'flycheck)
@@ -119,7 +119,7 @@
 ;;; Helpers
 
 (defun tide-plist-get (list &rest args)
-  (reduce
+  (cl-reduce
    (lambda (object key)
      (when object
        (plist-get object key)))
@@ -197,7 +197,7 @@ LINE is one based, OFFSET is one based and column is zero based"
       (beginning-of-line)
       (while (> offset 1)
         (forward-char)
-        (decf offset))
+        (cl-decf offset))
       (1+ (current-column)))))
 
 (defun tide-span-to-position (span)
@@ -224,7 +224,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (gethash (tide-project-name) tide-servers))
 
 (defun tide-next-request-id ()
-  (number-to-string (incf tide-request-counter)))
+  (number-to-string (cl-incf tide-request-counter)))
 
 (defun tide-dispatch-response (response)
   (let* ((request-id (plist-get response :request_seq))
@@ -235,7 +235,7 @@ LINE is one based, OFFSET is one based and column is zero based"
       (remhash request-id tide-response-callbacks))))
 
 (defun tide-dispatch (response)
-  (case (intern (plist-get response :type))
+  (cl-case (intern (plist-get response :type))
     ('response (tide-dispatch-response response))))
 
 (defun tide-send-command (name args &optional callback)
@@ -653,7 +653,7 @@ With a prefix arg, Jump to the type definition."
 
 (eval-after-load 'company
   '(progn
-     (pushnew 'company-tide company-backends)))
+     (cl-pushnew 'company-tide company-backends)))
 
 ;;; References
 
@@ -835,7 +835,7 @@ number."
             (-each (nconc (-reject #'current-file-p locs)
                           (-select #'current-file-p locs))
               (lambda (loc)
-                (incf count (tide-rename-symbol-at-location loc new-symbol))))
+                (cl-incf count (tide-rename-symbol-at-location loc new-symbol))))
 
             (message "Renamed %d occurrences." count)))))))
 
@@ -1026,9 +1026,5 @@ number."
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
 (provide 'tide)
-
-;; Local Variables:
-;; byte-compile-warnings: (not cl-functions)
-;; End:
 
 ;;; tide.el ends here
