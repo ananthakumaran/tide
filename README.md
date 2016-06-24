@@ -28,7 +28,10 @@
 (setq company-tooltip-align-annotations t)
 
 ;; formats the buffer before saving
-(add-hook 'before-save-hook 'tide-format-before-save)
+(add-hook 'typescript-mode-hook
+          (lambda () 
+            (add-hook 'before-save-hook 'tide-format-before-save nil 'make-it-local)))
+;; see http://stackoverflow.com/questions/6138029/how-to-add-a-hook-to-only-run-in-a-particular-mode            
 
 ;; format options
 (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
