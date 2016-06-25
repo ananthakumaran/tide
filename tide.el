@@ -842,6 +842,7 @@ number."
 
 ;;; Format
 
+;;;###autoload
 (defun tide-format-before-save ()
   "Before save hook to format the buffer before each save."
   (interactive)
