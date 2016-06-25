@@ -590,7 +590,7 @@ With a prefix arg, Jump to the type definition."
   (let* ((file-location
           `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)))))
     (when (not (tide-member-completion-p prefix))
-      (plist-put file-location :prefix prefix))
+      (setq file-location (plist-put file-location :prefix prefix)))
     (tide-send-command
      "completions"
      file-location
@@ -937,10 +937,36 @@ number."
 ;;; Error highlighting
 
 (defun tide-command:geterr (cb)
-  (tide-send-command
-   "geterr"
-   `(:responseType "response" :files (,buffer-file-name))
-   cb))
+  (let* ((result '())
+         (resolved nil)
+         (err nil))
+    (cl-flet
+        ((resolve ()
+                  (when (not resolved)
+                    (if err
+                        (progn
+                          (setq resolved t)
+                          (funcall cb err))
+                      (when (and (plist-member result :syntaxDiag)
+                                 (plist-member result :semanticDiag))
+                        (setq resolved t)
+                        (funcall cb `(:body (,result) :success t)))))))
+      (tide-send-command
+       "syntacticDiagnosticsSync"
+       `(:file ,buffer-file-name)
+       (lambda (response)
+         (if (tide-response-success-p response)
+             (setq result (plist-put result :syntaxDiag (plist-get response :body)))
+           (setq err response))
+         (resolve)))
+      (tide-send-command
+       "semanticDiagnosticsSync"
+       `(:file ,buffer-file-name)
+       (lambda (response)
+         (if (tide-response-success-p response)
+             (setq result (plist-put result :semanticDiag (plist-get response :body)))
+           (setq err response))
+         (resolve))))))
 
 (defun tide-parse-error (response checker)
   (-map
