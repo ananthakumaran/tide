@@ -8,6 +8,7 @@
   },
 
   "files": [
+    "test.d.ts",
     "all.d.ts",
     "reactComponent.tsx",
     "test.ts",

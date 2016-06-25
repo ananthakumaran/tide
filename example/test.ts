@@ -4,6 +4,7 @@ var len = x.length;
 
 len.substring(0, 1);
 
+var y = Game;
 
 @readonly
 class Person {
