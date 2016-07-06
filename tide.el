@@ -345,8 +345,18 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-file-format-options ()
   (tide-combine-plists
-   `(:tabSize ,tab-width)
+   `(:tabSize ,tab-width :indentSize ,(tide-current-indentsize))
    tide-format-options))
+
+(defun tide-current-indentsize ()
+  (pcase major-mode
+    (`typescript-mode typescript-indent-level)
+    (`js2-mode js2-basic-offset)
+    (`js-mode js-indent-level)
+    (`js3-mode js3-indent-level)
+    (`web-mode web-mode-code-indent-offset)
+    (`js2-jsx-mode sgml-basic-offset)
+    (_ standard-indent)))
 
 (defun tide-command:configure ()
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
