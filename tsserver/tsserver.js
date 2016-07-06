@@ -1886,14 +1886,15 @@ var ts;
             var includeBasePaths = [];
             for (var _i = 0, includes_1 = includes; _i < includes_1.length; _i++) {
                 var include = includes_1[_i];
-                if (isRootedDiskPath(include)) {
-                    var wildcardOffset = indexOfAnyCharCode(include, wildcardCharCodes);
-                    var includeBasePath = wildcardOffset < 0
-                        ? removeTrailingDirectorySeparator(getDirectoryPath(include))
-                        : include.substring(0, include.lastIndexOf(ts.directorySeparator, wildcardOffset));
-                    // Append the literal and canonical candidate base paths.
-                    includeBasePaths.push(includeBasePath);
-                }
+                // We also need to check the relative paths by converting them to absolute and normalizing
+                // in case they escape the base path (e.g "..\somedirectory")
+                var absolute = isRootedDiskPath(include) ? include : normalizePath(combinePaths(path, include));
+                var wildcardOffset = indexOfAnyCharCode(absolute, wildcardCharCodes);
+                var includeBasePath = wildcardOffset < 0
+                    ? removeTrailingDirectorySeparator(getDirectoryPath(absolute))
+                    : absolute.substring(0, absolute.lastIndexOf(ts.directorySeparator, wildcardOffset));
+                // Append the literal and canonical candidate base paths.
+                includeBasePaths.push(includeBasePath);
             }
             // Sort the offsets array using either the literal or canonical path representations.
             includeBasePaths.sort(useCaseSensitiveFileNames ? compareStrings : compareStringsCaseInsensitive);
@@ -3171,6 +3172,7 @@ var ts;
         Substitution_0_in_pattern_1_in_can_have_at_most_one_Asterisk_character: { code: 5062, category: ts.DiagnosticCategory.Error, key: "Substitution_0_in_pattern_1_in_can_have_at_most_one_Asterisk_character_5062", message: "Substitution '{0}' in pattern '{1}' in can have at most one '*' character" },
         Substitutions_for_pattern_0_should_be_an_array: { code: 5063, category: ts.DiagnosticCategory.Error, key: "Substitutions_for_pattern_0_should_be_an_array_5063", message: "Substitutions for pattern '{0}' should be an array." },
         Substitution_0_for_pattern_1_has_incorrect_type_expected_string_got_2: { code: 5064, category: ts.DiagnosticCategory.Error, key: "Substitution_0_for_pattern_1_has_incorrect_type_expected_string_got_2_5064", message: "Substitution '{0}' for pattern '{1}' has incorrect type, expected 'string', got '{2}'." },
+        File_specification_cannot_contain_a_parent_directory_that_appears_after_a_recursive_directory_wildcard_Asterisk_Asterisk_Colon_0: { code: 5065, category: ts.DiagnosticCategory.Error, key: "File_specification_cannot_contain_a_parent_directory_that_appears_after_a_recursive_directory_wildca_5065", message: "File specification cannot contain a parent directory ('..') that appears after a recursive directory wildcard ('**'): '{0}'." },
         Concatenate_and_emit_output_to_single_file: { code: 6001, category: ts.DiagnosticCategory.Message, key: "Concatenate_and_emit_output_to_single_file_6001", message: "Concatenate and emit output to single file." },
         Generates_corresponding_d_ts_file: { code: 6002, category: ts.DiagnosticCategory.Message, key: "Generates_corresponding_d_ts_file_6002", message: "Generates corresponding '.d.ts' file." },
         Specify_the_location_where_debugger_should_locate_map_files_instead_of_generated_locations: { code: 6003, category: ts.DiagnosticCategory.Message, key: "Specify_the_location_where_debugger_should_locate_map_files_instead_of_generated_locations_6003", message: "Specify the location where debugger should locate map files instead of generated locations." },
@@ -3652,6 +3654,11 @@ var ts;
     ts.getLineAndCharacterOfPosition = getLineAndCharacterOfPosition;
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     function isWhiteSpace(ch) {
+        return isWhiteSpaceSingleLine(ch) || isLineBreak(ch);
+    }
+    ts.isWhiteSpace = isWhiteSpace;
+    /** Does not include line breaks. For that, see isWhiteSpaceLike. */
+    function isWhiteSpaceSingleLine(ch) {
         // Note: nextLine is in the Zs space, and should be considered to be a whitespace.
         // It is explicitly not a line-break as it isn't in the exact set specified by EcmaScript.
         return ch === 32 /* space */ ||
@@ -3667,7 +3674,7 @@ var ts;
             ch === 12288 /* ideographicSpace */ ||
             ch === 65279 /* byteOrderMark */;
     }
-    ts.isWhiteSpace = isWhiteSpace;
+    ts.isWhiteSpaceSingleLine = isWhiteSpaceSingleLine;
     function isLineBreak(ch) {
         // ES5 7.3:
         // The ECMAScript line terminator characters are listed in Table 3.
@@ -3787,7 +3794,7 @@ var ts;
                     }
                     break;
                 default:
-                    if (ch > 127 /* maxAsciiCharacter */ && (isWhiteSpace(ch) || isLineBreak(ch))) {
+                    if (ch > 127 /* maxAsciiCharacter */ && (isWhiteSpace(ch))) {
                         pos++;
                         continue;
                     }
@@ -3925,7 +3932,7 @@ var ts;
                     }
                     break;
                 default:
-                    if (ch > 127 /* maxAsciiCharacter */ && (isWhiteSpace(ch) || isLineBreak(ch))) {
+                    if (ch > 127 /* maxAsciiCharacter */ && (isWhiteSpace(ch))) {
                         if (result && result.length && isLineBreak(ch)) {
                             ts.lastOrUndefined(result).hasTrailingNewLine = true;
                         }
@@ -4015,6 +4022,7 @@ var ts;
             scanJsxToken: scanJsxToken,
             scanJSDocToken: scanJSDocToken,
             scan: scan,
+            getText: getText,
             setText: setText,
             setScriptTarget: setScriptTarget,
             setLanguageVariant: setLanguageVariant,
@@ -4415,7 +4423,7 @@ var ts;
                             continue;
                         }
                         else {
-                            while (pos < end && isWhiteSpace(text.charCodeAt(pos))) {
+                            while (pos < end && isWhiteSpaceSingleLine(text.charCodeAt(pos))) {
                                 pos++;
                             }
                             return token = 5 /* WhitespaceTrivia */;
@@ -4720,7 +4728,7 @@ var ts;
                             }
                             return token = getIdentifierToken();
                         }
-                        else if (isWhiteSpace(ch)) {
+                        else if (isWhiteSpaceSingleLine(ch)) {
                             pos++;
                             continue;
                         }
@@ -4873,7 +4881,7 @@ var ts;
             var ch = text.charCodeAt(pos);
             while (pos < end) {
                 ch = text.charCodeAt(pos);
-                if (isWhiteSpace(ch)) {
+                if (isWhiteSpaceSingleLine(ch)) {
                     pos++;
                 }
                 else {
@@ -4961,6 +4969,9 @@ var ts;
         }
         function tryScan(callback) {
             return speculationHelper(callback, /*isLookahead*/ false);
+        }
+        function getText() {
+            return text;
         }
         function setText(newText, start, length) {
             text = newText || "";
@@ -5842,6 +5853,20 @@ var ts;
      */
     var invalidMultipleRecursionPatterns = /(^|\/)\*\*\/(.*\/)?\*\*($|\/)/;
     /**
+     * Tests for a path where .. appears after a recursive directory wildcard.
+     * Matches **\..\*, **\a\..\*, and **\.., but not ..\**\*
+     *
+     * NOTE: used \ in place of / above to avoid issues with multiline comments.
+     *
+     * Breakdown:
+     *  (^|\/)      # matches either the beginning of the string or a directory separator.
+     *  \*\*\/      # matches a recursive directory wildcard "**" followed by a directory separator.
+     *  (.*\/)?     # optionally matches any number of characters followed by a directory separator.
+     *  \.\.        # matches a parent directory path component ".."
+     *  ($|\/)      # matches either the end of the string or a directory separator.
+     */
+    var invalidDotDotAfterRecursiveWildcardPattern = /(^|\/)\*\*\/(.*\/)?\.\.($|\/)/;
+    /**
      * Tests for a path containing a wildcard character in a directory component of the path.
      * Matches \*\, \?\, and \a*b\, but not \a\ or \a\*.
      *
@@ -5960,6 +5985,9 @@ var ts;
             else if (invalidMultipleRecursionPatterns.test(spec)) {
                 errors.push(ts.createCompilerDiagnostic(ts.Diagnostics.File_specification_cannot_contain_multiple_recursive_directory_wildcards_Asterisk_Asterisk_Colon_0, spec));
             }
+            else if (invalidDotDotAfterRecursiveWildcardPattern.test(spec)) {
+                errors.push(ts.createCompilerDiagnostic(ts.Diagnostics.File_specification_cannot_contain_a_parent_directory_that_appears_after_a_recursive_directory_wildcard_Asterisk_Asterisk_Colon_0, spec));
+            }
             else {
                 validSpecs.push(spec);
             }
@@ -5988,7 +6016,7 @@ var ts;
             var recursiveKeys = [];
             for (var _i = 0, include_1 = include; _i < include_1.length; _i++) {
                 var file = include_1[_i];
-                var name_5 = ts.combinePaths(path, file);
+                var name_5 = ts.normalizePath(ts.combinePaths(path, file));
                 if (excludeRegex && excludeRegex.test(name_5)) {
                     continue;
                 }
@@ -8507,7 +8535,7 @@ var ts;
     }
     function calculateIndent(text, pos, end) {
         var currentLineIndent = 0;
-        for (; pos < end && ts.isWhiteSpace(text.charCodeAt(pos)); pos++) {
+        for (; pos < end && ts.isWhiteSpaceSingleLine(text.charCodeAt(pos)); pos++) {
             if (text.charCodeAt(pos) === 9 /* tab */) {
                 // Tabs = TabSize = indent size and go to next tabStop
                 currentLineIndent += getIndentSize() - (currentLineIndent % getIndentSize());
@@ -15671,6 +15699,9 @@ var ts;
                 case 227 /* CaseBlock */:
                     bindCaseBlock(node);
                     break;
+                case 249 /* CaseClause */:
+                    bindCaseClause(node);
+                    break;
                 case 214 /* LabeledStatement */:
                     bindLabeledStatement(node);
                     break;
@@ -16074,6 +16105,13 @@ var ts;
                     errorOnFirstToken(clause, ts.Diagnostics.Fallthrough_case_in_switch);
                 }
             }
+        }
+        function bindCaseClause(node) {
+            var saveCurrentFlow = currentFlow;
+            currentFlow = preSwitchCaseFlow;
+            bind(node.expression);
+            currentFlow = saveCurrentFlow;
+            ts.forEach(node.statements, bind);
         }
         function pushActiveLabel(name, breakTarget, continueTarget) {
             var activeLabel = {
@@ -29278,8 +29316,8 @@ var ts;
                     }
                 }
                 else {
-                    var static = ts.forEach(member.modifiers, function (m) { return m.kind === 113 /* StaticKeyword */; });
-                    var names = static ? staticNames : instanceNames;
+                    var isStatic = ts.forEach(member.modifiers, function (m) { return m.kind === 113 /* StaticKeyword */; });
+                    var names = isStatic ? staticNames : instanceNames;
                     var memberName = member.name && ts.getPropertyNameForPropertyNameNode(member.name);
                     if (memberName) {
                         switch (member.kind) {
@@ -30394,7 +30432,10 @@ var ts;
                         var local_1 = node.locals[key];
                         if (!local_1.isReferenced) {
                             if (local_1.valueDeclaration && local_1.valueDeclaration.kind === 142 /* Parameter */) {
-                                if (compilerOptions.noUnusedParameters && !ts.isParameterPropertyDeclaration(local_1.valueDeclaration)) {
+                                var parameter = local_1.valueDeclaration;
+                                if (compilerOptions.noUnusedParameters &&
+                                    !ts.isParameterPropertyDeclaration(parameter) &&
+                                    !parameterNameStartsWithUnderscore(parameter)) {
                                     error(local_1.valueDeclaration.name, ts.Diagnostics._0_is_declared_but_never_used, local_1.name);
                                 }
                             }
@@ -30408,6 +30449,9 @@ var ts;
                     _loop_1(key);
                 }
             }
+        }
+        function parameterNameStartsWithUnderscore(parameter) {
+            return parameter.name && parameter.name.kind === 69 /* Identifier */ && parameter.name.text.charCodeAt(0) === 95 /* _ */;
         }
         function checkUnusedClassMembers(node) {
             if (compilerOptions.noUnusedLocals && !ts.isInAmbientContext(node)) {
@@ -43354,7 +43398,7 @@ var ts;
                         }
                         firstNonWhitespace = -1;
                     }
-                    else if (!ts.isWhiteSpace(c)) {
+                    else if (!ts.isWhiteSpaceSingleLine(c)) {
                         lastNonWhitespace = i;
                         if (firstNonWhitespace === -1) {
                             firstNonWhitespace = i;
@@ -49764,6 +49808,7 @@ var ts;
                 isOnToken: isOnToken,
                 getCurrentLeadingTrivia: function () { return leadingTrivia; },
                 lastTrailingTriviaWasNewLine: function () { return wasNewLine; },
+                skipToEndOf: skipToEndOf,
                 close: function () {
                     ts.Debug.assert(scanner !== undefined);
                     lastTokenInfo = undefined;
@@ -49955,6 +50000,15 @@ var ts;
                     tokenInfo.token.kind = container.kind;
                 }
                 return tokenInfo;
+            }
+            function skipToEndOf(node) {
+                scanner.setTextPos(node.end);
+                savedPos = scanner.getStartPos();
+                lastScanAction = undefined;
+                lastTokenInfo = undefined;
+                wasNewLine = false;
+                leadingTrivia = undefined;
+                trailingTrivia = undefined;
             }
         }
         formatting.getFormattingScanner = getFormattingScanner;
@@ -51138,7 +51192,7 @@ var ts;
             //  1. the end of the previous line
             //  2. the last non-whitespace character in the current line
             var endOfFormatSpan = ts.getEndLinePosition(line, sourceFile);
-            while (ts.isWhiteSpace(sourceFile.text.charCodeAt(endOfFormatSpan)) && !ts.isLineBreak(sourceFile.text.charCodeAt(endOfFormatSpan))) {
+            while (ts.isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(endOfFormatSpan))) {
                 endOfFormatSpan--;
             }
             // if the character at the end of the span is a line break, we shouldn't include it, because it indicates we don't want to
@@ -51568,6 +51622,9 @@ var ts;
                     }
                     // child node is outside the target range - do not dive inside
                     if (!ts.rangeOverlapsWithStartEnd(originalRange, child.pos, child.end)) {
+                        if (child.end < originalRange.pos) {
+                            formattingScanner.skipToEndOf(child);
+                        }
                         return inheritedIndentation;
                     }
                     if (child.getFullWidth() === 0) {
@@ -51861,7 +51918,7 @@ var ts;
                     }
                     var whitespaceStart = getTrailingWhitespaceStartPosition(lineStartPosition, lineEndPosition);
                     if (whitespaceStart !== -1) {
-                        ts.Debug.assert(whitespaceStart === lineStartPosition || !ts.isWhiteSpace(sourceFile.text.charCodeAt(whitespaceStart - 1)));
+                        ts.Debug.assert(whitespaceStart === lineStartPosition || !ts.isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(whitespaceStart - 1)));
                         recordDelete(whitespaceStart, lineEndPosition + 1 - whitespaceStart);
                     }
                 }
@@ -51872,7 +51929,7 @@ var ts;
              */
             function getTrailingWhitespaceStartPosition(start, end) {
                 var pos = end;
-                while (pos >= start && ts.isWhiteSpace(sourceFile.text.charCodeAt(pos))) {
+                while (pos >= start && ts.isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(pos))) {
                     pos--;
                 }
                 if (pos !== end) {
@@ -52071,7 +52128,7 @@ var ts;
                     var current_1 = position;
                     while (current_1 > 0) {
                         var char = sourceFile.text.charCodeAt(current_1);
-                        if (!ts.isWhiteSpace(char) && !ts.isLineBreak(char)) {
+                        if (!ts.isWhiteSpace(char)) {
                             break;
                         }
                         current_1--;
@@ -52371,7 +52428,7 @@ var ts;
                 var column = 0;
                 for (var pos = startPos; pos < endPos; pos++) {
                     var ch = sourceFile.text.charCodeAt(pos);
-                    if (!ts.isWhiteSpace(ch)) {
+                    if (!ts.isWhiteSpaceSingleLine(ch)) {
                         break;
                     }
                     if (ch === 9 /* tab */) {
@@ -52800,8 +52857,7 @@ var ts;
                 }
                 for (; pos < end; pos++) {
                     var ch = sourceFile.text.charCodeAt(pos);
-                    if (!ts.isWhiteSpace(ch) || ts.isLineBreak(ch)) {
-                        // Either found lineBreak or non whiteSpace
+                    if (!ts.isWhiteSpaceSingleLine(ch)) {
                         return pos;
                     }
                 }
@@ -52816,8 +52872,7 @@ var ts;
             function isName(pos, end, sourceFile, name) {
                 return pos + name.length < end &&
                     sourceFile.text.substr(pos, name.length) === name &&
-                    (ts.isWhiteSpace(sourceFile.text.charCodeAt(pos + name.length)) ||
-                        ts.isLineBreak(sourceFile.text.charCodeAt(pos + name.length)));
+                    ts.isWhiteSpace(sourceFile.text.charCodeAt(pos + name.length));
             }
             function isParamTag(pos, end, sourceFile) {
                 // If it is @param tag
@@ -52982,7 +53037,7 @@ var ts;
                 }
                 return paramDocComments;
                 function consumeWhiteSpaces(pos) {
-                    while (pos < end && ts.isWhiteSpace(sourceFile.text.charCodeAt(pos))) {
+                    while (pos < end && ts.isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(pos))) {
                         pos++;
                     }
                     return pos;
@@ -56906,7 +56961,7 @@ var ts;
                             var shouldCombindElseAndIf = true;
                             // Avoid recalculating getStart() by iterating backwards.
                             for (var j = ifKeyword.getStart() - 1; j >= elseKeyword.end; j--) {
-                                if (!ts.isWhiteSpace(sourceFile.text.charCodeAt(j))) {
+                                if (!ts.isWhiteSpaceSingleLine(sourceFile.text.charCodeAt(j))) {
                                     shouldCombindElseAndIf = false;
                                     break;
                                 }
@@ -63340,9 +63395,12 @@ var ts;
         return result;
     }
     function forwardJSONCall(logger, actionDescription, action, logPerformance) {
+        return forwardCall(logger, actionDescription, /*returnJson*/ true, action, logPerformance);
+    }
+    function forwardCall(logger, actionDescription, returnJson, action, logPerformance) {
         try {
             var result = simpleForwardCall(logger, actionDescription, action, logPerformance);
-            return JSON.stringify({ result: result });
+            return returnJson ? JSON.stringify({ result: result }) : result;
         }
         catch (err) {
             if (err instanceof ts.OperationCanceledException) {
@@ -63625,6 +63683,11 @@ var ts;
         LanguageServiceShimObject.prototype.getEmitOutput = function (fileName) {
             var _this = this;
             return this.forwardJSONCall("getEmitOutput('" + fileName + "')", function () { return _this.languageService.getEmitOutput(fileName); });
+        };
+        LanguageServiceShimObject.prototype.getEmitOutputObject = function (fileName) {
+            var _this = this;
+            return forwardCall(this.logger, "getEmitOutput('" + fileName + "')", 
+            /*returnJson*/ false, function () { return _this.languageService.getEmitOutput(fileName); }, this.logPerformance);
         };
         return LanguageServiceShimObject;
     }(ShimBase));
