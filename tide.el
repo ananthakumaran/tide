@@ -51,6 +51,15 @@
   :type '(repeat string)
   :group 'tide)
 
+(defcustom tide-tsserver-executable nil
+  "Name of tsserver executable to run instead of the bundled tsserver.
+
+This may either be a path or a name to be looked up in
+`exec-path'. Note that this option only works with TypeScript
+version 2.0 and above."
+  :type '(choice (const nil) string)
+  :group 'tide)
+
 (defvar tide-format-options '()
   "Format options plist.")
 
@@ -286,7 +295,10 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
-         (process (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))
+         (process
+          (if tide-tsserver-executable
+              (start-file-process "tsserver" buf tide-tsserver-executable)
+            (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
@@ -600,7 +612,7 @@ With a prefix arg, Jump to the type definition."
   (let* ((file-location
           `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)))))
     (when (not (tide-member-completion-p prefix))
-      (plist-put file-location :prefix prefix))
+      (setq file-location (plist-put file-location :prefix prefix)))
     (tide-send-command
      "completions"
      file-location
@@ -947,10 +959,36 @@ number."
 ;;; Error highlighting
 
 (defun tide-command:geterr (cb)
-  (tide-send-command
-   "geterr"
-   `(:responseType "response" :files (,buffer-file-name))
-   cb))
+  (let* ((result '())
+         (resolved nil)
+         (err nil))
+    (cl-flet
+        ((resolve ()
+                  (when (not resolved)
+                    (if err
+                        (progn
+                          (setq resolved t)
+                          (funcall cb err))
+                      (when (and (plist-member result :syntaxDiag)
+                                 (plist-member result :semanticDiag))
+                        (setq resolved t)
+                        (funcall cb `(:body (,result) :success t)))))))
+      (tide-send-command
+       "syntacticDiagnosticsSync"
+       `(:file ,buffer-file-name)
+       (lambda (response)
+         (if (tide-response-success-p response)
+             (setq result (plist-put result :syntaxDiag (plist-get response :body)))
+           (setq err response))
+         (resolve)))
+      (tide-send-command
+       "semanticDiagnosticsSync"
+       `(:file ,buffer-file-name)
+       (lambda (response)
+         (if (tide-response-success-p response)
+             (setq result (plist-put result :semanticDiag (plist-get response :body)))
+           (setq err response))
+         (resolve))))))
 
 (defun tide-parse-error (response checker)
   (-map
