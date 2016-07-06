@@ -577,6 +577,7 @@ var ts;
         SymbolFlags[SymbolFlags["BlockScoped"] = 418] = "BlockScoped";
         SymbolFlags[SymbolFlags["PropertyOrAccessor"] = 98308] = "PropertyOrAccessor";
         SymbolFlags[SymbolFlags["Export"] = 7340032] = "Export";
+        SymbolFlags[SymbolFlags["ClassMember"] = 106500] = "ClassMember";
         /* @internal */
         // The set of things we consider semantically classifiable.  Used to speed up the LS during
         // classification.
@@ -3288,6 +3289,8 @@ var ts;
         _0_is_declared_but_never_used: { code: 6133, category: ts.DiagnosticCategory.Error, key: "_0_is_declared_but_never_used_6133", message: "'{0}' is declared but never used." },
         Report_Errors_on_Unused_Locals: { code: 6134, category: ts.DiagnosticCategory.Message, key: "Report_Errors_on_Unused_Locals_6134", message: "Report Errors on Unused Locals." },
         Report_Errors_on_Unused_Parameters: { code: 6135, category: ts.DiagnosticCategory.Message, key: "Report_Errors_on_Unused_Parameters_6135", message: "Report Errors on Unused Parameters." },
+        The_maximum_dependency_depth_to_search_under_node_modules_and_load_JavaScript_files: { code: 6136, category: ts.DiagnosticCategory.Message, key: "The_maximum_dependency_depth_to_search_under_node_modules_and_load_JavaScript_files_6136", message: "The maximum dependency depth to search under node_modules and load JavaScript files" },
+        No_types_specified_in_package_json_but_allowJs_is_set_so_returning_main_value_of_0: { code: 6137, category: ts.DiagnosticCategory.Message, key: "No_types_specified_in_package_json_but_allowJs_is_set_so_returning_main_value_of_0_6137", message: "No types specified in 'package.json' but 'allowJs' is set, so returning 'main' value of '{0}'" },
         Variable_0_implicitly_has_an_1_type: { code: 7005, category: ts.DiagnosticCategory.Error, key: "Variable_0_implicitly_has_an_1_type_7005", message: "Variable '{0}' implicitly has an '{1}' type." },
         Parameter_0_implicitly_has_an_1_type: { code: 7006, category: ts.DiagnosticCategory.Error, key: "Parameter_0_implicitly_has_an_1_type_7006", message: "Parameter '{0}' implicitly has an '{1}' type." },
         Member_0_implicitly_has_an_1_type: { code: 7008, category: ts.DiagnosticCategory.Error, key: "Member_0_implicitly_has_an_1_type_7008", message: "Member '{0}' implicitly has an '{1}' type." },
@@ -5326,16 +5329,6 @@ var ts;
             }
         },
         {
-            name: "typesSearchPaths",
-            type: "list",
-            isTSConfigOnly: true,
-            element: {
-                name: "typesSearchPaths",
-                type: "string",
-                isFilePath: true
-            }
-        },
-        {
             name: "typeRoots",
             type: "list",
             element: {
@@ -5372,6 +5365,11 @@ var ts;
             name: "noImplicitUseStrict",
             type: "boolean",
             description: ts.Diagnostics.Do_not_emit_use_strict_directives_in_module_output
+        },
+        {
+            name: "maxNodeModuleJsDepth",
+            type: "number",
+            description: ts.Diagnostics.The_maximum_dependency_depth_to_search_under_node_modules_and_load_JavaScript_files
         },
         {
             name: "listEmittedFiles",
@@ -5412,7 +5410,7 @@ var ts;
             description: ts.Diagnostics.Specify_library_files_to_be_included_in_the_compilation_Colon
         },
         {
-            name: "disableProjectSizeLimit",
+            name: "disableSizeLimit",
             type: "boolean"
         },
         {
@@ -8206,7 +8204,8 @@ var ts;
             var sourceFiles = targetSourceFile === undefined ? host.getSourceFiles() : [targetSourceFile];
             for (var _i = 0, sourceFiles_1 = sourceFiles; _i < sourceFiles_1.length; _i++) {
                 var sourceFile = sourceFiles_1[_i];
-                if (!isDeclarationFile(sourceFile)) {
+                // Don't emit if source file is a declaration file, or was located under node_modules
+                if (!isDeclarationFile(sourceFile) && !host.isSourceFileFromExternalLibrary(sourceFile)) {
                     onSingleFileEmit(host, sourceFile);
                 }
             }
@@ -8236,11 +8235,12 @@ var ts;
             action(emitFileNames, [sourceFile], /*isBundledEmit*/ false);
         }
         function onBundledEmit(host) {
-            // Can emit only sources that are not declaration file and are either non module code or module with --module or --target es6 specified
-            var bundledSources = ts.filter(host.getSourceFiles(), function (sourceFile) {
-                return !isDeclarationFile(sourceFile) // Not a declaration file
-                    && (!ts.isExternalModule(sourceFile) || !!getEmitModuleKind(options));
-            }); // and not a module, unless module emit enabled
+            // Can emit only sources that are not declaration file and are either non module code or module with
+            // --module or --target es6 specified. Files included by searching under node_modules are also not emitted.
+            var bundledSources = ts.filter(host.getSourceFiles(), function (sourceFile) { return !isDeclarationFile(sourceFile) &&
+                !host.isSourceFileFromExternalLibrary(sourceFile) &&
+                (!ts.isExternalModule(sourceFile) ||
+                    !!getEmitModuleKind(options)); });
             if (bundledSources.length) {
                 var jsFilePath = options.outFile || options.out;
                 var emitFileNames = {
@@ -10030,12 +10030,12 @@ var ts;
             if (token === 82 /* ExportKeyword */) {
                 nextToken();
                 if (token === 77 /* DefaultKeyword */) {
-                    return lookAhead(nextTokenIsClassOrFunction);
+                    return lookAhead(nextTokenIsClassOrFunctionOrAsync);
                 }
                 return token !== 37 /* AsteriskToken */ && token !== 116 /* AsKeyword */ && token !== 15 /* OpenBraceToken */ && canFollowModifier();
             }
             if (token === 77 /* DefaultKeyword */) {
-                return nextTokenIsClassOrFunction();
+                return nextTokenIsClassOrFunctionOrAsync();
             }
             if (token === 113 /* StaticKeyword */) {
                 nextToken();
@@ -10053,9 +10053,9 @@ var ts;
                 || token === 22 /* DotDotDotToken */
                 || isLiteralPropertyName();
         }
-        function nextTokenIsClassOrFunction() {
+        function nextTokenIsClassOrFunctionOrAsync() {
             nextToken();
-            return token === 73 /* ClassKeyword */ || token === 87 /* FunctionKeyword */;
+            return token === 73 /* ClassKeyword */ || token === 87 /* FunctionKeyword */ || token === 118 /* AsyncKeyword */;
         }
         // True if positioned at the start of a list element
         function isListElement(parsingContext, inErrorRecovery) {
@@ -17232,6 +17232,7 @@ var ts;
         var compilerOptions = host.getCompilerOptions();
         var languageVersion = compilerOptions.target || 0 /* ES3 */;
         var modulekind = ts.getEmitModuleKind(compilerOptions);
+        var noUnusedIdentifiers = !!compilerOptions.noUnusedLocals || !!compilerOptions.noUnusedParameters;
         var allowSyntheticDefaultImports = typeof compilerOptions.allowSyntheticDefaultImports !== "undefined" ? compilerOptions.allowSyntheticDefaultImports : modulekind === ts.ModuleKind.System;
         var strictNullChecks = compilerOptions.strictNullChecks;
         var emitResolver = createResolver();
@@ -17348,6 +17349,7 @@ var ts;
         var getGlobalThenableType;
         var jsxElementClassType;
         var deferredNodes;
+        var deferredUnusedIdentifierNodes;
         var flowLoopStart = 0;
         var flowLoopCount = 0;
         var visitedFlowCount = 0;
@@ -17969,6 +17971,9 @@ var ts;
                 }
                 lastLocation = location;
                 location = location.parent;
+            }
+            if (result && nameNotFoundMessage && noUnusedIdentifiers) {
+                result.isReferenced = true;
             }
             if (!result) {
                 result = getSymbol(globals, name, meaning);
@@ -24818,20 +24823,8 @@ var ts;
             }
             return container === declarationContainer;
         }
-        function updateReferencesForInterfaceHeritiageClauseTargets(node) {
-            var extendedTypeNode = ts.getClassExtendsHeritageClauseElement(node);
-            if (extendedTypeNode) {
-                var t = getTypeFromTypeNode(extendedTypeNode);
-                if (t !== unknownType && t.symbol && (compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                    t.symbol.hasReference = true;
-                }
-            }
-        }
         function checkIdentifier(node) {
             var symbol = getResolvedSymbol(node);
-            if (symbol && (compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                symbol.hasReference = true;
-            }
             // As noted in ECMAScript 6 language spec, arrow functions never have an arguments objects.
             // Although in down-level emit of arrow function, we emit it using function expression which means that
             // arguments objects will be bound to the inner object; emitting arrow function natively in ES6, arguments objects
@@ -26556,8 +26549,15 @@ var ts;
                 }
                 return unknownType;
             }
-            if ((compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                prop.hasReference = true;
+            if (noUnusedIdentifiers &&
+                (prop.flags & 106500 /* ClassMember */) &&
+                prop.valueDeclaration && (prop.valueDeclaration.flags & 8 /* Private */)) {
+                if (prop.flags & 16777216 /* Instantiated */) {
+                    getSymbolLinks(prop).target.isReferenced = true;
+                }
+                else {
+                    prop.isReferenced = true;
+                }
             }
             getNodeLinks(node).resolvedSymbol = prop;
             if (prop.parent && prop.parent.flags & 32 /* Class */) {
@@ -28286,8 +28286,7 @@ var ts;
                         }
                     }
                 }
-                checkUnusedIdentifiers(node);
-                checkUnusedTypeParameters(node);
+                registerForUnusedIdentifiersCheck(node);
             }
         }
         function checkArithmeticOperandType(operand, type, diagnostic) {
@@ -28608,6 +28607,12 @@ var ts;
             if (exprOrAssignment.kind === 254 /* ShorthandPropertyAssignment */) {
                 var prop = exprOrAssignment;
                 if (prop.objectAssignmentInitializer) {
+                    // In strict null checking mode, if a default value of a non-undefined type is specified, remove
+                    // undefined from the final type.
+                    if (strictNullChecks &&
+                        !(getCombinedTypeFlags(checkExpression(prop.objectAssignmentInitializer)) & 32 /* Undefined */)) {
+                        sourceType = getTypeWithFacts(sourceType, 131072 /* NEUndefined */);
+                    }
                     checkBinaryLikeExpression(prop.name, prop.equalsToken, prop.objectAssignmentInitializer, contextualMapper);
                 }
                 target = exprOrAssignment.name;
@@ -29395,8 +29400,7 @@ var ts;
             // Grammar check for checking only related to constructorDeclaration
             checkGrammarConstructorTypeParameters(node) || checkGrammarConstructorTypeAnnotation(node);
             checkSourceElement(node.body);
-            checkUnusedIdentifiers(node);
-            checkUnusedTypeParameters(node);
+            registerForUnusedIdentifiersCheck(node);
             var symbol = getSymbolOfNode(node);
             var firstDeclaration = ts.getDeclarationOfKind(symbol, node.kind);
             // Only type check the symbol once
@@ -29527,6 +29531,7 @@ var ts;
             }
             if (node.parent.kind !== 171 /* ObjectLiteralExpression */) {
                 checkSourceElement(node.body);
+                registerForUnusedIdentifiersCheck(node);
             }
             else {
                 checkNodeDeferred(node);
@@ -29541,6 +29546,7 @@ var ts;
         }
         function checkAccessorDeferred(node) {
             checkSourceElement(node.body);
+            registerForUnusedIdentifiersCheck(node);
         }
         function checkMissingDeclaration(node) {
             checkDecorators(node);
@@ -29566,9 +29572,6 @@ var ts;
             checkGrammarTypeArguments(node, node.typeArguments);
             var type = getTypeFromTypeReference(node);
             if (type !== unknownType) {
-                if (type.symbol && (compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                    type.symbol.hasReference = true;
-                }
                 if (node.typeArguments) {
                     // Do type argument local checks only if referenced type is successfully resolved
                     ts.forEach(node.typeArguments, checkSourceElement);
@@ -30311,8 +30314,6 @@ var ts;
                 }
             }
             checkSourceElement(node.body);
-            checkUnusedIdentifiers(node);
-            checkUnusedTypeParameters(node);
             if (!node.asteriskToken) {
                 var returnOrPromisedType = node.type && (isAsync ? checkAsyncFunctionReturnType(node) : getTypeFromTypeNode(node.type));
                 checkAllCodePathsInNonVoidFunctionReturnOrThrow(node, returnOrPromisedType);
@@ -30330,40 +30331,98 @@ var ts;
                     getReturnTypeOfSignature(getSignatureFromDeclaration(node));
                 }
             }
+            registerForUnusedIdentifiersCheck(node);
         }
-        function checkUnusedIdentifiers(node) {
-            if (node.parent.kind !== 222 /* InterfaceDeclaration */ && (compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                for (var key in node.locals) {
-                    if (ts.hasProperty(node.locals, key)) {
-                        var local = node.locals[key];
-                        if (!local.hasReference && local.valueDeclaration) {
-                            if (local.valueDeclaration.kind !== 142 /* Parameter */ && compilerOptions.noUnusedLocals) {
-                                error(local.valueDeclaration.name, ts.Diagnostics._0_is_declared_but_never_used, local.name);
+        function registerForUnusedIdentifiersCheck(node) {
+            if (deferredUnusedIdentifierNodes) {
+                deferredUnusedIdentifierNodes.push(node);
+            }
+        }
+        function checkUnusedIdentifiers() {
+            if (deferredUnusedIdentifierNodes) {
+                for (var _i = 0, deferredUnusedIdentifierNodes_1 = deferredUnusedIdentifierNodes; _i < deferredUnusedIdentifierNodes_1.length; _i++) {
+                    var node = deferredUnusedIdentifierNodes_1[_i];
+                    switch (node.kind) {
+                        case 256 /* SourceFile */:
+                        case 225 /* ModuleDeclaration */:
+                            checkUnusedModuleMembers(node);
+                            break;
+                        case 221 /* ClassDeclaration */:
+                        case 192 /* ClassExpression */:
+                            checkUnusedClassMembers(node);
+                            checkUnusedTypeParameters(node);
+                            break;
+                        case 222 /* InterfaceDeclaration */:
+                            checkUnusedTypeParameters(node);
+                            break;
+                        case 199 /* Block */:
+                        case 227 /* CaseBlock */:
+                        case 206 /* ForStatement */:
+                        case 207 /* ForInStatement */:
+                        case 208 /* ForOfStatement */:
+                            checkUnusedLocalsAndParameters(node);
+                            break;
+                        case 148 /* Constructor */:
+                        case 179 /* FunctionExpression */:
+                        case 220 /* FunctionDeclaration */:
+                        case 180 /* ArrowFunction */:
+                        case 147 /* MethodDeclaration */:
+                        case 149 /* GetAccessor */:
+                        case 150 /* SetAccessor */:
+                            if (node.body) {
+                                checkUnusedLocalsAndParameters(node);
                             }
-                            else if (local.valueDeclaration.kind === 142 /* Parameter */ && compilerOptions.noUnusedParameters) {
-                                if (local.valueDeclaration.flags === 0) {
-                                    error(local.valueDeclaration.name, ts.Diagnostics._0_is_declared_but_never_used, local.name);
-                                }
-                            }
-                        }
+                            checkUnusedTypeParameters(node);
+                            break;
+                        case 146 /* MethodSignature */:
+                        case 151 /* CallSignature */:
+                        case 152 /* ConstructSignature */:
+                        case 153 /* IndexSignature */:
+                        case 156 /* FunctionType */:
+                        case 157 /* ConstructorType */:
+                            checkUnusedTypeParameters(node);
+                            break;
                     }
+                    ;
                 }
             }
         }
-        function checkUnusedClassLocals(node) {
+        function checkUnusedLocalsAndParameters(node) {
+            if (node.parent.kind !== 222 /* InterfaceDeclaration */ && noUnusedIdentifiers && !ts.isInAmbientContext(node)) {
+                var _loop_1 = function(key) {
+                    if (ts.hasProperty(node.locals, key)) {
+                        var local_1 = node.locals[key];
+                        if (!local_1.isReferenced) {
+                            if (local_1.valueDeclaration && local_1.valueDeclaration.kind === 142 /* Parameter */) {
+                                if (compilerOptions.noUnusedParameters && !ts.isParameterPropertyDeclaration(local_1.valueDeclaration)) {
+                                    error(local_1.valueDeclaration.name, ts.Diagnostics._0_is_declared_but_never_used, local_1.name);
+                                }
+                            }
+                            else if (compilerOptions.noUnusedLocals) {
+                                ts.forEach(local_1.declarations, function (d) { return error(d.name || d, ts.Diagnostics._0_is_declared_but_never_used, local_1.name); });
+                            }
+                        }
+                    }
+                };
+                for (var key in node.locals) {
+                    _loop_1(key);
+                }
+            }
+        }
+        function checkUnusedClassMembers(node) {
             if (compilerOptions.noUnusedLocals && !ts.isInAmbientContext(node)) {
                 if (node.members) {
                     for (var _i = 0, _a = node.members; _i < _a.length; _i++) {
                         var member = _a[_i];
                         if (member.kind === 147 /* MethodDeclaration */ || member.kind === 145 /* PropertyDeclaration */) {
-                            if (isPrivateNode(member) && !member.symbol.hasReference) {
+                            if (!member.symbol.isReferenced && member.flags & 8 /* Private */) {
                                 error(member.name, ts.Diagnostics._0_is_declared_but_never_used, member.symbol.name);
                             }
                         }
                         else if (member.kind === 148 /* Constructor */) {
                             for (var _b = 0, _c = member.parameters; _b < _c.length; _b++) {
                                 var parameter = _c[_b];
-                                if (isPrivateNode(parameter) && !parameter.symbol.hasReference) {
+                                if (!parameter.symbol.isReferenced && parameter.flags & 8 /* Private */) {
                                     error(parameter.name, ts.Diagnostics._0_is_declared_but_never_used, parameter.symbol.name);
                                 }
                             }
@@ -30377,28 +30436,27 @@ var ts;
                 if (node.typeParameters) {
                     for (var _i = 0, _a = node.typeParameters; _i < _a.length; _i++) {
                         var typeParameter = _a[_i];
-                        if (!typeParameter.symbol.hasReference) {
+                        if (!typeParameter.symbol.isReferenced) {
                             error(typeParameter.name, ts.Diagnostics._0_is_declared_but_never_used, typeParameter.symbol.name);
                         }
                     }
                 }
             }
         }
-        function isPrivateNode(node) {
-            return (node.flags & 8 /* Private */) !== 0;
-        }
-        function checkUnusedModuleLocals(node) {
+        function checkUnusedModuleMembers(node) {
             if (compilerOptions.noUnusedLocals && !ts.isInAmbientContext(node)) {
-                var _loop_1 = function(key) {
+                for (var key in node.locals) {
                     if (ts.hasProperty(node.locals, key)) {
-                        var local_1 = node.locals[key];
-                        if (!local_1.hasReference && !local_1.exportSymbol) {
-                            ts.forEach(local_1.declarations, function (d) { return error(d.name, ts.Diagnostics._0_is_declared_but_never_used, local_1.name); });
+                        var local = node.locals[key];
+                        if (!local.isReferenced && !local.exportSymbol) {
+                            for (var _i = 0, _a = local.declarations; _i < _a.length; _i++) {
+                                var declaration = _a[_i];
+                                if (!ts.isAmbientModule(declaration)) {
+                                    error(declaration.name, ts.Diagnostics._0_is_declared_but_never_used, local.name);
+                                }
+                            }
                         }
                     }
-                };
-                for (var key in node.locals) {
-                    _loop_1(key);
                 }
             }
         }
@@ -30408,7 +30466,9 @@ var ts;
                 checkGrammarStatementInAmbientContext(node);
             }
             ts.forEach(node.statements, checkSourceElement);
-            checkUnusedIdentifiers(node);
+            if (node.locals) {
+                registerForUnusedIdentifiersCheck(node);
+            }
         }
         function checkCollisionWithArgumentsInGeneratedCode(node) {
             // no rest parameters \ declaration context \ overload - no codegen impact
@@ -30815,6 +30875,9 @@ var ts;
             if (node.incrementor)
                 checkExpression(node.incrementor);
             checkSourceElement(node.statement);
+            if (node.locals) {
+                registerForUnusedIdentifiersCheck(node);
+            }
         }
         function checkForOfStatement(node) {
             checkGrammarForInOrForOfStatement(node);
@@ -30850,7 +30913,9 @@ var ts;
                 }
             }
             checkSourceElement(node.statement);
-            checkUnusedIdentifiers(node);
+            if (node.locals) {
+                registerForUnusedIdentifiersCheck(node);
+            }
         }
         function checkForInStatement(node) {
             // Grammar checking
@@ -30892,7 +30957,9 @@ var ts;
                 error(node.expression, ts.Diagnostics.The_right_hand_side_of_a_for_in_statement_must_be_of_type_any_an_object_type_or_a_type_parameter);
             }
             checkSourceElement(node.statement);
-            checkUnusedIdentifiers(node);
+            if (node.locals) {
+                registerForUnusedIdentifiersCheck(node);
+            }
         }
         function checkForInOrForOfVariableDeclaration(iterationStatement) {
             var variableDeclarationList = iterationStatement.initializer;
@@ -31126,7 +31193,7 @@ var ts;
         }
         function isUnwrappedReturnTypeVoidOrAny(func, returnType) {
             var unwrappedReturnType = ts.isAsyncFunctionLike(func) ? getPromisedType(returnType) : returnType;
-            return maybeTypeOfKind(unwrappedReturnType, 16 /* Void */ | 1 /* Any */);
+            return unwrappedReturnType && maybeTypeOfKind(unwrappedReturnType, 16 /* Void */ | 1 /* Any */);
         }
         function checkReturnStatement(node) {
             // Grammar checking
@@ -31224,6 +31291,9 @@ var ts;
                 }
                 ts.forEach(clause.statements, checkSourceElement);
             });
+            if (node.caseBlock.locals) {
+                registerForUnusedIdentifiersCheck(node.caseBlock);
+            }
         }
         function checkLabeledStatement(node) {
             // Grammar checking
@@ -31284,7 +31354,6 @@ var ts;
                     }
                 }
                 checkBlock(catchClause.block);
-                checkUnusedIdentifiers(catchClause);
             }
             if (node.finallyBlock) {
                 checkBlock(node.finallyBlock);
@@ -31414,6 +31483,7 @@ var ts;
         }
         function checkClassExpressionDeferred(node) {
             ts.forEach(node.members, checkSourceElement);
+            registerForUnusedIdentifiersCheck(node);
         }
         function checkClassDeclaration(node) {
             if (!node.name && !(node.flags & 512 /* Default */)) {
@@ -31421,8 +31491,7 @@ var ts;
             }
             checkClassLikeDeclaration(node);
             ts.forEach(node.members, checkSourceElement);
-            checkUnusedClassLocals(node);
-            checkUnusedTypeParameters(node);
+            registerForUnusedIdentifiersCheck(node);
         }
         function checkClassLikeDeclaration(node) {
             checkGrammarClassDeclarationHeritageClauses(node);
@@ -31700,7 +31769,6 @@ var ts;
             ts.forEach(node.members, checkSourceElement);
             if (produceDiagnostics) {
                 checkTypeForDuplicateIndexSignatures(node);
-                updateReferencesForInterfaceHeritiageClauseTargets(node);
                 checkUnusedTypeParameters(node);
             }
         }
@@ -32060,7 +32128,9 @@ var ts;
             }
             if (node.body) {
                 checkSourceElement(node.body);
-                checkUnusedModuleLocals(node);
+                if (!ts.isGlobalScopeAugmentation(node)) {
+                    registerForUnusedIdentifiersCheck(node);
+                }
             }
         }
         function checkModuleAugmentationElement(node, isGlobalAugmentation) {
@@ -32233,9 +32303,6 @@ var ts;
                         }
                         if (target.flags & 793056 /* Type */) {
                             checkTypeNameIsReserved(node.name, ts.Diagnostics.Import_name_cannot_be_0);
-                        }
-                        if ((compilerOptions.noUnusedLocals || compilerOptions.noUnusedParameters) && !ts.isInAmbientContext(node)) {
-                            target.hasReference = true;
                         }
                     }
                 }
@@ -32555,12 +32622,17 @@ var ts;
                 checkGrammarSourceFile(node);
                 potentialThisCollisions.length = 0;
                 deferredNodes = [];
+                deferredUnusedIdentifierNodes = produceDiagnostics && noUnusedIdentifiers ? [] : undefined;
                 ts.forEach(node.statements, checkSourceElement);
-                if (ts.isExternalModule(node)) {
-                    checkUnusedModuleLocals(node);
-                }
                 checkDeferredNodes();
+                if (ts.isExternalModule(node)) {
+                    registerForUnusedIdentifiersCheck(node);
+                }
+                if (!node.isDeclarationFile) {
+                    checkUnusedIdentifiers();
+                }
                 deferredNodes = undefined;
+                deferredUnusedIdentifierNodes = undefined;
                 if (ts.isExternalOrCommonJsModule(node)) {
                     checkExternalModuleExports(node);
                 }
@@ -40455,8 +40527,10 @@ var ts;
                                     emit(initializer);
                                 }
                                 write(";");
-                                tempIndex_1++;
                             }
+                            // Regardless of whether we will emit a var declaration for the binding pattern, we generate the temporary
+                            // variable for the parameter (see: emitParameter)
+                            tempIndex_1++;
                         }
                         else if (initializer) {
                             writeLine();
@@ -43912,7 +43986,7 @@ var ts;
     /* @internal */ ts.ioReadTime = 0;
     /* @internal */ ts.ioWriteTime = 0;
     /** The version of the TypeScript compiler release */
-    ts.version = "1.9.0";
+    ts.version = "2.0.0";
     var emptyArray = [];
     var defaultTypeRoots = ["node_modules/@types"];
     function findConfigFile(searchPath, fileExists) {
@@ -44051,12 +44125,32 @@ var ts;
             }
             return typesFilePath;
         }
+        // Use the main module for inferring types if no types package specified and the allowJs is set
+        if (state.compilerOptions.allowJs && jsonContent.main && typeof jsonContent.main === "string") {
+            if (state.traceEnabled) {
+                trace(state.host, ts.Diagnostics.No_types_specified_in_package_json_but_allowJs_is_set_so_returning_main_value_of_0, jsonContent.main);
+            }
+            var mainFilePath = ts.normalizePath(ts.combinePaths(baseDirectory, jsonContent.main));
+            return mainFilePath;
+        }
         return undefined;
     }
     var typeReferenceExtensions = [".d.ts"];
     function getEffectiveTypeRoots(options, host) {
-        return options.typeRoots ||
-            ts.map(defaultTypeRoots, function (d) { return ts.combinePaths(options.configFilePath ? ts.getDirectoryPath(options.configFilePath) : host.getCurrentDirectory(), d); });
+        if (options.typeRoots) {
+            return options.typeRoots;
+        }
+        var currentDirectory;
+        if (options.configFilePath) {
+            currentDirectory = ts.getDirectoryPath(options.configFilePath);
+        }
+        else if (host.getCurrentDirectory) {
+            currentDirectory = host.getCurrentDirectory();
+        }
+        if (!currentDirectory) {
+            return undefined;
+        }
+        return ts.map(defaultTypeRoots, function (d) { return ts.combinePaths(currentDirectory, d); });
     }
     /**
      * @param {string | undefined} containingFile - file that contains type reference directive, can be undefined if containing file is unknown.
@@ -44092,7 +44186,7 @@ var ts;
         }
         var failedLookupLocations = [];
         // Check primary library paths
-        if (typeRoots.length) {
+        if (typeRoots && typeRoots.length) {
             if (traceEnabled) {
                 trace(host, ts.Diagnostics.Resolving_with_primary_search_path_0, typeRoots.join(", "));
             }
@@ -44559,12 +44653,12 @@ var ts;
         var nodeModulesFolder = ts.combinePaths(directory, "node_modules");
         var nodeModulesFolderExists = directoryProbablyExists(nodeModulesFolder, state.host);
         var candidate = ts.normalizePath(ts.combinePaths(nodeModulesFolder, moduleName));
-        // Load only typescript files irrespective of allowJs option if loading from node modules
-        var result = loadModuleFromFile(candidate, ts.supportedTypeScriptExtensions, failedLookupLocations, !nodeModulesFolderExists, state);
+        var supportedExtensions = ts.getSupportedExtensions(state.compilerOptions);
+        var result = loadModuleFromFile(candidate, supportedExtensions, failedLookupLocations, !nodeModulesFolderExists, state);
         if (result) {
             return result;
         }
-        result = loadNodeModuleFromDirectory(ts.supportedTypeScriptExtensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state);
+        result = loadNodeModuleFromDirectory(supportedExtensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state);
         if (result) {
             return result;
         }
@@ -44574,13 +44668,18 @@ var ts;
         while (true) {
             var baseName = ts.getBaseFileName(directory);
             if (baseName !== "node_modules") {
-                var result = 
-                // first: try to load module as-is
-                loadModuleFromNodeModulesFolder(moduleName, directory, failedLookupLocations, state) ||
-                    // second: try to load module from the scope '@types'
-                    loadModuleFromNodeModulesFolder(ts.combinePaths("@types", moduleName), directory, failedLookupLocations, state);
-                if (result) {
-                    return result;
+                // Try to load source from the package
+                var packageResult = loadModuleFromNodeModulesFolder(moduleName, directory, failedLookupLocations, state);
+                if (packageResult && ts.hasTypeScriptFileExtension(packageResult)) {
+                    // Always prefer a TypeScript (.ts, .tsx, .d.ts) file shipped with the package
+                    return packageResult;
+                }
+                else {
+                    // Else prefer a types package over non-TypeScript results (e.g. JavaScript files)
+                    var typesResult = loadModuleFromNodeModulesFolder(ts.combinePaths("@types", moduleName), directory, failedLookupLocations, state);
+                    if (typesResult || packageResult) {
+                        return typesResult || packageResult;
+                    }
                 }
             }
             var parentPath = ts.getDirectoryPath(directory);
@@ -44811,10 +44910,12 @@ var ts;
         var result = [];
         if (host.directoryExists && host.getDirectories) {
             var typeRoots = getEffectiveTypeRoots(options, host);
-            for (var _i = 0, typeRoots_1 = typeRoots; _i < typeRoots_1.length; _i++) {
-                var root = typeRoots_1[_i];
-                if (host.directoryExists(root)) {
-                    result = result.concat(host.getDirectories(root));
+            if (typeRoots) {
+                for (var _i = 0, typeRoots_1 = typeRoots; _i < typeRoots_1.length; _i++) {
+                    var root = typeRoots_1[_i];
+                    if (host.directoryExists(root)) {
+                        result = result.concat(host.getDirectories(root));
+                    }
                 }
             }
         }
@@ -44830,6 +44931,20 @@ var ts;
         var classifiableNames;
         var resolvedTypeReferenceDirectives = {};
         var fileProcessingDiagnostics = ts.createDiagnosticCollection();
+        // The below settings are to track if a .js file should be add to the program if loaded via searching under node_modules.
+        // This works as imported modules are discovered recursively in a depth first manner, specifically:
+        // - For each root file, findSourceFile is called.
+        // - This calls processImportedModules for each module imported in the source file.
+        // - This calls resolveModuleNames, and then calls findSourceFile for each resolved module.
+        // As all these operations happen - and are nested - within the createProgram call, they close over the below variables.
+        // The current resolution depth is tracked by incrementing/decrementing as the depth first search progresses.
+        var maxNodeModulesJsDepth = typeof options.maxNodeModuleJsDepth === "number" ? options.maxNodeModuleJsDepth : 2;
+        var currentNodeModulesJsDepth = 0;
+        // If a module has some of its imports skipped due to being at the depth limit under node_modules, then track
+        // this, as it may be imported at a shallower depth later, and then it will need its skipped imports processed.
+        var modulesWithElidedImports = {};
+        // Track source files that are JavaScript files found by searching under node_modules, as these shouldn't be compiled.
+        var sourceFilesFoundSearchingNodeModules = {};
         var start = new Date().getTime();
         host = host || createCompilerHost(options);
         var skipDefaultLib = options.noLib;
@@ -44964,6 +45079,7 @@ var ts;
                 (oldOptions.rootDir !== options.rootDir) ||
                 (oldOptions.configFilePath !== options.configFilePath) ||
                 (oldOptions.baseUrl !== options.baseUrl) ||
+                (oldOptions.maxNodeModuleJsDepth !== options.maxNodeModuleJsDepth) ||
                 !ts.arrayIsEqualTo(oldOptions.typeRoots, oldOptions.typeRoots) ||
                 !ts.arrayIsEqualTo(oldOptions.rootDirs, options.rootDirs) ||
                 !ts.mapIsEqualTo(oldOptions.paths, options.paths)) {
@@ -45072,6 +45188,7 @@ var ts;
                 getSourceFile: program.getSourceFile,
                 getSourceFileByPath: program.getSourceFileByPath,
                 getSourceFiles: program.getSourceFiles,
+                isSourceFileFromExternalLibrary: function (file) { return !!ts.lookUp(sourceFilesFoundSearchingNodeModules, file.path); },
                 writeFile: writeFileCallback || (function (fileName, data, writeByteOrderMark, onError, sourceFiles) { return host.writeFile(fileName, data, writeByteOrderMark, onError, sourceFiles); }),
                 isEmitBlocked: isEmitBlocked
             };
@@ -45536,6 +45653,13 @@ var ts;
                 if (file_1 && options.forceConsistentCasingInFileNames && ts.getNormalizedAbsolutePath(file_1.fileName, currentDirectory) !== ts.getNormalizedAbsolutePath(fileName, currentDirectory)) {
                     reportFileNamesDifferOnlyInCasingError(fileName, file_1.fileName, refFile, refPos, refEnd);
                 }
+                // See if we need to reprocess the imports due to prior skipped imports
+                if (file_1 && ts.lookUp(modulesWithElidedImports, file_1.path)) {
+                    if (currentNodeModulesJsDepth < maxNodeModulesJsDepth) {
+                        modulesWithElidedImports[file_1.path] = false;
+                        processImportedModules(file_1, ts.getDirectoryPath(fileName));
+                    }
+                }
                 return file_1;
             }
             // We haven't looked for this file, do so now and cache result
@@ -45654,15 +45778,31 @@ var ts;
                 for (var i = 0; i < moduleNames.length; i++) {
                     var resolution = resolutions[i];
                     ts.setResolvedModule(file, moduleNames[i], resolution);
+                    var resolvedPath = resolution ? ts.toPath(resolution.resolvedFileName, currentDirectory, getCanonicalFileName) : undefined;
                     // add file to program only if:
                     // - resolution was successful
                     // - noResolve is falsy
                     // - module name comes from the list of imports
-                    var shouldAddFile = resolution &&
-                        !options.noResolve &&
-                        i < file.imports.length;
-                    if (shouldAddFile) {
-                        findSourceFile(resolution.resolvedFileName, ts.toPath(resolution.resolvedFileName, currentDirectory, getCanonicalFileName), /*isDefaultLib*/ false, /*isReference*/ false, file, ts.skipTrivia(file.text, file.imports[i].pos), file.imports[i].end);
+                    // - it's not a top level JavaScript module that exceeded the search max
+                    var isFromNodeModulesSearch = resolution && resolution.isExternalLibraryImport;
+                    var isJsFileFromNodeModules = isFromNodeModulesSearch && ts.hasJavaScriptFileExtension(resolution.resolvedFileName);
+                    if (isFromNodeModulesSearch) {
+                        sourceFilesFoundSearchingNodeModules[resolvedPath] = true;
+                    }
+                    if (isJsFileFromNodeModules) {
+                        currentNodeModulesJsDepth++;
+                    }
+                    var elideImport = isJsFileFromNodeModules && currentNodeModulesJsDepth > maxNodeModulesJsDepth;
+                    var shouldAddFile = resolution && !options.noResolve && i < file.imports.length && !elideImport;
+                    if (elideImport) {
+                        modulesWithElidedImports[file.path] = true;
+                    }
+                    else if (shouldAddFile) {
+                        findSourceFile(resolution.resolvedFileName, resolvedPath, 
+                        /*isDefaultLib*/ false, /*isReference*/ false, file, ts.skipTrivia(file.text, file.imports[i].pos), file.imports[i].end);
+                    }
+                    if (isJsFileFromNodeModules) {
+                        currentNodeModulesJsDepth--;
                     }
                 }
             }
@@ -47177,8 +47317,7 @@ var ts;
                 case 279 /* JSDocTypedefTag */:
                     return getJSDocTypedefTagName(node);
                 default:
-                    ts.Debug.fail();
-                    return "";
+                    return "<unknown>";
             }
         }
         function getJSDocTypedefTagName(node) {
@@ -48558,6 +48697,8 @@ var ts;
             case 199 /* Block */:
             case 226 /* ModuleBlock */:
             case 227 /* CaseBlock */:
+            case 233 /* NamedImports */:
+            case 237 /* NamedExports */:
                 return nodeEndsWith(n, 16 /* CloseBraceToken */, sourceFile);
             case 252 /* CatchClause */:
                 return isCompletedNode(n.block, sourceFile);
@@ -48645,6 +48786,9 @@ var ts;
                 return isCompletedNode(lastSpan, sourceFile);
             case 197 /* TemplateSpan */:
                 return ts.nodeIsPresent(n.literal);
+            case 236 /* ExportDeclaration */:
+            case 230 /* ImportDeclaration */:
+                return ts.nodeIsPresent(n.moduleSpecifier);
             case 185 /* PrefixUnaryExpression */:
                 return isCompletedNode(n.operand, sourceFile);
             case 187 /* BinaryExpression */:
@@ -50095,7 +50239,7 @@ var ts;
                 this.FunctionOpenBraceLeftTokenRange = formatting.Shared.TokenRange.AnyIncludingMultilineComments;
                 this.SpaceBeforeOpenBraceInFunction = new formatting.Rule(formatting.RuleDescriptor.create2(this.FunctionOpenBraceLeftTokenRange, 15 /* OpenBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsFunctionDeclContext, Rules.IsBeforeBlockContext, Rules.IsNotFormatOnEnter, Rules.IsSameLineTokenOrBeforeMultilineBlockContext), 2 /* Space */), 1 /* CanDeleteNewLines */);
                 // Place a space before open brace in a TypeScript declaration that has braces as children (class, module, enum, etc)
-                this.TypeScriptOpenBraceLeftTokenRange = formatting.Shared.TokenRange.FromTokens([69 /* Identifier */, 3 /* MultiLineCommentTrivia */, 73 /* ClassKeyword */]);
+                this.TypeScriptOpenBraceLeftTokenRange = formatting.Shared.TokenRange.FromTokens([69 /* Identifier */, 3 /* MultiLineCommentTrivia */, 73 /* ClassKeyword */, 82 /* ExportKeyword */, 89 /* ImportKeyword */]);
                 this.SpaceBeforeOpenBraceInTypeScriptDeclWithBlock = new formatting.Rule(formatting.RuleDescriptor.create2(this.TypeScriptOpenBraceLeftTokenRange, 15 /* OpenBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsTypeScriptDeclWithBlockContext, Rules.IsNotFormatOnEnter, Rules.IsSameLineTokenOrBeforeMultilineBlockContext), 2 /* Space */), 1 /* CanDeleteNewLines */);
                 // Place a space before open brace in a control flow construct
                 this.ControlOpenBraceLeftTokenRange = formatting.Shared.TokenRange.FromTokens([18 /* CloseParenToken */, 3 /* MultiLineCommentTrivia */, 79 /* DoKeyword */, 100 /* TryKeyword */, 85 /* FinallyKeyword */, 80 /* ElseKeyword */]);
@@ -50137,7 +50281,7 @@ var ts;
                 this.NoSpaceBetweenReturnAndSemicolon = new formatting.Rule(formatting.RuleDescriptor.create1(94 /* ReturnKeyword */, 23 /* SemicolonToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 8 /* Delete */));
                 // Add a space between statements. All keywords except (do,else,case) has open/close parens after them.
                 // So, we have a rule to add a space for [),Any], [do,Any], [else,Any], and [case,Any]
-                this.SpaceBetweenStatements = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.FromTokens([18 /* CloseParenToken */, 79 /* DoKeyword */, 80 /* ElseKeyword */, 71 /* CaseKeyword */]), formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.IsNotForContext), 2 /* Space */));
+                this.SpaceBetweenStatements = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.FromTokens([18 /* CloseParenToken */, 79 /* DoKeyword */, 80 /* ElseKeyword */, 71 /* CaseKeyword */]), formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isNonJsxElementContext, Rules.IsNotForContext), 2 /* Space */));
                 // This low-pri rule takes care of "try {" and "finally {" in case the rule SpaceBeforeOpenBraceInControl didn't execute on FormatOnEnter.
                 this.SpaceAfterTryFinally = new formatting.Rule(formatting.RuleDescriptor.create2(formatting.Shared.TokenRange.FromTokens([100 /* TryKeyword */, 85 /* FinallyKeyword */]), 15 /* OpenBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
                 //      get x() {}
@@ -50152,8 +50296,8 @@ var ts;
                 // Use of module as a function call. e.g.: import m2 = module("m2");
                 this.NoSpaceAfterModuleImport = new formatting.Rule(formatting.RuleDescriptor.create2(formatting.Shared.TokenRange.FromTokens([125 /* ModuleKeyword */, 129 /* RequireKeyword */]), 17 /* OpenParenToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 8 /* Delete */));
                 // Add a space around certain TypeScript keywords
-                this.SpaceAfterCertainTypeScriptKeywords = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.FromTokens([115 /* AbstractKeyword */, 73 /* ClassKeyword */, 122 /* DeclareKeyword */, 77 /* DefaultKeyword */, 81 /* EnumKeyword */, 82 /* ExportKeyword */, 83 /* ExtendsKeyword */, 123 /* GetKeyword */, 106 /* ImplementsKeyword */, 89 /* ImportKeyword */, 107 /* InterfaceKeyword */, 125 /* ModuleKeyword */, 126 /* NamespaceKeyword */, 110 /* PrivateKeyword */, 112 /* PublicKeyword */, 111 /* ProtectedKeyword */, 131 /* SetKeyword */, 113 /* StaticKeyword */, 134 /* TypeKeyword */]), formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
-                this.SpaceBeforeCertainTypeScriptKeywords = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.Any, formatting.Shared.TokenRange.FromTokens([83 /* ExtendsKeyword */, 106 /* ImplementsKeyword */])), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
+                this.SpaceAfterCertainTypeScriptKeywords = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.FromTokens([115 /* AbstractKeyword */, 73 /* ClassKeyword */, 122 /* DeclareKeyword */, 77 /* DefaultKeyword */, 81 /* EnumKeyword */, 82 /* ExportKeyword */, 83 /* ExtendsKeyword */, 123 /* GetKeyword */, 106 /* ImplementsKeyword */, 89 /* ImportKeyword */, 107 /* InterfaceKeyword */, 125 /* ModuleKeyword */, 126 /* NamespaceKeyword */, 110 /* PrivateKeyword */, 112 /* PublicKeyword */, 111 /* ProtectedKeyword */, 131 /* SetKeyword */, 113 /* StaticKeyword */, 134 /* TypeKeyword */, 136 /* FromKeyword */]), formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
+                this.SpaceBeforeCertainTypeScriptKeywords = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.Any, formatting.Shared.TokenRange.FromTokens([83 /* ExtendsKeyword */, 106 /* ImplementsKeyword */, 136 /* FromKeyword */])), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
                 // Treat string literals in module names as identifiers, and add a space between the literal and the opening Brace braces, e.g.: module "m2" {
                 this.SpaceAfterModuleName = new formatting.Rule(formatting.RuleDescriptor.create1(9 /* StringLiteral */, 15 /* OpenBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsModuleDeclContext), 2 /* Space */));
                 // Lambda expressions
@@ -50244,8 +50388,8 @@ var ts;
                 /// Rules controlled by user options
                 ///
                 // Insert space after comma delimiter
-                this.SpaceAfterComma = new formatting.Rule(formatting.RuleDescriptor.create3(24 /* CommaToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.IsNextTokenNotCloseBracket), 2 /* Space */));
-                this.NoSpaceAfterComma = new formatting.Rule(formatting.RuleDescriptor.create3(24 /* CommaToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 8 /* Delete */));
+                this.SpaceAfterComma = new formatting.Rule(formatting.RuleDescriptor.create3(24 /* CommaToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isNonJsxElementContext, Rules.IsNextTokenNotCloseBracket), 2 /* Space */));
+                this.NoSpaceAfterComma = new formatting.Rule(formatting.RuleDescriptor.create3(24 /* CommaToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isNonJsxElementContext), 8 /* Delete */));
                 // Insert space before and after binary operators
                 this.SpaceBeforeBinaryOperator = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.Any, formatting.Shared.TokenRange.BinaryOperators), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.IsBinaryOpContext), 2 /* Space */));
                 this.SpaceAfterBinaryOperator = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.BinaryOperators, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.IsBinaryOpContext), 2 /* Space */));
@@ -50281,6 +50425,11 @@ var ts;
                 this.SpaceAfterTemplateHeadAndMiddle = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.FromTokens([12 /* TemplateHead */, 13 /* TemplateMiddle */]), formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
                 this.NoSpaceBeforeTemplateMiddleAndTail = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.Any, formatting.Shared.TokenRange.FromTokens([13 /* TemplateMiddle */, 14 /* TemplateTail */])), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 8 /* Delete */));
                 this.SpaceBeforeTemplateMiddleAndTail = new formatting.Rule(formatting.RuleDescriptor.create4(formatting.Shared.TokenRange.Any, formatting.Shared.TokenRange.FromTokens([13 /* TemplateMiddle */, 14 /* TemplateTail */])), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext), 2 /* Space */));
+                // No space after { and before } in JSX expression
+                this.NoSpaceAfterOpenBraceInJsxExpression = new formatting.Rule(formatting.RuleDescriptor.create3(15 /* OpenBraceToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isJsxExpressionContext), 8 /* Delete */));
+                this.SpaceAfterOpenBraceInJsxExpression = new formatting.Rule(formatting.RuleDescriptor.create3(15 /* OpenBraceToken */, formatting.Shared.TokenRange.Any), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isJsxExpressionContext), 2 /* Space */));
+                this.NoSpaceBeforeCloseBraceInJsxExpression = new formatting.Rule(formatting.RuleDescriptor.create2(formatting.Shared.TokenRange.Any, 16 /* CloseBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isJsxExpressionContext), 8 /* Delete */));
+                this.SpaceBeforeCloseBraceInJsxExpression = new formatting.Rule(formatting.RuleDescriptor.create2(formatting.Shared.TokenRange.Any, 16 /* CloseBraceToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsNonJsxSameLineTokenContext, Rules.isJsxExpressionContext), 2 /* Space */));
                 // Insert space after function keyword for anonymous functions
                 this.SpaceAfterAnonymousFunctionKeyword = new formatting.Rule(formatting.RuleDescriptor.create1(87 /* FunctionKeyword */, 17 /* OpenParenToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsFunctionDeclContext), 2 /* Space */));
                 this.NoSpaceAfterAnonymousFunctionKeyword = new formatting.Rule(formatting.RuleDescriptor.create1(87 /* FunctionKeyword */, 17 /* OpenParenToken */), formatting.RuleOperation.create2(new formatting.RuleOperationContext(Rules.IsFunctionDeclContext), 8 /* Delete */));
@@ -50308,6 +50457,8 @@ var ts;
                     case 187 /* BinaryExpression */:
                     case 188 /* ConditionalExpression */:
                     case 195 /* AsExpression */:
+                    case 238 /* ExportSpecifier */:
+                    case 234 /* ImportSpecifier */:
                     case 154 /* TypePredicate */:
                     case 162 /* UnionType */:
                     case 163 /* IntersectionType */:
@@ -50426,6 +50577,10 @@ var ts;
                     case 224 /* EnumDeclaration */:
                     case 159 /* TypeLiteral */:
                     case 225 /* ModuleDeclaration */:
+                    case 236 /* ExportDeclaration */:
+                    case 237 /* NamedExports */:
+                    case 230 /* ImportDeclaration */:
+                    case 233 /* NamedImports */:
                         return true;
                 }
                 return false;
@@ -50485,6 +50640,12 @@ var ts;
             };
             Rules.IsNonJsxSameLineTokenContext = function (context) {
                 return context.TokensAreOnSameLine() && context.contextNode.kind !== 244 /* JsxText */;
+            };
+            Rules.isNonJsxElementContext = function (context) {
+                return context.contextNode.kind !== 241 /* JsxElement */;
+            };
+            Rules.isJsxExpressionContext = function (context) {
+                return context.contextNode.kind === 248 /* JsxExpression */;
             };
             Rules.IsNotBeforeBlockInFunctionDeclarationContext = function (context) {
                 return !Rules.IsFunctionDeclContext(context) && !Rules.IsBeforeBlockContext(context);
@@ -50915,6 +51076,14 @@ var ts;
                 else {
                     rules.push(this.globalRules.NoSpaceAfterTemplateHeadAndMiddle);
                     rules.push(this.globalRules.NoSpaceBeforeTemplateMiddleAndTail);
+                }
+                if (options.InsertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces) {
+                    rules.push(this.globalRules.SpaceAfterOpenBraceInJsxExpression);
+                    rules.push(this.globalRules.SpaceBeforeCloseBraceInJsxExpression);
+                }
+                else {
+                    rules.push(this.globalRules.NoSpaceAfterOpenBraceInJsxExpression);
+                    rules.push(this.globalRules.NoSpaceBeforeCloseBraceInJsxExpression);
                 }
                 if (options.InsertSpaceAfterSemicolonInForStatements) {
                     rules.push(this.globalRules.SpaceAfterSemicolonInFor);
@@ -52260,7 +52429,10 @@ var ts;
                     case 164 /* ParenthesizedType */:
                     case 176 /* TaggedTemplateExpression */:
                     case 184 /* AwaitExpression */:
+                    case 237 /* NamedExports */:
                     case 233 /* NamedImports */:
+                    case 238 /* ExportSpecifier */:
+                    case 234 /* ImportSpecifier */:
                         return true;
                 }
                 return false;
@@ -52283,6 +52455,11 @@ var ts;
                     case 149 /* GetAccessor */:
                     case 150 /* SetAccessor */:
                         return childKind !== 199 /* Block */;
+                    case 236 /* ExportDeclaration */:
+                        return childKind !== 237 /* NamedExports */;
+                    case 230 /* ImportDeclaration */:
+                        return childKind !== 231 /* ImportClause */ ||
+                            (child.namedBindings && child.namedBindings.kind !== 233 /* NamedImports */);
                     case 241 /* JsxElement */:
                         return childKind !== 245 /* JsxClosingElement */;
                 }
@@ -61772,6 +61949,7 @@ var ts;
                     InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
                     InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
                     InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: false,
+                    InsertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: false,
                     PlaceOpenBraceOnNewLineForFunctions: false,
                     PlaceOpenBraceOnNewLineForControlBlocks: false
                 });
