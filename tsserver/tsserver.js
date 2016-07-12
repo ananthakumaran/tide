@@ -10083,7 +10083,8 @@ var ts;
         }
         function nextTokenIsClassOrFunctionOrAsync() {
             nextToken();
-            return token === 73 /* ClassKeyword */ || token === 87 /* FunctionKeyword */ || token === 118 /* AsyncKeyword */;
+            return token === 73 /* ClassKeyword */ || token === 87 /* FunctionKeyword */ ||
+                (token === 118 /* AsyncKeyword */ && lookAhead(nextTokenIsFunctionKeywordOnSameLine));
         }
         // True if positioned at the start of a list element
         function isListElement(parsingContext, inErrorRecovery) {
@@ -30435,6 +30436,7 @@ var ts;
                                 var parameter = local_1.valueDeclaration;
                                 if (compilerOptions.noUnusedParameters &&
                                     !ts.isParameterPropertyDeclaration(parameter) &&
+                                    !parameterIsThisKeyword(parameter) &&
                                     !parameterNameStartsWithUnderscore(parameter)) {
                                     error(local_1.valueDeclaration.name, ts.Diagnostics._0_is_declared_but_never_used, local_1.name);
                                 }
@@ -30449,6 +30451,9 @@ var ts;
                     _loop_1(key);
                 }
             }
+        }
+        function parameterIsThisKeyword(parameter) {
+            return parameter.name && parameter.name.originalKeywordKind === 97 /* ThisKeyword */;
         }
         function parameterNameStartsWithUnderscore(parameter) {
             return parameter.name && parameter.name.kind === 69 /* Identifier */ && parameter.name.text.charCodeAt(0) === 95 /* _ */;
@@ -60671,7 +60676,6 @@ var ts;
                 if (isOpen === void 0) { isOpen = false; }
                 this.host = host;
                 this.fileName = fileName;
-                this.content = content;
                 this.isOpen = isOpen;
                 this.children = []; // files referenced by this file
                 this.formatCodeOptions = ts.clone(CompilerService.getDefaultFormatCodeOptions(this.host));
@@ -63300,7 +63304,7 @@ var ts;
             return this.shimHost.getCurrentDirectory();
         };
         LanguageServiceShimHostAdapter.prototype.getDirectories = function (path) {
-            return this.shimHost.getDirectories(path);
+            return JSON.parse(this.shimHost.getDirectories(path));
         };
         LanguageServiceShimHostAdapter.prototype.getDefaultLibFileName = function (options) {
             return this.shimHost.getDefaultLibFileName(JSON.stringify(options));
