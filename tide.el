@@ -929,10 +929,7 @@ number."
   (set (make-local-variable 'imenu-create-index-function)
        'tide-imenu-index)
 
-  ;; Call configure command right away if called interactively, all
-  ;; the local variables should be set by this time.
-  (when (called-interactively-p 'interactive)
-    (tide-configure-buffer)))
+  (tide-configure-buffer))
 
 ;;;###autoload
 (define-minor-mode tide-mode
