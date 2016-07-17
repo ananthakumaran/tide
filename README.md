@@ -31,12 +31,13 @@
 ;; formats the buffer before saving
 (add-hook 'before-save-hook 'tide-format-before-save)
 
+(add-hook 'typescript-mode-hook #'setup-tide-mode)
+
 ;; format options
 (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
-;; see https://github.com/Microsoft/TypeScript/blob/cc58e2d7eb144f0b2ff89e6a6685fb4deaa24fde/src/server/protocol.d.ts#L421-473 for the full list available options
-
-(add-hook 'typescript-mode-hook #'setup-tide-mode)
 ```
+Check [here][format_options] for the full list of supported format options.
+
 
 #### TSX
 ```cl
@@ -121,3 +122,6 @@ file which can be captured by setting
 ```lisp
 (setq tide-tsserver-process-environment '("TSS_LOG=-level verbose -file /tmp/tss.log"))
 ```
+
+
+[format_options]: https://github.com/Microsoft/TypeScript/blob/87e9506/src/services/services.ts#L1244-L1272
