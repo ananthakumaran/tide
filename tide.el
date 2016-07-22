@@ -282,14 +282,14 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-net-sentinel (process message)
   (let ((project-name (process-get process 'project-name)))
-    (message "(%s) tsserver exists: %s." project-name (string-trim message))
+    (message "(%s) tsserver exits: %s." project-name (string-trim message))
     (ignore-errors
       (kill-buffer (process-buffer process)))
     (tide-cleanup-project project-name)))
 
 (defun tide-start-server ()
   (when (tide-current-server)
-    (error "Server already exists"))
+    (error "Server already exist"))
 
   (message "(%s) Starting tsserver..." (tide-project-name))
   (let* ((default-directory (tide-project-root))
