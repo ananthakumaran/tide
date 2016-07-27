@@ -128,7 +128,7 @@ file which can be captured by setting
 
 ### FAQ?
 
-**How do I configure tide to use a specific version of TypeScript compiler**
+**How do I configure tide to use a specific version of TypeScript compiler?**
 
 For TypeScript 2.0 and above, you can customize the
 `tide-tsserver-executable` variable. For example
