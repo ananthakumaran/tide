@@ -125,3 +125,16 @@ file which can be captured by setting
 
 
 [format_options]: https://github.com/Microsoft/TypeScript/blob/87e9506/src/services/services.ts#L1244-L1272
+
+### FAQ?
+
+**How do I configure tide to use a specific version of TypeScript compiler**
+
+For TypeScript 2.0 and above, you can customize the
+`tide-tsserver-executable` variable. For example
+```lisp
+(setq tide-tsserver-executable "/project/node_modules/typescript/bin/tsserver")
+```
+
+Sadly, this won't work for TypeScript < 2.0. You can clone the repo
+locally and checkout the old version though.
