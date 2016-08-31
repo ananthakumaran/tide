@@ -35,6 +35,7 @@
 (require 'dash)
 (require 'flycheck)
 (require 'imenu)
+(require 'thingatpt)
 
 (defgroup tide nil
   "TypeScript Interactive Development Environment."
@@ -900,13 +901,72 @@ number."
     (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
 
+
+;;; Import
+
+;; TODO: use project-info to supply initial completion list for import
+;; (defun tide-command:project-info ()
+;;   (tide-send-command-sync "projectInfo" `(:file ,buffer-file-name :needFileNameList t)))
+
+(defun tide-command:get-navigate-to-items (search-value)
+  (tide-send-command-sync "navto"
+                          `(:file ,buffer-file-name :searchValue ,search-value)))
+
+
+(defun tide-import (&optional search-value)
+  "Add es6 import value to the imports block"
+  (interactive (list (completing-read "Search for: " (list (symbol-at-point)))))
+  (let ((response (tide-command:get-navigate-to-items search-value)))
+    (when (tide-response-success-p response)
+      (let* ((root (tide-project-root))
+             ;; TODO: remove excluded in tsconfig.json directories
+             (project-elements (remove-if-not (lambda (elem)
+                                                (string-prefix-p root (plist-get elem :file)))
+                                              (plist-get response :body)))
+             (elements (sort project-elements
+                             (lambda (a _)
+                               (equal (plist-get a :matchKind) "exact"))))
+             (completions (mapcar (lambda (elem)
+                                    (cons (format "%s : %s"
+                                                  (plist-get elem :name)
+                                                  (plist-get elem :kind))
+                                          elem))
+                                  elements))
+             (completion (completing-read "Import module: " completions)))
+        (when completion
+          (let* ((elem (cdr (assoc completion completions)))
+                 (path (replace-regexp-in-string
+                        "\.ts$" ""
+                        (file-relative-name (plist-get elem :file))))
+                 (name (plist-get elem :name)))
+            (save-excursion
+              (goto-char 0)
+              ;; TODO: do not add existing imports
+              (if (search-forward-regexp (format "^import\\_>.*.%s.;$" path) nil t)
+                  (progn
+                    (search-backward-regexp "\\_>\\s-*}" nil t)
+                    (insert ", " name))
+                (progn
+                  (while (search-forward-regexp "^import\\_>" nil t))
+                  (forward-line)
+                  (open-line 1)
+                  (if (equal (plist-get elem :kindModifiers) "export")
+                      (insert (format "import { %s } from \"%s\";"
+                                      name
+                                      path))
+                    (insert (format "import %s from \"%s\";"
+                                  name
+                                  path))))))))))))
+
 ;;; Mode
 
 (defvar tide-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'tide-jump-to-definition)
     (define-key map (kbd "M-,") #'tide-jump-back)
+    ;; TODO: (C-C ?) keys reserved for user. Use (C-c C-d) instead?
     (define-key map (kbd "C-c d") #'tide-documentation-at-point)
+    (define-key map (kbd "C-c C-a") #'tide-import)
     map))
 
 (defun tide-configure-buffer ()
