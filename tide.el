@@ -36,6 +36,19 @@
 (require 'flycheck)
 (require 'imenu)
 
+;; Silence compiler warnings
+
+(defvar js2-basic-offset)
+(defvar js-indent-level)
+(defvar js3-indent-level)
+(defvar web-mode-code-indent-offset)
+(defvar sgml-basic-offset)
+(defvar company-backends)
+
+(declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
+(declare-function company-begin-backend "company.el" (backend &optional callback))
+(declare-function company-in-string-or-comment "company.el" nil)
+
 (defgroup tide nil
   "TypeScript Interactive Development Environment."
   :prefix "tide-"
