@@ -55,8 +55,11 @@
   "Name of tsserver executable to run instead of the bundled tsserver.
 
 This may either be a path or a name to be looked up in
-`exec-path'. Note that this option only works with TypeScript
-version 2.0 and above."
+`exec-path'. Relative paths are resolved against the project root
+directory.
+
+Note that this option only works with TypeScript version 2.0 and
+above."
   :type '(choice (const nil) string)
   :group 'tide)
 

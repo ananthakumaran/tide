@@ -133,7 +133,7 @@ file which can be captured by setting
 For TypeScript 2.0 and above, you can customize the
 `tide-tsserver-executable` variable. For example
 ```lisp
-(setq tide-tsserver-executable "/project/node_modules/typescript/bin/tsserver")
+(setq tide-tsserver-executable "node_modules/typescript/bin/tsserver")
 ```
 
 Sadly, this won't work for TypeScript < 2.0. You can clone the repo
