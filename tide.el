@@ -695,6 +695,16 @@ With a prefix arg, Jump to the type definition."
 
 ;;; References
 
+(defun tide-next-error-function (n &optional reset)
+  "Override for `next-error-function' for use in tide-reference-mode buffers."
+  (interactive "p")
+
+  (with-current-buffer (get-buffer-create "*tide-references*")
+    (if (> n 0)
+        (tide-find-next-reference (point) n)
+      (tide-find-previous-reference (point) (- n)))
+    (tide-goto-reference)))
+
 (defun tide-find-next-reference (pos arg)
   "Move to next reference."
   (interactive "d\np")
@@ -823,7 +833,9 @@ number."
               (progn
                 (message "This is the only usage.")
                 (tide-jump-to-filespan usage nil t))
-            (display-buffer (tide-insert-references references))))
+            (progn
+              (display-buffer (tide-insert-references references))
+              (setq next-error-function #'tide-next-error-function))))
       (message (plist-get response :message)))))
 
 
