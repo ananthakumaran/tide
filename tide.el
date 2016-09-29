@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 2.0.3
 ;; Keywords: typescript
-;; Package-Requires: ((dash "2.10.0") (flycheck "27") (emacs "24.1") (typescript-mode "0.1") (cl-lib "0.5"))
+;; Package-Requires: ((dash "2.10.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
