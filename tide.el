@@ -67,9 +67,8 @@
 (defcustom tide-tsserver-executable nil
   "Name of tsserver executable to run instead of the bundled tsserver.
 
-This may either be a path or a name to be looked up in
-`exec-path'. Relative paths are resolved against the project root
-directory.
+This may either be an absolute path or a relative path. Relative
+paths are resolved against the project root directory.
 
 Note that this option only works with TypeScript version 2.0 and
 above."
