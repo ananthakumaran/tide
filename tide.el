@@ -794,12 +794,37 @@ number."
       (goto-char (point-min))
       (current-buffer))))
 
+(defun tide-is-identical-reference (original second)
+  (and (equal (plist-get original :file) (plist-get second :file))
+       (eq (tide-plist-get original :start :line) (tide-plist-get second :start :line))))
+(defun tide-find-single-usage (references)
+  (let ((definition nil)
+        (usage nil)
+        (multiple nil))
+    (-each references
+      #'(lambda (reference)
+          (if (eq t (plist-get reference :isDefinition))
+              (if (or (eq definition nil) (tide-is-identical-reference definition reference))
+                  (setq definition reference)
+                (setq multiple t))
+            (if (or (eq usage nil) (tide-is-identical-reference usage reference))
+                (setq usage reference)
+              (setq multiple t)))))
+    (if (and (not multiple) usage definition)
+        usage
+      nil)))
+
 (defun tide-references ()
   "List all references to the symbol at point."
   (interactive)
   (let ((response (tide-command:references)))
     (if (tide-response-success-p response)
-        (display-buffer (tide-insert-references (tide-plist-get response :body :refs)))
+        (let ((references (tide-plist-get response :body :refs)))
+          (-if-let (usage (tide-find-single-usage references))
+              (progn
+                (message "This is the only usage.")
+                (tide-jump-to-filespan usage nil t))
+            (display-buffer (tide-insert-references references))))
       (message (plist-get response :message)))))
 
 
