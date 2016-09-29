@@ -313,7 +313,7 @@ LINE is one based, OFFSET is one based and column is zero based"
          (buf (generate-new-buffer tide-server-buffer-name))
          (process
           (if tide-tsserver-executable
-              (start-file-process "tsserver" buf tide-tsserver-executable)
+              (start-file-process "tsserver" buf (expand-file-name tide-tsserver-executable))
             (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
