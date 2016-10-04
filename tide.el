@@ -699,11 +699,15 @@ With a prefix arg, Jump to the type definition."
   "Override for `next-error-function' for use in tide-reference-mode buffers."
   (interactive "p")
 
-  (with-current-buffer (get-buffer-create "*tide-references*")
-    (if (> n 0)
-        (tide-find-next-reference (point) n)
-      (tide-find-previous-reference (point) (- n)))
-    (tide-goto-reference)))
+  (let ((buffer (get-buffer "*tide-references*")))
+    (when buffer
+      (with-current-buffer buffer
+        (when reset
+          (beginning-of-buffer))
+        (if (> n 0)
+            (tide-find-next-reference (point) n)
+          (tide-find-previous-reference (point) (- n)))
+        (tide-goto-reference)))))
 
 (defun tide-find-next-reference (pos arg)
   "Move to next reference."
@@ -737,6 +741,7 @@ With a prefix arg, Jump to the type definition."
     (define-key map (kbd "n") #'tide-find-next-reference)
     (define-key map (kbd "p") #'tide-find-previous-reference)
     (define-key map (kbd "C-m") #'tide-goto-reference)
+    (define-key map (kbd "q") #'quit-window)
     map))
 
 (define-derived-mode tide-references-mode nil "tide-references"
@@ -833,9 +838,8 @@ number."
               (progn
                 (message "This is the only usage.")
                 (tide-jump-to-filespan usage nil t))
-            (progn
-              (display-buffer (tide-insert-references references))
-              (setq next-error-function #'tide-next-error-function))))
+            (display-buffer (tide-insert-references references))
+            (setq next-error-function #'tide-next-error-function)))
       (message (plist-get response :message)))))
 
 
