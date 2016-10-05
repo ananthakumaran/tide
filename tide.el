@@ -699,15 +699,14 @@ With a prefix arg, Jump to the type definition."
   "Override for `next-error-function' for use in tide-reference-mode buffers."
   (interactive "p")
 
-  (let ((buffer (get-buffer "*tide-references*")))
-    (when buffer
-      (with-current-buffer buffer
-        (when reset
-          (beginning-of-buffer))
-        (if (> n 0)
-            (tide-find-next-reference (point) n)
-          (tide-find-previous-reference (point) (- n)))
-        (tide-goto-reference)))))
+  (-when-let (buffer (get-buffer "*tide-references*"))
+    (with-current-buffer buffer
+      (when reset
+        (goto-char (point-min)))
+      (if (> n 0)
+          (tide-find-next-reference (point) n)
+        (tide-find-previous-reference (point) (- n)))
+      (tide-goto-reference))))
 
 (defun tide-find-next-reference (pos arg)
   "Move to next reference."
