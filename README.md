@@ -70,9 +70,11 @@ jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck
 
 ### Notes
 
-* Make sure to add
+* Make sure
   [tsconfig.json](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)
-  or [jsconfig.json](https://code.visualstudio.com/docs/languages/jsconfig) in the project root folder.
+  or
+  [jsconfig.json](https://code.visualstudio.com/docs/languages/jsconfig)
+  is present in the root folder of the project.
 
 * tsserver mangles output
   sometimes [issue - #2758](https://github.com/Microsoft/TypeScript/issues/2758),
