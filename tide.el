@@ -1117,6 +1117,105 @@ number."
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
 
+;;; Identifier highlighting
+
+(defun tide-command:documentHighlights ()
+  (tide-send-command-sync
+   "documentHighlights"
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,buffer-file-name))))
+
+(defface tide-hl-identifier-face
+  '((t (:inherit highlight)))
+  "Face used for highlighting identifiers in `tide-hl-identifier'."
+  :group 'tide)
+
+(defcustom tide-hl-identifier-idle-time 0.1
+  "How long to wait after user input before highlighting the current identifier."
+  :type 'float
+  :group 'tide)
+
+(defvar tide--current-hl-identifier-idle-time
+  0
+  "The current delay for hl-identifier-mode.")
+
+(defvar tide--hl-identifier-timer
+  nil
+  "The global timer used for highlighting identifiers.")
+
+;;;###autoload
+(defun tide-unhighlight-identifiers ()
+  "Remove highlights from previously highlighted identifier."
+  (remove-overlays nil nil 'tide-overlay 'sameid))
+
+;;;###autoload
+(defun tide-hl-identifier ()
+  "Highlight all instances of the identifier under point. Removes
+highlights from previously highlighted identifier."
+  (interactive)
+  (tide-unhighlight-identifiers)
+  (tide--hl-identifier))
+
+(defun tide--hl-identifier ()
+  "Highlight all instances of the identifier under point."
+  (let ((response (tide-command:documentHighlights)))
+    (when (tide-response-success-p response)
+      (let ((references (tide-plist-get (car (tide-plist-get (tide-command:documentHighlights) :body)) :highlightSpans)))
+        (while references
+          (let* ((reference (pop references))
+                 (kind (tide-plist-get reference :kind))
+                 (id-start (tide-plist-get reference :start))
+                 (id-end (tide-plist-get reference :end)))
+            (when (or (string= kind "reference") (string= kind "writtenReference"))
+              (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
+                (overlay-put x 'tide-overlay 'sameid)
+                (overlay-put x 'face 'tide-hl-identifier-face)))))))))
+
+(defun tide--hl-identifiers-function ()
+  "Function run after an idle timeout, highlighting the
+identifier at point, if necessary."
+  (when tide-hl-identifier-mode
+    (unless (tide--on-overlay-p 'sameid)
+	  (tide-hl-identifier))
+    (unless (eq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
+      (tide--hl-set-timer))))
+
+(defun tide--hl-set-timer ()
+  (if tide--hl-identifier-timer
+      (cancel-timer tide--hl-identifier-timer))
+  (setq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
+  (setq tide--hl-identifier-timer (run-with-idle-timer
+				      tide-hl-identifier-idle-time
+				      t
+				      #'tide--hl-identifiers-function)))
+
+;;;###autoload
+(define-minor-mode tide-hl-identifier-mode
+  "Highlight instances of the identifier at point after a short
+timeout."
+  :group 'tide
+  (if tide-hl-identifier-mode
+      (progn
+	(tide--hl-set-timer)
+	;; Unhighlight if point moves off identifier
+	(add-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook nil t)
+	;; Unhighlight any time the buffer changes
+	(add-hook 'before-change-functions #'tide--hl-identifiers-before-change-function nil t))
+    (remove-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook t)
+    (remove-hook 'before-change-functions #'tide--hl-identifiers-before-change-function t)
+    (tide-unhighlight-identifiers)))
+
+(defun tide--on-overlay-p (id)
+  "Return whether point is on a tide overlay of type ID."
+  (cl-find-if (lambda (el) (eq (overlay-get el 'tide-overlay) id)) (overlays-at (point))))
+
+(defun tide--hl-identifiers-post-command-hook ()
+  (if (and tide-hl-identifier-mode
+	   (not (tide--on-overlay-p 'sameid)))
+      (tide-unhighlight-identifiers)))
+
+(defun tide--hl-identifiers-before-change-function (_beg _end)
+  (tide-unhighlight-identifiers))
+
 ;;; Utility commands
 
 (defun tide-restart-server ()
