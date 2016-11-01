@@ -1159,16 +1159,16 @@ highlights from previously highlighted identifier."
   "Highlight all instances of the identifier under point."
   (let ((response (tide-command:documentHighlights)))
     (when (tide-response-success-p response)
-      (let ((references (tide-plist-get (car (tide-plist-get (tide-command:documentHighlights) :body)) :highlightSpans)))
-        (while references
-          (let* ((reference (pop references))
-                 (kind (tide-plist-get reference :kind))
-                 (id-start (tide-plist-get reference :start))
-                 (id-end (tide-plist-get reference :end)))
-            (when (or (string= kind "reference") (string= kind "writtenReference"))
-              (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
-                (overlay-put x 'tide-overlay 'sameid)
-                (overlay-put x 'face 'tide-hl-identifier-face)))))))))
+      (let ((references (plist-get (car (plist-get (tide-command:documentHighlights) :body)) :highlightSpans)))
+        (-each references
+          (lambda (reference)
+            (let* ((kind (plist-get reference :kind))
+                   (id-start (plist-get reference :start))
+                   (id-end (plist-get reference :end)))
+              (when (member kind '("reference" "writtenReference"))
+                (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
+                  (overlay-put x 'tide-overlay 'sameid)
+                  (overlay-put x 'face 'tide-hl-identifier-face))))))))))
 
 (defun tide--hl-identifiers-function ()
   "Function run after an idle timeout, highlighting the
