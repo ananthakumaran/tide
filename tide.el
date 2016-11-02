@@ -141,6 +141,36 @@ above."
 (defun tide-project-name ()
   (file-name-nondirectory (directory-file-name (tide-project-root))))
 
+;;; Compatibility
+
+(defvar tide-tsserver-unsupported-commands (make-hash-table :test 'equal))
+
+(defun tide-mark-as-unsupported (command)
+  (puthash
+   (tide-project-name)
+   (cl-pushnew
+    command
+    (gethash (tide-project-name) tide-tsserver-unsupported-commands '()))
+   tide-tsserver-unsupported-commands))
+
+(defun tide-unsupported-p (command)
+  (member command (gethash (tide-project-name) tide-tsserver-unsupported-commands '())))
+
+(defmacro tide-fallback-if-not-supported (new-command new old)
+  `(if (tide-unsupported-p ,new-command)
+       (let ((response (,old)))
+         (when (tide-response-success-p response)
+           response))
+     (let ((response (,new)))
+       (if (tide-command-unknown-p response)
+           (progn
+             (tide-mark-as-unsupported ,new-command)
+             (let ((response (,old)))
+               (when (tide-response-success-p response)
+                 response)))
+         (when (tide-response-success-p response)
+           response)))))
+
 ;;; Helpers
 
 (defun tide-plist-get (list &rest args)
@@ -167,6 +197,9 @@ ones and overrule settings in the other lists."
 
 (defun tide-response-success-p (response)
   (and response (equal (plist-get response :success) t)))
+
+(defun tide-command-unknown-p (response)
+  (and response (string-equal (plist-get response :command) "unknown")))
 
 (defmacro tide-on-response-success (response &rest body)
   (declare (indent 1))
@@ -335,7 +368,8 @@ LINE is one based, OFFSET is one based and column is zero based"
   (tide-each-buffer project-name
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
-  (remhash project-name tide-servers))
+  (remhash project-name tide-servers)
+  (remhash project-name tide-tsserver-unsupported-commands))
 
 (defun tide-start-server-if-required ()
   (when (not (tide-current-server))
@@ -482,6 +516,8 @@ With a prefix arg, Jump to the type definition."
         (propertize text 'face face)
       text)))
 
+(defun tide-annotate-display-parts (display-parts &optional highlight)
+  (tide-join (-map (lambda (part) (tide-annotate-display-part part highlight)) display-parts)))
 
 (defun tide-annotate-signature-parameter (parameter highlight)
   (tide-join
@@ -522,27 +558,43 @@ With a prefix arg, Jump to the type definition."
 (defun tide-method-call-p ()
   (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
 
+(defun tide-quickinfo-text (response)
+  (or (tide-plist-get response :body :displayString) ;; old
+      (tide-annotate-display-parts
+       (tide-plist-get response :body :displayParts))))
+
+(defun tide-quickinfo-documentation (response)
+  (let ((documentation (tide-plist-get response :body :documentation)))
+    (if (stringp documentation) ;; old
+        documentation
+      (tide-annotate-display-parts documentation))))
+
+(defun tide-command:quickinfo-old ()
+  (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-command:quickinfo-full ()
+  (tide-send-command-sync "quickinfo-full" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))))
+
 (defun tide-command:quickinfo ()
-  (let ((response (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)))))
-    (when (tide-response-success-p response)
-      response)))
+  (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old))
+
 
 (defun tide-eldoc-function ()
   (when (not (member last-command '(next-error previous-error)))
     (if (tide-method-call-p)
         (tide-command:signatureHelp)
       (when (looking-at "\\s_\\|\\sw")
-        (-when-let (quick-info (tide-command:quickinfo))
-          (tide-plist-get quick-info :body :displayString))))))
+        (-when-let (quickinfo (tide-command:quickinfo))
+          (tide-quickinfo-text quickinfo))))))
 
 
 (defun tide-documentation-at-point ()
   "Show documentation of the symbol at point."
   (interactive)
   (let ((documentation
-         (-when-let* ((quick-info (tide-command:quickinfo))
-                      (display-string (tide-plist-get quick-info :body :displayString))
-                      (documentation (tide-plist-get quick-info :body :documentation)))
+         (-when-let* ((quickinfo (tide-command:quickinfo))
+                      (display-string (tide-quickinfo-text quickinfo))
+                      (documentation (tide-quickinfo-documentation quickinfo)))
            (when (not (equal documentation ""))
              (tide-join (list display-string "\n\n" documentation))))))
     (if documentation
