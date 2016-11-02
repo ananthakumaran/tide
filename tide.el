@@ -573,7 +573,7 @@ With a prefix arg, Jump to the type definition."
   (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-command:quickinfo-full ()
-  (tide-send-command-sync "quickinfo-full" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))))
+  (tide-send-command-sync "quickinfo-full" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-command:quickinfo ()
   (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old))
