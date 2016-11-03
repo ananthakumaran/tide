@@ -3,3 +3,4 @@
 tsserver/.log*
 dist
 todo
+example/test.js

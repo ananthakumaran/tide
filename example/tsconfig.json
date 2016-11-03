@@ -1,4 +1,5 @@
 {
+  "compileOnSave": true,
   "compilerOptions": {
     "jsx": "React",
     "module": "commonjs",
@@ -12,6 +13,6 @@
     "all.d.ts",
     "reactComponent.tsx",
     "test.ts",
-    "test.js"
+    "another.js"
   ]
 }

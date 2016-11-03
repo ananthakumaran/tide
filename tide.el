@@ -369,7 +369,8 @@ LINE is one based, OFFSET is one based and column is zero based"
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
   (remhash project-name tide-servers)
-  (remhash project-name tide-tsserver-unsupported-commands))
+  (remhash project-name tide-tsserver-unsupported-commands)
+  (remhash project-name tide-project-configs))
 
 (defun tide-start-server-if-required ()
   (when (not (tide-current-server))
@@ -421,6 +422,9 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-command:configure ()
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
+
+(defun tide-command:projectInfo (cb)
+  (tide-send-command "projectInfo" `(:file ,buffer-file-name) cb))
 
 (defun tide-command:openfile ()
   (tide-send-command "open"
@@ -621,7 +625,6 @@ With a prefix arg, Jump to the type definition."
       (setq tide-buffer-tmp-file (make-temp-file "tide")))
     (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
     (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file))))
-
 
 ;;; Auto completion
 
@@ -1048,12 +1051,14 @@ number."
   (if tide-mode
       (progn
         (add-hook 'after-save-hook 'tide-sync-buffer-contents nil t)
+        (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents)
+    (remove-hook 'after-save-hook 'tide-auto-compile-file)
     (remove-hook 'after-change-functions 'tide-handle-change)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
@@ -1267,6 +1272,39 @@ timeout."
 
 (defun tide--hl-identifiers-before-change-function (_beg _end)
   (tide-unhighlight-identifiers))
+
+
+;;; Compile On Save
+
+(defvar tide-project-configs (make-hash-table :test 'equal))
+
+(defun tide-command:compileOnSaveEmitFile ()
+  (tide-send-command "compileOnSaveEmitFile" `(:file ,buffer-file-name)))
+
+(defun tide-compile-file ()
+  "Compiles the current file"
+  (interactive)
+  (tide-command:compileOnSaveEmitFile))
+
+(defun tide-auto-compile-file ()
+  "Compiles the current file if compileOnSave is set"
+  (interactive)
+  (tide-project-config
+   (lambda (config)
+     (when (and config (plist-get config :compileOnSave))
+       (tide-command:compileOnSaveEmitFile)))))
+
+(defun tide-project-config (cb)
+  (let ((config (gethash (tide-project-name) tide-project-configs :not-loaded)))
+    (if (eq config :not-loaded)
+        (tide-command:projectInfo
+         (lambda (response)
+           (tide-on-response-success response
+             (let* ((config-file-name (tide-plist-get response :body :configFileName))
+                    (config (and config-file-name (file-exists-p config-file-name) (json-read-file config-file-name))))
+               (puthash (tide-project-name) config tide-project-configs)
+               (funcall cb config)))))
+      (funcall cb config))))
 
 ;;; Utility commands
 

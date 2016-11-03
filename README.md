@@ -112,6 +112,7 @@ at point.
 * Find occurrences
 * Rename symbol
 * Imenu
+* Compile On Save
 
 ### Debugging
 
