@@ -20,6 +20,7 @@
   (flycheck-mode +1)
   (setq flycheck-check-syntax-automatically '(save mode-enabled))
   (eldoc-mode +1)
+  (tide-hl-identifier-mode +1)
   ;; company is an optional dependency. You have to
   ;; install it separately via package-install
   ;; `M-x package-install [ret] company`
@@ -113,6 +114,7 @@ at point.
 * Rename symbol
 * Imenu
 * Compile On Save
+* Highlight Identifiers
 
 ### Debugging
 
