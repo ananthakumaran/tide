@@ -270,10 +270,13 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-doc-buffer (string)
   (with-current-buffer (get-buffer-create "*tide-documentation*")
-    (erase-buffer)
-    (when string
-      (save-excursion
-        (insert string)))
+    (setq buffer-read-only t)
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (when string
+        (save-excursion
+          (insert string))))
+    (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
 ;;; Server
