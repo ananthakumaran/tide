@@ -1294,7 +1294,7 @@ timeout."
   (interactive)
   (tide-project-config
    (lambda (config)
-     (when (and config (plist-get config :compileOnSave))
+     (when (and config (eq (plist-get config :compileOnSave) t))
        (tide-command:compileOnSaveEmitFile)))))
 
 (defun tide-project-config (cb)
