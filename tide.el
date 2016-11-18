@@ -78,6 +78,9 @@ above."
 (defvar tide-format-options '()
   "Format options plist.")
 
+(defvar tide-completion-ignore-case nil
+  "option to ignore case in completion")
+
 (defface tide-file
   '((t (:inherit dired-header)))
   "Face for file names in references output."
@@ -743,6 +746,7 @@ With a prefix arg, Jump to the type definition."
                       (lambda (cb)
                         (tide-command:completions arg cb))))
     (sorted t)
+    (ignore-case tide-completion-ignore-case)
     (meta (tide-completion-meta arg))
     (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))
     (doc-buffer (tide-completion-doc-buffer arg))))
