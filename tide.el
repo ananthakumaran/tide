@@ -79,7 +79,7 @@ above."
   "Format options plist.")
 
 (defvar tide-completion-ignore-case nil
-  "option to ignore case in completion")
+  "CASE will be ignored in completion if set to non-nil.")
 
 (defface tide-file
   '((t (:inherit dired-header)))
