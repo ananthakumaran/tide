@@ -773,7 +773,7 @@ With a prefix arg, Jump to the type definition."
 
 ;;; References
 
-(defun tide-next-error-function (n &optional reset)
+(defun tide-next-reference-function (n &optional reset)
   "Override for `next-error-function' for use in tide-reference-mode buffers."
   (interactive "p")
 
@@ -826,7 +826,8 @@ With a prefix arg, Jump to the type definition."
 
 \\{tide-references-mode-map}"
   (use-local-map tide-references-mode-map)
-  (setq buffer-read-only t))
+  (setq buffer-read-only t)
+  (setq next-error-function #'tide-next-reference-function))
 
 (defun tide-command:references ()
   (tide-send-command-sync
@@ -915,8 +916,7 @@ number."
               (progn
                 (message "This is the only usage.")
                 (tide-jump-to-filespan usage nil t))
-            (display-buffer (tide-insert-references references))
-            (setq next-error-function #'tide-next-error-function)))
+            (display-buffer (tide-insert-references references))))
       (message (plist-get response :message)))))
 
 
@@ -1204,8 +1204,11 @@ number."
    "geterrForProject"
    `(:file ,buffer-file-name :delay 0)))
 
+(defun tide-project-errors-buffer-name ()
+  (format "*%s-errors*" (tide-project-name)))
+
 (defun tide-display-erros (file-names)
-  (with-current-buffer (get-buffer-create (format "*%s-errors*" (tide-project-name)))
+  (with-current-buffer (get-buffer-create (tide-project-errors-buffer-name))
     (tide-project-errors-mode)
     (let ((inhibit-read-only t))
       (erase-buffer))
@@ -1213,8 +1216,8 @@ number."
     (let* ((project-files (-filter (lambda (file-name)
                                      (not (string-match-p "node_modules/typescript/" file-name)))
                                    file-names))
-           (syntax-remaining-files project-files)
-           (semantic-remaining-files project-files)
+           (syntax-remaining-files (copy-list project-files))
+           (semantic-remaining-files (copy-list project-files))
            (syntax-errors 0)
            (semantic-errors 0)
            (last-file-name nil))
@@ -1251,6 +1254,19 @@ number."
              (goto-char (point-min))
              (tide-clear-event-listener)))))))
   (tide-command:geterrForProject))
+
+(defun tide-next-error-function (n &optional reset)
+  "Override for `next-error-function' for use in tide-project-errors-mode buffers."
+  (interactive "p")
+
+  (-when-let (buffer (get-buffer (tide-project-errors-buffer-name)))
+    (with-current-buffer buffer
+      (when reset
+        (goto-char (point-min)))
+      (if (> n 0)
+          (tide-find-next-error (point) n)
+        (tide-find-previous-error (point) (- n)))
+      (tide-goto-error))))
 
 (defun tide-find-next-error (pos arg)
   "Move to next error."
@@ -1292,7 +1308,8 @@ number."
 
 \\{tide-project-errors-mode-map}"
   (use-local-map tide-project-errors-mode-map)
-  (setq buffer-read-only t))
+  (setq buffer-read-only t)
+  (setq next-error-function #'tide-next-error-function))
 
 ;;;###autoload
 (defun tide-project-errors ()
