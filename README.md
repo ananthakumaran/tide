@@ -99,6 +99,10 @@ handy after you edit tsconfig.json.
 at point in a buffer. References can be navigated using <kbd>n</kbd>
 and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 
+<kbd>M-x tide-project-errors</kbd> List all errors in the
+project. Errors can be navigated using <kbd>n</kbd> and
+<kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
+
 <kbd>M-x tide-rename-symbol</kbd> Rename all occurrences of the symbol
 at point.
 

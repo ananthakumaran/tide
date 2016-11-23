@@ -282,6 +282,16 @@ LINE is one based, OFFSET is one based and column is zero based"
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
+;;; Events
+
+(defvar tide-event-listeners (make-hash-table :test 'equal))
+
+(defun tide-set-event-listener (listener)
+  (puthash (tide-project-name) (cons (current-buffer) listener) tide-event-listeners))
+
+(defun tide-clear-event-listener ()
+  (remhash (tide-project-name) tide-event-listeners))
+
 ;;; Server
 
 (defun tide-current-server ()
@@ -298,9 +308,15 @@ LINE is one based, OFFSET is one based and column is zero based"
         (apply (cdr callback) (list response)))
       (remhash request-id tide-response-callbacks))))
 
+(defun tide-dispatch-event (event)
+  (-when-let (listener (gethash (tide-project-name) tide-event-listeners))
+    (with-current-buffer (car listener)
+      (apply (cdr listener) (list event)))))
+
 (defun tide-dispatch (response)
   (cl-case (intern (plist-get response :type))
-    ('response (tide-dispatch-response response))))
+    ('response (tide-dispatch-response response))
+    ('event (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
   (when (not (tide-current-server))
@@ -429,8 +445,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-command:configure ()
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
 
-(defun tide-command:projectInfo (cb)
-  (tide-send-command "projectInfo" `(:file ,buffer-file-name) cb))
+(defun tide-command:projectInfo (cb &optional need-file-name-list)
+  (tide-send-command "projectInfo" `(:file ,buffer-file-name :needFileNameList ,need-file-name-list) cb))
 
 (defun tide-command:openfile ()
   (tide-send-command "open"
@@ -1180,6 +1196,112 @@ number."
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
+
+;;; Project errors
+
+(defun tide-command:geterrForProject ()
+  (tide-send-command
+   "geterrForProject"
+   `(:file ,buffer-file-name :delay 0)))
+
+(defun tide-display-erros (file-names)
+  (with-current-buffer (get-buffer-create (format "*%s-errors*" (tide-project-name)))
+    (tide-project-errors-mode)
+    (let ((inhibit-read-only t))
+      (erase-buffer))
+    (display-buffer (current-buffer) t)
+    (let* ((project-files (-filter (lambda (file-name)
+                                     (not (string-match-p "node_modules/typescript/" file-name)))
+                                   file-names))
+           (syntax-remaining-files project-files)
+           (semantic-remaining-files project-files)
+           (syntax-errors 0)
+           (semantic-errors 0)
+           (last-file-name nil))
+      (tide-set-event-listener
+       (lambda (response)
+         (let ((inhibit-read-only t)
+               (file-name (tide-plist-get response :body :file))
+               (diagnostics (tide-plist-get response :body :diagnostics)))
+           (pcase (plist-get response :event)
+             ("syntaxDiag"
+              (progn
+                (setq syntax-remaining-files (remove file-name syntax-remaining-files))
+                (incf syntax-errors (length diagnostics))))
+             ("semanticDiag"
+              (progn
+                (setq semantic-remaining-files (remove file-name semantic-remaining-files))
+                (incf semantic-errors (length diagnostics)))))
+
+           (when diagnostics
+             (-each diagnostics
+               (lambda (diagnostic)
+                 (let ((line-number (tide-plist-get diagnostic :start :line)))
+                   (when (not (equal last-file-name file-name))
+                     (setq last-file-name file-name)
+                     (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
+                     (insert "\n"))
+
+                   (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
+                   (insert ": ")
+                   (insert (plist-get diagnostic :text))
+                   (insert "\n")))))
+           (when (and (null syntax-remaining-files) (null semantic-remaining-files))
+             (insert (format "\n%d syntax error(s), %d semantic error(s)\n" syntax-errors semantic-errors))
+             (goto-char (point-min))
+             (tide-clear-event-listener)))))))
+  (tide-command:geterrForProject))
+
+(defun tide-find-next-error (pos arg)
+  "Move to next error."
+  (interactive "d\np")
+  (setq arg (* 2 arg))
+  (unless (get-text-property pos 'tide-error)
+    (setq arg (1- arg)))
+  (dotimes (_i arg)
+    (setq pos (next-single-property-change pos 'tide-error))
+    (unless pos
+      (error "Moved past last error")))
+  (goto-char pos))
+
+(defun tide-find-previous-error (pos arg)
+  "Move back to previous error."
+  (interactive "d\np")
+  (dotimes (_i (* 2 arg))
+    (setq pos (previous-single-property-change pos 'tide-error))
+    (unless pos
+      (error "Moved back before first error")))
+  (goto-char pos))
+
+(defun tide-goto-error ()
+  "Jump to error location in the file."
+  (interactive)
+  (-when-let (error (get-text-property (point) 'tide-error))
+    (tide-jump-to-filespan error nil t)))
+
+(defvar tide-project-errors-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "n") #'tide-find-next-error)
+    (define-key map (kbd "p") #'tide-find-previous-error)
+    (define-key map (kbd "C-m") #'tide-goto-error)
+    (define-key map (kbd "q") #'quit-window)
+    map))
+
+(define-derived-mode tide-project-errors-mode nil "tide-project-errors"
+  "Major mode for tide project-errors list.
+
+\\{tide-project-errors-mode-map}"
+  (use-local-map tide-project-errors-mode-map)
+  (setq buffer-read-only t))
+
+;;;###autoload
+(defun tide-project-errors ()
+  (interactive)
+  (tide-command:projectInfo
+   (lambda (response)
+     (tide-on-response-success response
+       (tide-display-erros (tide-plist-get response :body :fileNames))))
+   t))
 
 ;;; Identifier highlighting
 
