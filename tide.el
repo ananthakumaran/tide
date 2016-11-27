@@ -81,6 +81,9 @@ above."
 (defvar tide-completion-ignore-case nil
   "CASE will be ignored in completion if set to non-nil.")
 
+(defvar tide-completion-detailed nil
+  "Completion dropdown will contain detailed method information if set to non-nil.")
+
 (defface tide-file
   '((t (:inherit dired-header)))
   "Face for file names in references output."
@@ -650,34 +653,36 @@ With a prefix arg, Jump to the type definition."
 
 ;;; Auto completion
 
-(defun tide-completion-annotation (completion)
-  (pcase (plist-get completion :kind)
-    ("keyword" " k")
-    ("module" " M")
-    ("class" " C")
-    ("interface" " I")
-    ("type" " T")
-    ("enum" " E")
-    ("var" " v")
-    ("local var" " v")
-    ("function" " ƒ")
-    ("local function" " ƒ")
-    ("method" " m")
-    ("getter" " m")
-    ("setter" " m")
-    ("property" " p")
-    ("constructor" " c")
-    ("call" " m")
-    ("index" " i")
-    ("construct" " m")
-    ("parameter" " p")
-    ("type parameter" " T")
-    ("primitive type" " T")
-    ("label" " l")
-    ("alias" " A")
-    ("const" " c")
-    ("let" " l")
-    (t nil)))
+(defun tide-completion-annotation (name)
+  (if tide-completion-detailed
+      (tide-completion-meta name)
+    (pcase (plist-get (get-text-property 0 'completion name) :kind)
+      ("keyword" " k")
+      ("module" " M")
+      ("class" " C")
+      ("interface" " I")
+      ("type" " T")
+      ("enum" " E")
+      ("var" " v")
+      ("local var" " v")
+      ("function" " ƒ")
+      ("local function" " ƒ")
+      ("method" " m")
+      ("getter" " m")
+      ("setter" " m")
+      ("property" " p")
+      ("constructor" " c")
+      ("call" " m")
+      ("index" " i")
+      ("construct" " m")
+      ("parameter" " p")
+      ("type parameter" " T")
+      ("primitive type" " T")
+      ("label" " l")
+      ("alias" " A")
+      ("const" " c")
+      ("let" " l")
+      (t nil))))
 
 (defun tide-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
@@ -764,7 +769,7 @@ With a prefix arg, Jump to the type definition."
     (sorted t)
     (ignore-case tide-completion-ignore-case)
     (meta (tide-completion-meta arg))
-    (annotation (tide-completion-annotation (get-text-property 0 'completion arg)))
+    (annotation (tide-completion-annotation arg))
     (doc-buffer (tide-completion-doc-buffer arg))))
 
 (eval-after-load 'company
