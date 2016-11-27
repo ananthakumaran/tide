@@ -36,6 +36,9 @@
 
 ;; format options
 (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
+
+;; Optional: See more detailed (but cluttered) type information in the autocompletion drop-down
+(setq tide-completion-detailed t)
 ```
 Check [here][format_options] for the full list of supported format options.
 
