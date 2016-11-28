@@ -654,10 +654,8 @@ With a prefix arg, Jump to the type definition."
 ;;; Auto completion
 
 (defun tide-completion-annotation (name)
-  (if tide-completion-detailed (tide-completion-meta name)
-      ;; This is similar to tide-quickinfo-text, but `name` is in a slightly different format.
-      ;; (tide-annotate-display-parts
-       ;; (plist-get (car (plist-get (tide-completion-entry-details name) :body)) :displayParts))
+  (if tide-completion-detailed
+      (tide-completion-meta name)
     (pcase (plist-get (get-text-property 0 'completion name) :kind)
       ("keyword" " k")
       ("module" " M")
