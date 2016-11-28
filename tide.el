@@ -1467,6 +1467,6 @@ timeout."
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
-(provide 'my-tide)
+(provide 'tide)
 
 ;;; tide.el ends here
