@@ -981,7 +981,7 @@ number."
     (tide-on-response-success response
       (if (eq (tide-plist-get response :body :info :canRename) :json-false)
           (message "%s" (tide-plist-get response :body :info :localizedErrorMessage))
-        (let* ((old-symbol (tide-plist-get response :body :info :fullDisplayName))
+        (let* ((old-symbol (tide-plist-get response :body :info :displayName))
                (new-symbol (tide-read-new-symbol old-symbol))
                (locs (tide-plist-get response :body :locs))
                (count 0))
