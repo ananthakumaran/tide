@@ -823,6 +823,7 @@ With a prefix arg, Jump to the type definition."
     (define-key map (kbd "n") #'tide-find-next-reference)
     (define-key map (kbd "p") #'tide-find-previous-reference)
     (define-key map (kbd "C-m") #'tide-goto-reference)
+    (define-key map [mouse-1] #'tide-goto-reference)
     (define-key map (kbd "q") #'quit-window)
     map))
 
@@ -843,6 +844,8 @@ With a prefix arg, Jump to the type definition."
   (let ((start (1- (tide-plist-get reference :start :offset)))
         (end (1- (tide-plist-get reference :end :offset))))
     (put-text-property start end 'face 'tide-match line-text)
+    (put-text-property start end 'mouse-face 'highlight line-text)
+    (put-text-property start end 'help-echo "mouse-1: Visit the reference." line-text)
     (put-text-property start end 'tide-reference reference line-text)))
 
 (defun tide-insert-references (references)
