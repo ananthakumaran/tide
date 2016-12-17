@@ -75,6 +75,13 @@ above."
   :type '(choice (const nil) string)
   :group 'tide)
 
+(defcustom tide-tsserver-executor nil
+  "Path to executable to run tsserver with.
+
+Setting this together with tide-tsserver-executable will allow
+you to run a tsserver executable that depend on shebangs and env,
+such as typescript's bundled tsserver on Windows.")
+
 (defvar tide-format-options '()
   "Format options plist.")
 
@@ -370,8 +377,11 @@ LINE is one based, OFFSET is one based and column is zero based"
          (buf (generate-new-buffer tide-server-buffer-name))
          (process
           (if tide-tsserver-executable
-              (start-file-process "tsserver" buf (expand-file-name tide-tsserver-executable))
-            (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
+              (if tide-tsserver-executor
+                  (start-file-process "tsserver" buf tide-tsserver-executor (expand-file-name tide-tsserver-executable default-directory))
+                (start-file-process "tsserver" buf (expand-file-name tide-tsserver-executable default-directory))
+            (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory))))))
+
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
