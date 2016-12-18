@@ -75,6 +75,11 @@ above."
   :type '(choice (const nil) string)
   :group 'tide)
 
+(defcustom tide-node-executable "node"
+  "Name or path of the node executable binary file."
+  :type '(choice (const nil) string)
+  :group 'tide)
+
 (defvar tide-format-options '()
   "Format options plist.")
 
@@ -368,10 +373,11 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
+         (tsserverjs (or (and tide-tsserver-executable
+                              (expand-file-name tide-tsserver-executable))
+                         (expand-file-name "tsserver.js" tide-tsserver-directory)))
          (process
-          (if tide-tsserver-executable
-              (start-file-process "tsserver" buf (expand-file-name tide-tsserver-executable))
-            (start-file-process "tsserver" buf "node" (expand-file-name "tsserver.js" tide-tsserver-directory)))))
+          (start-file-process "tsserver" buf tide-node-executable tsserverjs)))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
