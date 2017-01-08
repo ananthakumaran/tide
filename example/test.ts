@@ -6,6 +6,8 @@ len.substring(0, 1);
 
 var y = Game;
 
+var obj: Object;
+
 @readonly
 class Person {
     name: string;
