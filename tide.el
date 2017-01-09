@@ -44,6 +44,7 @@
 (defvar web-mode-code-indent-offset)
 (defvar sgml-basic-offset)
 (defvar company-backends)
+(defvar company-gtags-insert-arguments)
 
 (declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
 (declare-function company-begin-backend "company.el" (backend &optional callback))
@@ -278,6 +279,23 @@ LINE is one based, OFFSET is one based and column is zero based"
       (beginning-of-line)
       (forward-char (1- (plist-get span :offset)))
       (point))))
+
+(defun tide-completion-template (name)
+  "Defines the template for insertion after autocomplete."
+    (when (member
+         (plist-get (get-text-property 0 'completion name) :kind)
+         '("function" "localFunction" "method", "constructor" "class"))
+    (let ((meta (tide-completion-meta name)))
+      ;; To make this work with functions that have overloads, we match on
+      ;; anything in parenthesis that doesn't have with a +, since that's
+      ;; what we use for overloads. Otherwise, it will insert, e.g.,
+      ;; `(+1 overload)` at the end of the completion, which will make
+      ;; company think that `(+1 overload)` is the actual completion.
+      ;; This means it will also complete the first option, which isn't the
+      ;; greatest experience, but it's good enough for now.
+      (when (string-match (concat name "\\(([^+]*)\\).*") meta)
+        (match-string 1 meta)))))
+
 
 (defun tide-doc-buffer (string)
   (with-current-buffer (get-buffer-create "*tide-documentation*")
@@ -778,7 +796,11 @@ With a prefix arg, Jump to the type definition."
     (ignore-case tide-completion-ignore-case)
     (meta (tide-completion-meta arg))
     (annotation (tide-completion-annotation arg))
-    (doc-buffer (tide-completion-doc-buffer arg))))
+    (doc-buffer (tide-completion-doc-buffer arg))
+    (post-completion  (-when-let (template (tide-completion-template arg))
+                        (when company-gtags-insert-arguments
+                          (insert template)
+                          (company-template-c-like-templatify template))))))
 
 (eval-after-load 'company
   '(progn
