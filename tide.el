@@ -1232,8 +1232,8 @@ number."
     (let* ((project-files (-filter (lambda (file-name)
                                      (not (string-match-p "node_modules/typescript/" file-name)))
                                    file-names))
-           (syntax-remaining-files (copy-list project-files))
-           (semantic-remaining-files (copy-list project-files))
+           (syntax-remaining-files (cl-copy-list project-files))
+           (semantic-remaining-files (cl-copy-list project-files))
            (syntax-errors 0)
            (semantic-errors 0)
            (last-file-name nil))
@@ -1246,11 +1246,11 @@ number."
              ("syntaxDiag"
               (progn
                 (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-                (incf syntax-errors (length diagnostics))))
+                (cl-incf syntax-errors (length diagnostics))))
              ("semanticDiag"
               (progn
                 (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-                (incf semantic-errors (length diagnostics)))))
+                (cl-incf semantic-errors (length diagnostics)))))
 
            (when diagnostics
              (-each diagnostics
