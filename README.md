@@ -13,7 +13,7 @@
 ### Configuration
 
 #### TypeScript
-```cl
+```elisp
 (defun setup-tide-mode ()
   (interactive)
   (tide-setup)
@@ -33,15 +33,33 @@
 (add-hook 'before-save-hook 'tide-format-before-save)
 
 (add-hook 'typescript-mode-hook #'setup-tide-mode)
+```
 
-;; format options
+#### Format options
+
+Format options can be specified in multiple ways.
+
+* via elisp
+
+```elisp
 (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
+```
+
+* via tsfmt.json (should be present in the root folder along with tsconfig.json)
+```json
+{
+  "indentSize": 4,
+  "tabSize": 4,
+  "insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": false,
+  "placeOpenBraceOnNewLineForFunctions": false,
+  "placeOpenBraceOnNewLineForControlBlocks": false
+}
 ```
 Check [here][format_options] for the full list of supported format options.
 
 
 #### TSX
-```cl
+```elisp
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
 (add-hook 'web-mode-hook
@@ -55,12 +73,12 @@ Tide also provides support for editing js & jsx files. Tide checkers
 jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck.org/en/latest/user/syntax-checkers.html#variable-flycheck-checker)
 
 #### JavaScript
-```cl
+```elisp
 (add-hook 'js2-mode-hook #'setup-tide-mode)
 ```
 
 #### JSX
-```cl
+```elisp
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . web-mode))
 (add-hook 'web-mode-hook
