@@ -443,7 +443,7 @@ LINE is one based, OFFSET is one based and column is zero based"
    tide-format-options))
 
 (defun tide-tsfmt-options ()
-  (let ((config-file (file-relative-name "tsfmt.json"))
+  (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root)))
         (json-object-type 'plist))
     (when (file-exists-p config-file)
       (json-read-file config-file))))
