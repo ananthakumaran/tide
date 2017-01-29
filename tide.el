@@ -439,8 +439,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-file-format-options ()
   (tide-combine-plists
    `(:tabSize ,tab-width :indentSize ,(tide-current-indentsize))
-   (tide-tsfmt-options)
-   tide-format-options))
+   tide-format-options
+   (tide-tsfmt-options)))
 
 (defun tide-tsfmt-options ()
   (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root)))
