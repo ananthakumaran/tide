@@ -1360,7 +1360,7 @@ number."
   "Face used for highlighting identifiers in `tide-hl-identifier'."
   :group 'tide)
 
-(defcustom tide-hl-identifier-idle-time 0.1
+(defcustom tide-hl-identifier-idle-time 0.50
   "How long to wait after user input before highlighting the current identifier."
   :type 'float
   :group 'tide)
