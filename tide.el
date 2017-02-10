@@ -184,6 +184,12 @@ above."
 
 ;;; Helpers
 
+(defun tide-safe-json-read-file (filename)
+  (condition-case nil
+      (let ((json-object-type 'plist))
+        (json-read-file filename))
+    (error '())))
+
 (defun tide-plist-get (list &rest args)
   (cl-reduce
    (lambda (object key)
@@ -443,10 +449,9 @@ LINE is one based, OFFSET is one based and column is zero based"
    (tide-tsfmt-options)))
 
 (defun tide-tsfmt-options ()
-  (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root)))
-        (json-object-type 'plist))
+  (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root))))
     (when (file-exists-p config-file)
-      (json-read-file config-file))))
+      (tide-safe-json-read-file config-file))))
 
 (defun tide-current-indentsize ()
   (pcase major-mode
@@ -1470,7 +1475,7 @@ timeout."
          (lambda (response)
            (tide-on-response-success response
              (let* ((config-file-name (tide-plist-get response :body :configFileName))
-                    (config (and config-file-name (file-exists-p config-file-name) (json-read-file config-file-name))))
+                    (config (and config-file-name (file-exists-p config-file-name) (tide-safe-json-read-file config-file-name))))
                (puthash (tide-project-name) config tide-project-configs)
                (funcall cb config)))))
       (funcall cb config))))
