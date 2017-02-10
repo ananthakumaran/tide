@@ -1350,10 +1350,11 @@ number."
 
 ;;; Identifier highlighting
 
-(defun tide-command:documentHighlights ()
-  (tide-send-command-sync
+(defun tide-command:documentHighlights (cb)
+  (tide-send-command
    "documentHighlights"
-   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,buffer-file-name))))
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,buffer-file-name))
+   cb))
 
 (defface tide-hl-identifier-face
   '((t (:inherit highlight)))
@@ -1364,6 +1365,13 @@ number."
   "How long to wait after user input before highlighting the current identifier."
   :type 'float
   :group 'tide)
+
+(tide-def-permanent-buffer-local tide--hl-last-token 0)
+
+(defun tide--hl-new-token ()
+  "Invalidate all existing tokens to get document highlights and
+create a new token"
+  (incf tide--hl-last-token))
 
 (defvar tide--current-hl-identifier-idle-time
   0
@@ -1376,6 +1384,7 @@ number."
 ;;;###autoload
 (defun tide-unhighlight-identifiers ()
   "Remove highlights from previously highlighted identifier."
+  (tide--hl-new-token)
   (remove-overlays nil nil 'tide-overlay 'sameid))
 
 ;;;###autoload
@@ -1388,18 +1397,26 @@ highlights from previously highlighted identifier."
 
 (defun tide--hl-identifier ()
   "Highlight all instances of the identifier under point."
-  (let ((response (tide-command:documentHighlights)))
-    (when (tide-response-success-p response)
-      (let ((references (plist-get (car (plist-get (tide-command:documentHighlights) :body)) :highlightSpans)))
-        (-each references
-          (lambda (reference)
-            (let* ((kind (plist-get reference :kind))
-                   (id-start (plist-get reference :start))
-                   (id-end (plist-get reference :end)))
-              (when (member kind '("reference" "writtenReference"))
-                (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
-                  (overlay-put x 'tide-overlay 'sameid)
-                  (overlay-put x 'face 'tide-hl-identifier-face))))))))))
+  (let ((token (tide--hl-new-token)))
+    (tide-command:documentHighlights
+     (lambda (response)
+       (when (and
+              (equal token tide--hl-last-token)
+              (tide-response-success-p response))
+         (tide--hl-highlight response))))))
+
+(defun tide--hl-highlight (response)
+  "Highlight all instances of the identifier under point."
+  (let ((references (plist-get (car (plist-get response :body)) :highlightSpans)))
+    (-each references
+      (lambda (reference)
+        (let* ((kind (plist-get reference :kind))
+               (id-start (plist-get reference :start))
+               (id-end (plist-get reference :end)))
+          (when (member kind '("reference" "writtenReference"))
+            (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
+              (overlay-put x 'tide-overlay 'sameid)
+              (overlay-put x 'face 'tide-hl-identifier-face))))))))
 
 (defun tide--hl-identifiers-function ()
   "Function run after an idle timeout, highlighting the
