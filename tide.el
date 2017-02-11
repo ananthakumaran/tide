@@ -1067,7 +1067,6 @@ number."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'tide-jump-to-definition)
     (define-key map (kbd "M-,") #'tide-jump-back)
-    (define-key map (kbd "C-c d") #'tide-documentation-at-point)
     map))
 
 (defun tide-configure-buffer ()
