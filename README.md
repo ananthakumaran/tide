@@ -13,7 +13,7 @@
 ### Configuration
 
 #### TypeScript
-```cl
+```elisp
 (defun setup-tide-mode ()
   (interactive)
   (tide-setup)
@@ -33,15 +33,33 @@
 (add-hook 'before-save-hook 'tide-format-before-save)
 
 (add-hook 'typescript-mode-hook #'setup-tide-mode)
+```
 
-;; format options
+#### Format options
+
+Format options can be specified in multiple ways.
+
+* via elisp
+
+```elisp
 (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
+```
+
+* via tsfmt.json (should be present in the root folder along with tsconfig.json)
+```json
+{
+  "indentSize": 4,
+  "tabSize": 4,
+  "insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": false,
+  "placeOpenBraceOnNewLineForFunctions": false,
+  "placeOpenBraceOnNewLineForControlBlocks": false
+}
 ```
 Check [here][format_options] for the full list of supported format options.
 
 
 #### TSX
-```cl
+```elisp
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
 (add-hook 'web-mode-hook
@@ -55,12 +73,12 @@ Tide also provides support for editing js & jsx files. Tide checkers
 jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck.org/en/latest/user/syntax-checkers.html#variable-flycheck-checker)
 
 #### JavaScript
-```cl
+```elisp
 (add-hook 'js2-mode-hook #'setup-tide-mode)
 ```
 
 #### JSX
-```cl
+```elisp
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.jsx\\'" . web-mode))
 (add-hook 'web-mode-hook
@@ -87,13 +105,15 @@ jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck
 
 Keyboard shortcuts                  | Description
 ------------------------------------|----------
-<kbd>C-c d</kbd>                    | Show documentation for the symbol at point.
 <kbd>M-.</kbd>                      | Jump to the definition of the symbol at point. With a prefix arg, Jump to the type definition.
 <kbd>M-,</kbd>                      | Return to your pre-jump position.
 
 <kbd>M-x tide-restart-server</kbd> Restart tsserver. Currently
 tsserver doesn't pickup tsconfig.json file changes. This would come in
 handy after you edit tsconfig.json.
+
+<kbd>M-x tide-documentation-at-point</kbd> Show documentation for the
+symbol at point.
 
 <kbd>M-x tide-references</kbd> List all references to the symbol
 at point in a buffer. References can be navigated using <kbd>n</kbd>

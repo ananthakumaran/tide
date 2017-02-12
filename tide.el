@@ -4,7 +4,7 @@
 
 ;; Author: Anantha kumaran <ananthakumaran@gmail.com>
 ;; URL: http://github.com/ananthakumaran/tide
-;; Version: 2.1.4
+;; Version: 2.1.5
 ;; Keywords: typescript
 ;; Package-Requires: ((dash "2.10.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
@@ -188,6 +188,12 @@ above."
            response)))))
 
 ;;; Helpers
+
+(defun tide-safe-json-read-file (filename)
+  (condition-case nil
+      (let ((json-object-type 'plist))
+        (json-read-file filename))
+    (error '())))
 
 (defun tide-plist-get (list &rest args)
   (cl-reduce
@@ -461,7 +467,13 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-file-format-options ()
   (tide-combine-plists
    `(:tabSize ,tab-width :indentSize ,(tide-current-indentsize))
-   tide-format-options))
+   tide-format-options
+   (tide-tsfmt-options)))
+
+(defun tide-tsfmt-options ()
+  (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root))))
+    (when (file-exists-p config-file)
+      (tide-safe-json-read-file config-file))))
 
 (defun tide-current-indentsize ()
   (pcase major-mode
@@ -1084,7 +1096,6 @@ number."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'tide-jump-to-definition)
     (define-key map (kbd "M-,") #'tide-jump-back)
-    (define-key map (kbd "C-c d") #'tide-documentation-at-point)
     map))
 
 (defun tide-configure-buffer ()
@@ -1261,8 +1272,8 @@ number."
     (let* ((project-files (-filter (lambda (file-name)
                                      (not (string-match-p "node_modules/typescript/" file-name)))
                                    file-names))
-           (syntax-remaining-files (copy-list project-files))
-           (semantic-remaining-files (copy-list project-files))
+           (syntax-remaining-files (cl-copy-list project-files))
+           (semantic-remaining-files (cl-copy-list project-files))
            (syntax-errors 0)
            (semantic-errors 0)
            (last-file-name nil))
@@ -1275,11 +1286,11 @@ number."
              ("syntaxDiag"
               (progn
                 (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-                (incf syntax-errors (length diagnostics))))
+                (cl-incf syntax-errors (length diagnostics))))
              ("semanticDiag"
               (progn
                 (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-                (incf semantic-errors (length diagnostics)))))
+                (cl-incf semantic-errors (length diagnostics)))))
 
            (when diagnostics
              (-each diagnostics
@@ -1367,20 +1378,28 @@ number."
 
 ;;; Identifier highlighting
 
-(defun tide-command:documentHighlights ()
-  (tide-send-command-sync
+(defun tide-command:documentHighlights (cb)
+  (tide-send-command
    "documentHighlights"
-   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,buffer-file-name))))
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,buffer-file-name))
+   cb))
 
 (defface tide-hl-identifier-face
   '((t (:inherit highlight)))
   "Face used for highlighting identifiers in `tide-hl-identifier'."
   :group 'tide)
 
-(defcustom tide-hl-identifier-idle-time 0.1
+(defcustom tide-hl-identifier-idle-time 0.50
   "How long to wait after user input before highlighting the current identifier."
   :type 'float
   :group 'tide)
+
+(tide-def-permanent-buffer-local tide--hl-last-token 0)
+
+(defun tide--hl-new-token ()
+  "Invalidate all existing tokens to get document highlights and
+create a new token"
+  (incf tide--hl-last-token))
 
 (defvar tide--current-hl-identifier-idle-time
   0
@@ -1393,6 +1412,7 @@ number."
 ;;;###autoload
 (defun tide-unhighlight-identifiers ()
   "Remove highlights from previously highlighted identifier."
+  (tide--hl-new-token)
   (remove-overlays nil nil 'tide-overlay 'sameid))
 
 ;;;###autoload
@@ -1405,18 +1425,26 @@ highlights from previously highlighted identifier."
 
 (defun tide--hl-identifier ()
   "Highlight all instances of the identifier under point."
-  (let ((response (tide-command:documentHighlights)))
-    (when (tide-response-success-p response)
-      (let ((references (plist-get (car (plist-get (tide-command:documentHighlights) :body)) :highlightSpans)))
-        (-each references
-          (lambda (reference)
-            (let* ((kind (plist-get reference :kind))
-                   (id-start (plist-get reference :start))
-                   (id-end (plist-get reference :end)))
-              (when (member kind '("reference" "writtenReference"))
-                (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
-                  (overlay-put x 'tide-overlay 'sameid)
-                  (overlay-put x 'face 'tide-hl-identifier-face))))))))))
+  (let ((token (tide--hl-new-token)))
+    (tide-command:documentHighlights
+     (lambda (response)
+       (when (and
+              (equal token tide--hl-last-token)
+              (tide-response-success-p response))
+         (tide--hl-highlight response))))))
+
+(defun tide--hl-highlight (response)
+  "Highlight all instances of the identifier under point."
+  (let ((references (plist-get (car (plist-get response :body)) :highlightSpans)))
+    (-each references
+      (lambda (reference)
+        (let* ((kind (plist-get reference :kind))
+               (id-start (plist-get reference :start))
+               (id-end (plist-get reference :end)))
+          (when (member kind '("reference" "writtenReference"))
+            (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
+              (overlay-put x 'tide-overlay 'sameid)
+              (overlay-put x 'face 'tide-hl-identifier-face))))))))
 
 (defun tide--hl-identifiers-function ()
   "Function run after an idle timeout, highlighting the
@@ -1492,7 +1520,7 @@ timeout."
          (lambda (response)
            (tide-on-response-success response
              (let* ((config-file-name (tide-plist-get response :body :configFileName))
-                    (config (and config-file-name (file-exists-p config-file-name) (json-read-file config-file-name))))
+                    (config (and config-file-name (file-exists-p config-file-name) (tide-safe-json-read-file config-file-name))))
                (puthash (tide-project-name) config tide-project-configs)
                (funcall cb config)))))
       (funcall cb config))))
