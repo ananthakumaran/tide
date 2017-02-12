@@ -1119,14 +1119,14 @@ number."
   (if tide-mode
       (progn
         (add-hook 'after-save-hook 'tide-sync-buffer-contents nil t)
-        ;; (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
+        (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents)
-    ;; (remove-hook 'after-save-hook 'tide-auto-compile-file)
+    (remove-hook 'after-save-hook 'tide-auto-compile-file)
     (remove-hook 'after-change-functions 'tide-handle-change)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
