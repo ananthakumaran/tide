@@ -44,7 +44,6 @@
 (defvar web-mode-code-indent-offset)
 (defvar sgml-basic-offset)
 (defvar company-backends)
-(defvar company-gtags-insert-arguments)
 
 (declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
 (declare-function company-begin-backend "company.el" (backend &optional callback))
@@ -54,6 +53,11 @@
   "TypeScript Interactive Development Environment."
   :prefix "tide-"
   :group 'tools)
+
+(defcustom tide-completion-insert-arguments t
+  "When non-nil, insert function arguments as a template after completion."
+  :type 'boolean
+  :group 'tide)
 
 (defcustom tide-sync-request-timeout 2
   "The number of seconds to wait for a sync response."
@@ -291,9 +295,9 @@ LINE is one based, OFFSET is one based and column is zero based"
       ;; what we use for overloads. Otherwise, it will insert, e.g.,
       ;; `(+1 overload)` at the end of the completion, which will make
       ;; company think that `(+1 overload)` is the actual completion.
-      ;; This means it will also complete the first option, which isn't the
+      ;; This also means it will complete the first option, which isn't the
       ;; greatest experience, but it's good enough for now.
-      (when (string-match (concat name "\\(([^+]*)\\).*") meta)
+      (when (string-match (concat name "\\(?:<.*?>\\)?\\(([^+]*)\\).*") meta)
         (match-string 1 meta)))))
 
 
@@ -473,6 +477,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
 
 (defun tide-command:projectInfo (cb &optional need-file-name-list)
+  (message "hi")
   (tide-send-command "projectInfo" `(:file ,buffer-file-name :needFileNameList ,need-file-name-list) cb))
 
 (defun tide-command:openfile ()
@@ -798,8 +803,10 @@ With a prefix arg, Jump to the type definition."
     (annotation (tide-completion-annotation arg))
     (doc-buffer (tide-completion-doc-buffer arg))
     (post-completion  (-when-let (template (tide-completion-template arg))
-                        (when company-gtags-insert-arguments
+                        (when tide-completion-insert-arguments
                           (insert template)
+                          ;; TS is not c-like, so we should write out own
+                          ;; templating function for this when we have time.
                           (company-template-c-like-templatify template))))))
 
 (eval-after-load 'company
@@ -1112,14 +1119,14 @@ number."
   (if tide-mode
       (progn
         (add-hook 'after-save-hook 'tide-sync-buffer-contents nil t)
-        (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
+        ;; (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents)
-    (remove-hook 'after-save-hook 'tide-auto-compile-file)
+    ;; (remove-hook 'after-save-hook 'tide-auto-compile-file)
     (remove-hook 'after-change-functions 'tide-handle-change)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
