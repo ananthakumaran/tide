@@ -340,6 +340,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
   (let* ((request-id (tide-next-request-id))
          (command `(:command ,name :seq ,request-id :arguments ,args))
+         (json-encoding-pretty-print nil)
          (encoded-command (json-encode command))
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
