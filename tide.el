@@ -1371,7 +1371,7 @@ number."
 (defun tide--hl-new-token ()
   "Invalidate all existing tokens to get document highlights and
 create a new token"
-  (incf tide--hl-last-token))
+  (cl-incf tide--hl-last-token))
 
 (defvar tide--current-hl-identifier-idle-time
   0
