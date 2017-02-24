@@ -687,10 +687,8 @@ With a prefix arg, Jump to the type definition."
   (plist-get fix :description))
 
 (defun tide-get-fix-from-description (desc fixes)
-  (car
-   (-filter (lambda (fix) (string-equal desc
-                                        (tide-get-fix-description fix)))
-            fixes)))
+  (-first (lambda (fix) (string-equal desc (tide-get-fix-description fix)))
+          fixes))
 
 (defun tide-apply-codefix (fix)
   "Apply a single `FIX' (which may apply to several files)!"
@@ -1091,8 +1089,9 @@ number."
     (tide-format-region (point-min) (point-max))))
 
 (defun tide-normalize-line-end (text)
-  (while (string-match "\r" text)
-    (setq text (replace-match "" nil nil text)))
+  (save-match-data
+    (while (string-match "\r" text)
+      (setq text (replace-match "" nil nil text))))
   text)
 
 (defun tide-apply-edit (edit)
