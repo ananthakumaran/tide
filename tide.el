@@ -670,6 +670,57 @@ With a prefix arg, Jump to the type definition."
     (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
     (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file))))
 
+;;; Code-fixes
+
+(defun tide-get-flycheck-errors-ids-at-point ()
+  (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
+
+(defun tide-command:getCodeFixes ()
+  (tide-send-command-sync "getCodeFixes" `(:file ,(buffer-file-name)
+                                                 :startLine ,(tide-line-number-at-pos)
+                                                 :startOffset ,(tide-current-offset)
+                                                 :endLine ,(tide-line-number-at-pos)
+                                                 :endOffset ,(+ 1 (tide-current-offset))
+                                                 :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+
+(defun tide-get-fix-description (fix)
+  (plist-get fix :description))
+
+(defun tide-get-fix-from-description (desc fixes)
+  (car
+   (-filter (lambda (fix) (string-equal desc
+                                        (tide-get-fix-description fix)))
+            fixes)))
+
+(defun tide-apply-codefix (fix)
+  "Apply a single `FIX' (which may apply to several files)!"
+
+  (setq my-tide-applied-fix fix)
+
+  (let ((file-changes (plist-get fix :changes)))
+    (save-excursion
+      (dolist (file-change file-changes)
+        (find-file (plist-get file-change :fileName))
+        (tide-apply-edits (plist-get file-change :textChanges)))))
+
+  (tide-format))
+
+
+(defun tide-apply-codefixes ()
+  "Query the server for possible code-fixes and apply them."
+
+  (interactive)
+  (let* ((response (tide-command:getCodeFixes))
+         (fixes (plist-get response :body)))
+    (cond ((= 0 (length fixes)) (message "No code-fixes found!"))
+          ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
+          (t
+           (let* ((descriptions (-map #'tide-get-fix-description fixes))
+                  (wanted-fix-desc (completing-read "Select fix: " descriptions))
+                  (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
+             (tide-apply-codefix wanted-fix))))))
+
+
 ;;; Auto completion
 
 (defun tide-completion-annotation (name)
@@ -1041,10 +1092,18 @@ number."
       (tide-format-region (region-beginning) (region-end))
     (tide-format-region (point-min) (point-max))))
 
+(defun tide-normalize-line-end (text)
+  (while (string-match "\r" text)
+    (setq text (replace-match "" nil nil text)))
+  text)
+
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
-  (insert (plist-get edit :newText)))
+  (let* ((newtext (plist-get edit :newText))
+         ;; we often get ^M chars in our returns! kill them with fire!
+         (normalized (tide-normalize-line-end newtext)))
+    (insert normalized)))
 
 (defun tide-apply-edits (edits)
   (save-excursion
@@ -1157,7 +1216,8 @@ number."
             (line (plist-get start :line))
             (column (tide-column line (plist-get start :offset))))
        (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
-                              :checker checker)))
+                              :checker checker
+                              :id (plist-get diagnostic :code))))
    (let ((diagnostic (car (tide-plist-get response :body))))
      (-concat (plist-get diagnostic :syntaxDiag)
               (plist-get diagnostic :semanticDiag)))))
