@@ -695,8 +695,6 @@ With a prefix arg, Jump to the type definition."
 (defun tide-apply-codefix (fix)
   "Apply a single `FIX' (which may apply to several files)!"
 
-  (setq my-tide-applied-fix fix)
-
   (let ((file-changes (plist-get fix :changes)))
     (save-excursion
       (dolist (file-change file-changes)
