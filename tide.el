@@ -692,10 +692,7 @@ With a prefix arg, Jump to the type definition."
     (save-excursion
       (dolist (file-change file-changes)
         (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
-          (tide-apply-edits (plist-get file-change :textChanges))))
-      (dolist (file-change file-changes)
-        (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
-          (tide-format)
+          (tide-format-regions (tide-apply-edits (plist-get file-change :textChanges)))
           (basic-save-buffer))))))
 
 
@@ -1089,12 +1086,14 @@ number."
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
-  (insert (plist-get edit :newText)))
+  (let ((start (point-marker)))
+    (insert (plist-get edit :newText))
+    (cons start (point-marker))))
 
 (defun tide-apply-edits (edits)
   (save-excursion
-    (-each (nreverse edits)
-      (lambda (edit) (tide-apply-edit edit)))))
+    (-map (lambda (edit) (tide-apply-edit edit))
+          (nreverse edits))))
 
 (defun tide-format-region (start end)
   (let ((response (tide-send-command-sync
@@ -1106,6 +1105,13 @@ number."
                   :endOffset ,(tide-offset end)))))
     (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
+
+(defun tide-format-regions (ranges)
+  (let ((positions (->>
+                    ranges
+                    (-mapcat (lambda (range) (list (marker-position (car range)) (marker-position (cdr range)))))
+                    (-sort '<))))
+    (tide-format-region (-min positions) (-max positions))))
 
 ;;; Mode
 
