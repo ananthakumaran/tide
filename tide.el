@@ -4,7 +4,7 @@
 
 ;; Author: Anantha kumaran <ananthakumaran@gmail.com>
 ;; URL: http://github.com/ananthakumaran/tide
-;; Version: 2.1.5
+;; Version: 2.2.1
 ;; Keywords: typescript
 ;; Package-Requires: ((dash "2.10.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
@@ -362,6 +362,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 
   (let* ((request-id (tide-next-request-id))
          (command `(:command ,name :seq ,request-id :arguments ,args))
+         (json-encoding-pretty-print nil)
          (encoded-command (json-encode command))
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
@@ -691,6 +692,48 @@ With a prefix arg, Jump to the type definition."
       (setq tide-buffer-tmp-file (make-temp-file "tide")))
     (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
     (tide-send-command "reload" `(:file ,buffer-file-name :tmpfile ,tide-buffer-tmp-file))))
+
+;;; Code-fixes
+
+(defun tide-get-flycheck-errors-ids-at-point ()
+  (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
+
+(defun tide-command:getCodeFixes ()
+  (tide-send-command-sync "getCodeFixes" `(:file ,(buffer-file-name) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+
+(defun tide-get-fix-description (fix)
+  (plist-get fix :description))
+
+(defun tide-get-fix-from-description (desc fixes)
+  (-first (lambda (fix) (string-equal desc (tide-get-fix-description fix)))
+          fixes))
+
+(defun tide-apply-codefix (fix)
+  "Apply a single `FIX', which may apply to several files."
+  (let ((file-changes (plist-get fix :changes)))
+    (save-excursion
+      (dolist (file-change file-changes)
+        (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
+          (tide-format-regions (tide-apply-edits (plist-get file-change :textChanges)))
+          (basic-save-buffer))))))
+
+
+(defun tide-fix ()
+  "Apply code fix for the error at point."
+  (interactive)
+  (unless (tide-get-flycheck-errors-ids-at-point)
+    (error "No errors available at current point."))
+  (let ((response (tide-command:getCodeFixes)))
+    (tide-on-response-success response
+      (let ((fixes (plist-get response :body)))
+        (cond ((= 0 (length fixes)) (message "No code-fixes available."))
+              ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
+              (t
+               (let* ((descriptions (-map #'tide-get-fix-description fixes))
+                      (wanted-fix-desc (completing-read "Select fix: " descriptions))
+                      (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
+                 (tide-apply-codefix wanted-fix))))))))
+
 
 ;;; Auto completion
 
@@ -1072,12 +1115,14 @@ number."
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
-  (insert (plist-get edit :newText)))
+  (let ((start (point-marker)))
+    (insert (plist-get edit :newText))
+    (cons start (point-marker))))
 
 (defun tide-apply-edits (edits)
   (save-excursion
-    (-each (nreverse edits)
-      (lambda (edit) (tide-apply-edit edit)))))
+    (-map (lambda (edit) (tide-apply-edit edit))
+          (nreverse edits))))
 
 (defun tide-format-region (start end)
   (let ((response (tide-send-command-sync
@@ -1089,6 +1134,13 @@ number."
                   :endOffset ,(tide-offset end)))))
     (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
+
+(defun tide-format-regions (ranges)
+  (let ((positions (->>
+                    ranges
+                    (-mapcat (lambda (range) (list (marker-position (car range)) (marker-position (cdr range)))))
+                    (-sort '<))))
+    (tide-format-region (-min positions) (-max positions))))
 
 ;;; Mode
 
@@ -1185,7 +1237,8 @@ number."
             (line (plist-get start :line))
             (column (tide-column line (plist-get start :offset))))
        (flycheck-error-new-at line column 'error (plist-get diagnostic :text)
-                              :checker checker)))
+                              :checker checker
+                              :id (plist-get diagnostic :code))))
    (let ((diagnostic (car (tide-plist-get response :body))))
      (-concat (plist-get diagnostic :syntaxDiag)
               (plist-get diagnostic :semanticDiag)))))
@@ -1399,7 +1452,7 @@ number."
 (defun tide--hl-new-token ()
   "Invalidate all existing tokens to get document highlights and
 create a new token"
-  (incf tide--hl-last-token))
+  (cl-incf tide--hl-last-token))
 
 (defvar tide--current-hl-identifier-idle-time
   0
