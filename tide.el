@@ -676,12 +676,7 @@ With a prefix arg, Jump to the type definition."
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
 
 (defun tide-command:getCodeFixes ()
-  (tide-send-command-sync "getCodeFixes" `(:file ,(buffer-file-name)
-                                                 :startLine ,(tide-line-number-at-pos)
-                                                 :startOffset ,(tide-current-offset)
-                                                 :endLine ,(tide-line-number-at-pos)
-                                                 :endOffset ,(+ 1 (tide-current-offset))
-                                                 :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+  (tide-send-command-sync "getCodeFixes" `(:file ,(buffer-file-name) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
 
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
@@ -696,10 +691,12 @@ With a prefix arg, Jump to the type definition."
   (let ((file-changes (plist-get fix :changes)))
     (save-excursion
       (dolist (file-change file-changes)
-        (find-file (plist-get file-change :fileName))
-        (tide-apply-edits (plist-get file-change :textChanges)))))
-
-  (tide-format))
+        (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
+          (tide-apply-edits (plist-get file-change :textChanges))))
+      (dolist (file-change file-changes)
+        (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
+          (tide-format)
+          (basic-save-buffer))))))
 
 
 (defun tide-apply-codefixes ()
@@ -1088,19 +1085,10 @@ number."
       (tide-format-region (region-beginning) (region-end))
     (tide-format-region (point-min) (point-max))))
 
-(defun tide-normalize-line-end (text)
-  (save-match-data
-    (while (string-match "\r" text)
-      (setq text (replace-match "" nil nil text))))
-  text)
-
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
-  (let* ((newtext (plist-get edit :newText))
-         ;; we often get ^M chars in our returns! kill them with fire!
-         (normalized (tide-normalize-line-end newtext)))
-    (insert normalized)))
+  (insert (plist-get edit :newText)))
 
 (defun tide-apply-edits (edits)
   (save-excursion
