@@ -686,8 +686,7 @@ With a prefix arg, Jump to the type definition."
           fixes))
 
 (defun tide-apply-codefix (fix)
-  "Apply a single `FIX' (which may apply to several files)!"
-
+  "Apply a single `FIX', which may apply to several files."
   (let ((file-changes (plist-get fix :changes)))
     (save-excursion
       (dolist (file-change file-changes)
@@ -696,10 +695,11 @@ With a prefix arg, Jump to the type definition."
           (basic-save-buffer))))))
 
 
-(defun tide-apply-codefixes ()
-  "Query the server for possible code-fixes and apply them."
-
+(defun tide-fix ()
+  "Apply code fix for the error at point."
   (interactive)
+  (unless (tide-get-flycheck-errors-ids-at-point)
+    (error "No errors available at current point."))
   (let ((response (tide-command:getCodeFixes)))
     (tide-on-response-success response
       (let ((fixes (plist-get response :body)))

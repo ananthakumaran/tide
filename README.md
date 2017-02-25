@@ -128,6 +128,8 @@ at point.
 
 <kbd>M-x tide-format</kbd> Format the current region or buffer.
 
+<kbd>M-x tide-fix</kbd> Apply code fix for the error at point.
+
 ### Features
 
 * ElDoc
@@ -139,6 +141,7 @@ at point.
 * Imenu
 * Compile On Save
 * Highlight Identifiers
+* Code Fixes
 
 ### Debugging
 
