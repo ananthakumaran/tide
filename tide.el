@@ -703,15 +703,16 @@ With a prefix arg, Jump to the type definition."
   "Query the server for possible code-fixes and apply them."
 
   (interactive)
-  (let* ((response (tide-command:getCodeFixes))
-         (fixes (plist-get response :body)))
-    (cond ((= 0 (length fixes)) (message "No code-fixes found!"))
-          ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
-          (t
-           (let* ((descriptions (-map #'tide-get-fix-description fixes))
-                  (wanted-fix-desc (completing-read "Select fix: " descriptions))
-                  (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
-             (tide-apply-codefix wanted-fix))))))
+  (let ((response (tide-command:getCodeFixes)))
+    (tide-on-response-success response
+      (let ((fixes (plist-get response :body)))
+        (cond ((= 0 (length fixes)) (message "No code-fixes available."))
+              ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
+              (t
+               (let* ((descriptions (-map #'tide-get-fix-description fixes))
+                      (wanted-fix-desc (completing-read "Select fix: " descriptions))
+                      (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
+                 (tide-apply-codefix wanted-fix))))))))
 
 
 ;;; Auto completion
