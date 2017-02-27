@@ -296,6 +296,16 @@ LINE is one based, OFFSET is one based and column is zero based"
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
+(defun tide-get-item-from-list (list textfn text)
+  (-first (lambda (item)
+            (string-equal text (funcall textfn item)))
+          list))
+
+(defun tide-select-item-from-list (prompt list textfn)
+  (let* ((texts (-map textfn list))
+         (selected-text (completing-read prompt texts)))
+    (tide-get-item-from-list list textfn selected-text)))
+
 ;;; Events
 
 (defvar tide-event-listeners (make-hash-table :test 'equal))
@@ -713,10 +723,6 @@ With a prefix arg, Jump to the type definition."
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
 
-(defun tide-get-fix-from-description (desc fixes)
-  (-first (lambda (fix) (string-equal desc (tide-get-fix-description fix)))
-          fixes))
-
 (defun tide-apply-codefix (fix)
   "Apply a single `FIX', which may apply to several files."
   (let ((file-changes (plist-get fix :changes)))
@@ -737,11 +743,8 @@ With a prefix arg, Jump to the type definition."
       (let ((fixes (plist-get response :body)))
         (cond ((= 0 (length fixes)) (message "No code-fixes available."))
               ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
-              (t
-               (let* ((descriptions (-map #'tide-get-fix-description fixes))
-                      (wanted-fix-desc (completing-read "Select fix: " descriptions))
-                      (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
-                 (tide-apply-codefix wanted-fix))))))))
+              (t (tide-apply-codefix
+                  (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description))))))))
 
 
 ;;; Auto completion
