@@ -539,12 +539,9 @@ With a prefix arg, Jump to the type definition."
   "Search and navigate to named types."
   (interactive)
   (let ((completion-ignore-case t)
-        (last-completions nil)
-        ;; helm does not work well with dynamically/incrementally
-        ;; generated tables, so disable it for this function!
-        (helm-completing-read-handlers-alist '()))
+        (last-completions nil))
     (-when-let (completion
-                (completing-read
+                (completing-read-default
                  "Search: "
                  (completion-table-dynamic
                   (lambda (prefix)
