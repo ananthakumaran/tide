@@ -533,6 +533,38 @@ With a prefix arg, Jump to the type definition."
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
+;;; Navigate to named member
+
+(defun tide-nav ()
+  "Search and navigate to named types."
+  (interactive)
+  (let ((completion-ignore-case t)
+        (last-completions nil)
+        ;; helm does not work well with dynamically/incrementally
+        ;; generated tables, so disable it for this function!
+        (helm-completing-read-handlers-alist '()))
+    (-when-let (completion
+                (completing-read
+                 "Search: "
+                 (completion-table-dynamic
+                  (lambda (prefix)
+                    (let ((response (tide-command:navto prefix)))
+                      (tide-on-response-success response
+                        (when-let (navto-items (plist-get response :body))
+                          (setq navto-items
+                                (-filter
+                                 (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
+                                 navto-items))
+                          (setq last-completions navto-items)
+                          (-map (lambda (navto-item) (plist-get navto-item :name))
+                                navto-items)))))
+                  t) nil t))
+      (let ((navto-item (-find (lambda (navto-item) (string-equal completion (plist-get navto-item :name))) last-completions)))
+        (tide-jump-to-filespan navto-item)))))
+
+(defun tide-command:navto (type)
+  (tide-send-command-sync "navto" `(:file ,buffer-file-name :searchValue ,type :maxResultCount 100)))
+
 ;;; Eldoc
 
 (defun tide-annotate-display-part (display-part &optional highlight)
