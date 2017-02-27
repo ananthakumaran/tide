@@ -543,6 +543,31 @@ With a prefix arg, Jump to the type definition."
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
+;;; Jump to implementation
+
+(defun tide-command:get-implementations ()
+  (tide-send-command-sync "implementation" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-jump-to-implementation-format-item (item)
+  (concat (file-name-nondirectory (plist-get item :file))
+          "("
+          (number-to-string (tide-plist-get item :start :line))
+          ","
+          (number-to-string (tide-plist-get item :start :offset))
+          ")"))
+
+(defun tide-jump-to-implementation ()
+  "Find implementations and navigate to them."
+
+  (interactive)
+  (let ((response (tide-command:get-implementations)))
+    (tide-on-response-success response
+      (-when-let (impls (plist-get response :body))
+        (cond ((= 0 (length impls)) (message "No implementations found!"))
+              ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
+              (t (tide-jump-to-filespan
+                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item))))))))
+
 ;;; Navigate to named member
 
 (defun tide-nav ()
