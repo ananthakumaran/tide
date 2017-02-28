@@ -535,11 +535,24 @@ With a prefix arg, Jump to the type definition."
 
 ;;; Navigate to named member
 
-(defun tide-nav ()
+(defun tide-get-symbol-at-point ()
+  "Returns the symbol found at point, if not deemed 'noise'.
+Noise can be anything like braces, reserved keywords, etc."
+
+  (when (not (member (face-at-point) '(font-lock-keyword-face
+                                       font-lock-comment-delimiter-face)))
+    (let* ((symbol (region-str-or-symbol))
+           (value (substring-no-properties (if (equal nil symbol) "" symbol))))
+      (save-match-data
+        (when (not (string-match "{|}|;|[|]" value))
+          value)))))
+
+(defun tide-nav (arg)
   "Search and navigate to named types."
-  (interactive)
+  (interactive "P")
   (let ((completion-ignore-case t)
-        (last-completions nil))
+        (last-completions nil)
+        (default (when arg (tide-get-symbol-at-point))))
     (-when-let (completion
                 (completing-read-default
                  "Search: "
@@ -555,7 +568,7 @@ With a prefix arg, Jump to the type definition."
                           (setq last-completions navto-items)
                           (-map (lambda (navto-item) (plist-get navto-item :name))
                                 navto-items)))))
-                  t) nil t))
+                  t) nil t default))
       (let ((navto-item (-find (lambda (navto-item) (string-equal completion (plist-get navto-item :name))) last-completions)))
         (tide-jump-to-filespan navto-item)))))
 
