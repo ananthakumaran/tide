@@ -1115,11 +1115,28 @@ number."
       (tide-format-region (region-beginning) (region-end))
     (tide-format-region (point-min) (point-max))))
 
+(defun tide-normalize-lineshift (str)
+  "Reformat `STR' to only contain line-shift formats expected by Emacs.
+
+When inserting text in an Emacs-buffer Emacs only ever expects \n
+for newlines, no matter what the actual encoding of the file
+is.  Inserting anything else causes issues with formatting and
+code-analysis, so clean it up!"
+
+  (save-match-data
+    ;; convert DOS CR+LF to LF
+    (while (string-match "\r\n" str)
+      (setq str (replace-match "\n" nil nil str)))
+    ;; conveer Mac CR to LF
+    (while (string-match "\r" str)
+      (setq str (replace-match "\n" nil nil str))))
+  str)
+
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
   (let ((start (point-marker)))
-    (insert (plist-get edit :newText))
+    (insert (tide-normalize-lineshift (plist-get edit :newText)))
     (cons start (point-marker))))
 
 (defun tide-apply-edits (edits)
