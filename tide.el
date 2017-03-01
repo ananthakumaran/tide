@@ -578,14 +578,14 @@ With a prefix arg, Jump to the type definition."
 
 ;;; Navigate to named member
 
-(defun tide-in-string-or-comment-p ()
-  (nth 8 (syntax-ppss)))
+(defun tide-in-string-p ()
+  (nth 3 (syntax-ppss)))
 
 (defun tide-get-symbol-at-point ()
   "Returns the symbol found at point, if not deemed 'noise'.
 Noise can be anything like braces, reserved keywords, etc."
 
-  (when (not (or (tide-in-string-or-comment-p)
+  (when (not (or (tide-in-string-p)
                  (member (face-at-point) '(font-lock-keyword-face))))
     ;; we could have used symbol-at-point here, but that leaves us unable to
     ;; differentiate between a symbol named nil and no symbol at all.
