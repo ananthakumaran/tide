@@ -572,9 +572,8 @@ With a prefix arg, Jump to the type definition."
       (let ((impls (plist-get response :body)))
         (cond ((= 0 (length impls)) (message "No implementations available."))
               ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
-              (t (progn
-                   (tide-jump-to-filespan
-                    (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item)))))))))
+              (t (tide-jump-to-filespan
+                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item))))))))
 
 ;;; Navigate to named member
 
