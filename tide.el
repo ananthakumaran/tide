@@ -541,7 +541,10 @@ Noise can be anything like braces, reserved keywords, etc."
 
   (when (not (member (face-at-point) '(font-lock-keyword-face
                                        font-lock-comment-delimiter-face)))
-    (let* ((symbol (region-str-or-symbol))
+    ;; we could have used symbol-at-point here, but that leaves us unable to
+    ;; differentiate between a symbol named nil and no symbol at all.
+    ;; thing-at-point returns a string OR nil, which means we don't get this problem.
+    (let* ((symbol (thing-at-point 'symbol))
            (value (substring-no-properties (if (equal nil symbol) "" symbol))))
       (save-match-data
         (when (not (string-match "{|}|;|[|]" value))
