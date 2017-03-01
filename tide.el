@@ -298,15 +298,12 @@ LINE is one based, OFFSET is one based and column is zero based"
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
-(defun tide-get-item-from-list (list textfn text)
-  (-first (lambda (item)
-            (string-equal text (funcall textfn item)))
-          list))
-
-(defun tide-select-item-from-list (prompt list textfn)
-  (let* ((texts (-map textfn list))
-         (selected-text (completing-read prompt texts)))
-    (tide-get-item-from-list list textfn selected-text)))
+(defun tide-select-item-from-list (prompt list label-fn)
+  (let ((collection (make-hash-table :test 'equal)))
+    (dolist (item list)
+      (puthash (funcall label-fn item) item collection))
+    (let ((selected-text (completing-read prompt (hash-table-keys collection) nil t)))
+      (gethash selected-text collection))))
 
 ;;; Events
 
@@ -551,24 +548,33 @@ With a prefix arg, Jump to the type definition."
   (tide-send-command-sync "implementation" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-jump-to-implementation-format-item (item)
-  (concat (file-name-nondirectory (plist-get item :file))
-          "("
-          (number-to-string (tide-plist-get item :start :line))
-          ","
-          (number-to-string (tide-plist-get item :start :offset))
-          ")"))
+  (let* ((file-name (plist-get item :file))
+         (line (save-excursion
+                 (with-current-buffer (find-file-noselect file-name)
+                   (tide-move-to-location (plist-get item :start))
+                   (replace-regexp-in-string "\n" "" (thing-at-point 'line)))))
+         (file-pos (concat
+                    (propertize (file-name-nondirectory file-name)
+                                'face 'tide-file)
+                    ":"
+                    (propertize (number-to-string (tide-plist-get item :start :line))
+                                'face 'tide-line-number))))
+    (concat
+     line
+     " "
+     file-pos)))
 
 (defun tide-jump-to-implementation ()
-  "Find implementations and navigate to them."
-
+  "Jump to a implementation of the symbol at point."
   (interactive)
   (let ((response (tide-command:implementation)))
     (tide-on-response-success response
-      (-when-let (impls (plist-get response :body))
-        (cond ((= 0 (length impls)) (message "No implementations found!"))
+      (let ((impls (plist-get response :body)))
+        (cond ((= 0 (length impls)) (message "No implementations available."))
               ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
-              (t (tide-jump-to-filespan
-                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item))))))))
+              (t (progn
+                   (tide-jump-to-filespan
+                    (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item)))))))))
 
 ;;; Navigate to named member
 
@@ -729,7 +735,7 @@ Noise can be anything like braces, reserved keywords, etc."
              (tide-join (list display-string "\n\n" documentation))))))
     (if documentation
         (display-buffer (tide-doc-buffer documentation) t)
-      (message "No documentation available"))))
+      (message "No documentation available."))))
 
 ;;; Buffer Sync
 
@@ -1164,7 +1170,7 @@ number."
 When inserting text in an Emacs-buffer Emacs only ever expects \n
 for newlines, no matter what the actual encoding of the file
 is.  Inserting anything else causes issues with formatting and
-code-analysis, so clean it up!"
+code-analysis."
 
   ;; convert DOS CR+LF to LF
   (setq str (replace-regexp-in-string "\r\n" "\n" str))
