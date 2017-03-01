@@ -35,6 +35,7 @@
 (require 'dash)
 (require 'flycheck)
 (require 'imenu)
+(require 'thingatpt)
 
 ;; Silence compiler warnings
 
@@ -125,6 +126,7 @@ above."
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
+(defvar tide-project-configs (make-hash-table :test 'equal))
 
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
@@ -535,20 +537,20 @@ With a prefix arg, Jump to the type definition."
 
 ;;; Navigate to named member
 
+(defun tide-in-string-or-comment-p ()
+  (nth 8 (syntax-ppss)))
+
 (defun tide-get-symbol-at-point ()
   "Returns the symbol found at point, if not deemed 'noise'.
 Noise can be anything like braces, reserved keywords, etc."
 
-  (when (not (member (face-at-point) '(font-lock-keyword-face
-                                       font-lock-comment-delimiter-face)))
+  (when (not (or (tide-in-string-or-comment-p)
+                 (member (face-at-point) '(font-lock-keyword-face))))
     ;; we could have used symbol-at-point here, but that leaves us unable to
     ;; differentiate between a symbol named nil and no symbol at all.
     ;; thing-at-point returns a string OR nil, which means we don't get this problem.
-    (let* ((symbol (thing-at-point 'symbol))
-           (value (substring-no-properties (if (equal nil symbol) "" symbol))))
-      (save-match-data
-        (when (not (string-match "{|}|;|[|]" value))
-          value)))))
+    (let ((symbol (thing-at-point 'symbol)))
+      (substring-no-properties (if (equal nil symbol) "" symbol)))))
 
 (defun tide-nav (arg)
   "Search and navigate to named types."
@@ -790,7 +792,7 @@ Noise can be anything like braces, reserved keywords, etc."
       ("alias" " A")
       ("const" " c")
       ("let" " l")
-      (t nil))))
+      (_ nil))))
 
 (defun tide-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
@@ -1563,8 +1565,6 @@ timeout."
 
 
 ;;; Compile On Save
-
-(defvar tide-project-configs (make-hash-table :test 'equal))
 
 (defun tide-command:compileOnSaveEmitFile ()
   (tide-send-command "compileOnSaveEmitFile" `(:file ,buffer-file-name)))
