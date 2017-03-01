@@ -501,7 +501,7 @@ LINE is one based, OFFSET is one based and column is zero based"
    `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
    cb))
 
-(defun tide-command:type-definition (cb)
+(defun tide-command:typeDefinition (cb)
   (tide-send-command
    "typeDefinition"
    `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
@@ -517,7 +517,7 @@ With a prefix arg, Jump to the type definition."
                 (let ((filespan (car (plist-get response :body))))
                   (tide-jump-to-filespan filespan tide-jump-to-definition-reuse-window))))))
     (if arg
-        (tide-command:type-definition cb)
+        (tide-command:typeDefinition cb)
       (tide-command:definition cb))))
 
 (defun tide-move-to-location (location)
@@ -547,7 +547,7 @@ With a prefix arg, Jump to the type definition."
 
 ;;; Jump to implementation
 
-(defun tide-command:get-implementations ()
+(defun tide-command:implementation ()
   (tide-send-command-sync "implementation" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-jump-to-implementation-format-item (item)
@@ -562,7 +562,7 @@ With a prefix arg, Jump to the type definition."
   "Find implementations and navigate to them."
 
   (interactive)
-  (let ((response (tide-command:get-implementations)))
+  (let ((response (tide-command:implementation)))
     (tide-on-response-success response
       (-when-let (impls (plist-get response :body))
         (cond ((= 0 (length impls)) (message "No implementations found!"))
@@ -861,7 +861,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-join
    (-map (lambda (part) (tide-annotate-display-part part)) (plist-get detail :displayParts))))
 
-(defun tide-command:completion-entry-details (name)
+(defun tide-command:completionEntryDetails (name)
   (let ((arguments (-concat (get-text-property 0 'file-location name)
                             `(:entryNames (,name)))))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
@@ -871,7 +871,7 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-completion-entry-details (name)
   (-if-let (detail-response (get-text-property 0 'completion-detail name))
       detail-response
-    (let ((detail-response (tide-command:completion-entry-details name)))
+    (let ((detail-response (tide-command:completionEntryDetails name)))
       (put-text-property 0 1 'completion-detail detail-response name)
       detail-response)))
 
