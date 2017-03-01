@@ -1123,13 +1123,10 @@ for newlines, no matter what the actual encoding of the file
 is.  Inserting anything else causes issues with formatting and
 code-analysis, so clean it up!"
 
-  (save-match-data
-    ;; convert DOS CR+LF to LF
-    (while (string-match "\r\n" str)
-      (setq str (replace-match "\n" nil nil str)))
-    ;; conveer Mac CR to LF
-    (while (string-match "\r" str)
-      (setq str (replace-match "\n" nil nil str))))
+  ;; convert DOS CR+LF to LF
+  (setq str (replace-regexp-in-string "\r\n" "\n" str))
+  ;; convert Mac CR to LF
+  (setq str (subst-char-in-string ?\r ?\n str))
   str)
 
 (defun tide-apply-edit (edit)
