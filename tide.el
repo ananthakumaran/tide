@@ -298,6 +298,16 @@ LINE is one based, OFFSET is one based and column is zero based"
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
+(defun tide-get-item-from-list (list textfn text)
+  (-first (lambda (item)
+            (string-equal text (funcall textfn item)))
+          list))
+
+(defun tide-select-item-from-list (prompt list textfn)
+  (let* ((texts (-map textfn list))
+         (selected-text (completing-read prompt texts)))
+    (tide-get-item-from-list list textfn selected-text)))
+
 ;;; Events
 
 (defvar tide-event-listeners (make-hash-table :test 'equal))
@@ -535,6 +545,31 @@ With a prefix arg, Jump to the type definition."
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
+;;; Jump to implementation
+
+(defun tide-command:get-implementations ()
+  (tide-send-command-sync "implementation" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-jump-to-implementation-format-item (item)
+  (concat (file-name-nondirectory (plist-get item :file))
+          "("
+          (number-to-string (tide-plist-get item :start :line))
+          ","
+          (number-to-string (tide-plist-get item :start :offset))
+          ")"))
+
+(defun tide-jump-to-implementation ()
+  "Find implementations and navigate to them."
+
+  (interactive)
+  (let ((response (tide-command:get-implementations)))
+    (tide-on-response-success response
+      (-when-let (impls (plist-get response :body))
+        (cond ((= 0 (length impls)) (message "No implementations found!"))
+              ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
+              (t (tide-jump-to-filespan
+                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item))))))))
+
 ;;; Navigate to named member
 
 (defun tide-in-string-or-comment-p ()
@@ -728,10 +763,6 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
 
-(defun tide-get-fix-from-description (desc fixes)
-  (-first (lambda (fix) (string-equal desc (tide-get-fix-description fix)))
-          fixes))
-
 (defun tide-apply-codefix (fix)
   "Apply a single `FIX', which may apply to several files."
   (let ((file-changes (plist-get fix :changes)))
@@ -752,11 +783,8 @@ Noise can be anything like braces, reserved keywords, etc."
       (let ((fixes (plist-get response :body)))
         (cond ((= 0 (length fixes)) (message "No code-fixes available."))
               ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
-              (t
-               (let* ((descriptions (-map #'tide-get-fix-description fixes))
-                      (wanted-fix-desc (completing-read "Select fix: " descriptions))
-                      (wanted-fix (tide-get-fix-from-description wanted-fix-desc fixes)))
-                 (tide-apply-codefix wanted-fix))))))))
+              (t (tide-apply-codefix
+                  (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description))))))))
 
 
 ;;; Auto completion
