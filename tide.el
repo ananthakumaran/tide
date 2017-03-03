@@ -1191,12 +1191,12 @@ code-analysis."
 
 (defun tide-format-region (start end)
   (let ((response (tide-send-command-sync
-                "format"
-                `(:file ,buffer-file-name
-                  :line ,(tide-line-number-at-pos start)
-                  :offset ,(tide-offset start)
-                  :endLine ,(tide-line-number-at-pos end)
-                  :endOffset ,(tide-offset end)))))
+                   "format"
+                   `(:file ,buffer-file-name
+                           :line ,(tide-line-number-at-pos start)
+                           :offset ,(tide-offset start)
+                           :endLine ,(tide-line-number-at-pos end)
+                           :endOffset ,(tide-offset end)))))
     (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
 
@@ -1569,7 +1569,7 @@ highlights from previously highlighted identifier."
 identifier at point, if necessary."
   (when tide-hl-identifier-mode
     (unless (tide--on-overlay-p 'sameid)
-	  (tide-hl-identifier))
+      (tide-hl-identifier))
     (unless (eq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
       (tide--hl-set-timer))))
 
@@ -1578,9 +1578,9 @@ identifier at point, if necessary."
       (cancel-timer tide--hl-identifier-timer))
   (setq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
   (setq tide--hl-identifier-timer (run-with-idle-timer
-				      tide-hl-identifier-idle-time
-				      t
-				      #'tide--hl-identifiers-function)))
+                                   tide-hl-identifier-idle-time
+                                   t
+                                   #'tide--hl-identifiers-function)))
 
 ;;;###autoload
 (define-minor-mode tide-hl-identifier-mode
@@ -1589,11 +1589,11 @@ timeout."
   :group 'tide
   (if tide-hl-identifier-mode
       (progn
-	(tide--hl-set-timer)
-	;; Unhighlight if point moves off identifier
-	(add-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook nil t)
-	;; Unhighlight any time the buffer changes
-	(add-hook 'before-change-functions #'tide--hl-identifiers-before-change-function nil t))
+        (tide--hl-set-timer)
+        ;; Unhighlight if point moves off identifier
+        (add-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook nil t)
+        ;; Unhighlight any time the buffer changes
+        (add-hook 'before-change-functions #'tide--hl-identifiers-before-change-function nil t))
     (remove-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook t)
     (remove-hook 'before-change-functions #'tide--hl-identifiers-before-change-function t)
     (tide-unhighlight-identifiers)))
@@ -1604,7 +1604,7 @@ timeout."
 
 (defun tide--hl-identifiers-post-command-hook ()
   (if (and tide-hl-identifier-mode
-	   (not (tide--on-overlay-p 'sameid)))
+           (not (tide--on-overlay-p 'sameid)))
       (tide-unhighlight-identifiers)))
 
 (defun tide--hl-identifiers-before-change-function (_beg _end)
