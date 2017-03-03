@@ -507,15 +507,28 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-jump-to-definition (&optional arg)
   "Jump to the definition of the symbol at point.
 
-With a prefix arg, Jump to the type definition."
+If pointed at an abstract member-declaration, will proceed to look for
+implementations.  When invoked with a prefix arg, jump to the type definition."
   (interactive "P")
   (let ((cb (lambda (response)
               (tide-on-response-success response
                 (let ((filespan (car (plist-get response :body))))
-                  (tide-jump-to-filespan filespan tide-jump-to-definition-reuse-window))))))
+                  ;; if we're still at the same location...
+                  ;; maybe we're a abstract member which has impementations?
+                  (if (and (not arg)
+                           (tide-filespan-is-current-location-p filespan))
+                      (tide-jump-to-implementation)
+                    (tide-jump-to-filespan filespan tide-jump-to-definition-reuse-window)))))))
     (if arg
         (tide-command:typeDefinition cb)
       (tide-command:definition cb))))
+
+(defun tide-filespan-is-current-location-p (filespan)
+  (let* ((location (plist-get filespan :start))
+         (new-file-name (plist-get filespan :file))
+         (new-point (tide-location-to-point location)))
+    (and (equal new-point (point))
+         (string-equal new-file-name buffer-file-name))))
 
 (defun tide-move-to-location (location)
   (let* ((line (plist-get location :line))
