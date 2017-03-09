@@ -1220,8 +1220,10 @@ code-analysis."
   (tide-command:configure))
 
 (defun tide-cleanup-buffer ()
-  (tide-command:closefile)
-  (tide-remove-tmp-file))
+  (ignore-errors
+    (tide-command:closefile))
+  (ignore-errors
+    (tide-remove-tmp-file)))
 
 ;;;###autoload
 (defun tide-setup ()
