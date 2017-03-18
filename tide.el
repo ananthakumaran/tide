@@ -220,6 +220,9 @@ ones and overrule settings in the other lists."
 (defun tide-command-unknown-p (response)
   (and response (string-equal (plist-get response :command) "unknown")))
 
+(defun tide-tsserver-version-not-supported ()
+  (error "Only tsserver 2.0 or greater is supported. Upgrade your tsserver or use older version of tide."))
+
 (defmacro tide-on-response-success (response &rest body)
   (declare (indent 1))
   `(if (tide-response-success-p ,response)
@@ -1331,6 +1334,8 @@ code-analysis."
 (defun tide-flycheck-start (checker callback)
   (tide-command:geterr
    (lambda (response)
+     (when (tide-command-unknown-p response)
+       (tide-tsserver-version-not-supported))
      (if (tide-response-success-p response)
          (tide-flycheck-send-response callback checker response)
        (funcall callback 'errored (plist-get response :message))))))
