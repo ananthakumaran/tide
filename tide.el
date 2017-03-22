@@ -811,10 +811,10 @@ Noise can be anything like braces, reserved keywords, etc."
 ;;; Auto completion
 
 (defun tide-completion-annotation (name)
-  (if tide-completion-detailed
+  (-if-let (meta (and tide-completion-detailed (tide-completion-meta name)))
       ;; Get everything before the first newline, if any, because company-mode
       ;; wants single-line annotations.
-      (car (split-string (tide-completion-meta name) "\n"))
+      (car (split-string meta "\n"))
     (pcase (plist-get (get-text-property 0 'completion name) :kind)
       ("keyword" " k")
       ("module" " M")
