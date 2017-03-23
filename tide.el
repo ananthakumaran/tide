@@ -152,7 +152,8 @@ above."
        full-path))))
 
 (defun tide-project-name ()
-  (file-name-nondirectory (directory-file-name (tide-project-root))))
+  (let ((full-path (directory-file-name (tide-project-root))))
+    (concat (file-name-nondirectory full-path) "-" (substring (md5 full-path) 0 10))))
 
 ;;; Compatibility
 
