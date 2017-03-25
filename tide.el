@@ -921,7 +921,7 @@ Noise can be anything like braces, reserved keywords, etc."
              (bound-and-true-p tide-mode)
              (-any-p #'derived-mode-p tide-supported-modes)
              (tide-current-server)
-             (not (company-in-string-or-comment))
+             (not (nth 4 (syntax-ppss)))
              (or (tide-completion-prefix) 'stop)))
     (candidates (cons :async
                       (lambda (cb)
