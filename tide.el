@@ -170,20 +170,16 @@ above."
 (defun tide-unsupported-p (command)
   (member command (gethash (tide-project-name) tide-tsserver-unsupported-commands '())))
 
-(defmacro tide-fallback-if-not-supported (new-command new old)
+(defmacro tide-fallback-if-not-supported (new-command new old cb)
   `(if (tide-unsupported-p ,new-command)
-       (let ((response (,old)))
-         (when (tide-response-success-p response)
-           response))
-     (let ((response (,new)))
-       (if (tide-command-unknown-p response)
-           (progn
-             (tide-mark-as-unsupported ,new-command)
-             (let ((response (,old)))
-               (when (tide-response-success-p response)
-                 response)))
-         (when (tide-response-success-p response)
-           response)))))
+       (,old ,cb)
+     (,new
+      (lambda (response)
+        (if (tide-command-unknown-p response)
+            (progn
+              (tide-mark-as-unsupported ,new-command)
+              (,old ,cb))
+          (funcall ,cb response))))))
 
 ;;; Helpers
 
@@ -231,6 +227,12 @@ ones and overrule settings in the other lists."
      (-when-let (msg (plist-get response :message))
        (message "%s" msg))
      nil))
+
+(defmacro tide-on-response-success-callback (response &rest body)
+  (declare (indent 1))
+  `(lambda (,response)
+     (tide-on-response-success ,response
+       ,@body)))
 
 (defun tide-join (list)
   (mapconcat 'identity list ""))
@@ -358,8 +360,7 @@ LINE is one based, OFFSET is one based and column is zero based"
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
     (when callback
-      (puthash request-id (cons (current-buffer) callback) tide-response-callbacks)
-      (accept-process-output nil 0.01))))
+      (puthash request-id (cons (current-buffer) callback) tide-response-callbacks))))
 
 (defun tide-send-command-sync (name args)
   (let* ((start-time (current-time))
@@ -699,13 +700,12 @@ Noise can be anything like braces, reserved keywords, etc."
      (nth selected-index (plist-get body :items))
      selected-arg-index)))
 
-(defun tide-command:signatureHelp ()
-  (let* ((response
-          (tide-send-command-sync
-           "signatureHelp"
-           `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)))))
-    (when (tide-response-success-p response)
-      (tide-annotate-signatures (plist-get response :body)))))
+(defun tide-command:signatureHelp (cb)
+  (tide-send-command
+   "signatureHelp"
+   `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
+   (tide-on-response-success-callback response
+     (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
   (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
@@ -721,23 +721,37 @@ Noise can be anything like braces, reserved keywords, etc."
         documentation
       (tide-annotate-display-parts documentation))))
 
-(defun tide-command:quickinfo-old ()
-  (tide-send-command-sync "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+(defun tide-command:quickinfo-old (cb)
+  (tide-send-command "quickinfo" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
 
-(defun tide-command:quickinfo-full ()
-  (tide-send-command-sync "quickinfo-full" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+(defun tide-command:quickinfo-full (cb)
+  (tide-send-command "quickinfo-full" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
 
-(defun tide-command:quickinfo ()
-  (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old))
+(defun tide-command:quickinfo (cb)
+  (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old cb))
 
 
 (defun tide-eldoc-function ()
   (when (not (member last-command '(next-error previous-error)))
     (if (tide-method-call-p)
-        (tide-command:signatureHelp)
+        (progn
+          (tide-command:signatureHelp #'tide-eldoc-maybe-show))
       (when (looking-at "\\s_\\|\\sw")
-        (-when-let (quickinfo (tide-command:quickinfo))
-          (tide-quickinfo-text quickinfo))))))
+        (tide-command:quickinfo
+         (tide-on-response-success-callback response
+           (tide-eldoc-maybe-show (tide-quickinfo-text response)))))))
+  nil)
+
+
+;;; Copied from eldoc.el
+(defun tide-eldoc-maybe-show (text)
+  (with-demoted-errors "eldoc error: %s"
+    (and (or (eldoc-display-message-p)
+             ;; Erase the last message if we won't display a new one.
+             (when eldoc-last-message
+               (eldoc-message nil)
+               nil))
+         (eldoc-message text))))
 
 
 (defun tide-documentation-at-point ()
