@@ -529,10 +529,9 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 
 (defun tide-filespan-is-current-location-p (filespan)
   (let* ((location (plist-get filespan :start))
-         (new-file-name (plist-get filespan :file))
-         (new-point (tide-location-to-point location)))
-    (and (equal new-point (point))
-         (string-equal new-file-name buffer-file-name))))
+         (new-file-name (plist-get filespan :file)))
+    (and (string-equal new-file-name buffer-file-name)
+         (equal (tide-location-to-point location) (point)))))
 
 (defun tide-move-to-location (location)
   (let* ((line (plist-get location :line))
