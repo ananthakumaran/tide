@@ -734,8 +734,7 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-eldoc-function ()
   (when (not (member last-command '(next-error previous-error)))
     (if (tide-method-call-p)
-        (progn
-          (tide-command:signatureHelp #'tide-eldoc-maybe-show))
+        (tide-command:signatureHelp #'tide-eldoc-maybe-show)
       (when (looking-at "\\s_\\|\\sw")
         (tide-command:quickinfo
          (tide-on-response-success-callback response
