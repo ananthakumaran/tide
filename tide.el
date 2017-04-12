@@ -755,15 +755,16 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-documentation-at-point ()
   "Show documentation of the symbol at point."
   (interactive)
-  (let ((documentation
-         (-when-let* ((quickinfo (tide-command:quickinfo))
-                      (display-string (tide-quickinfo-text quickinfo))
-                      (documentation (tide-quickinfo-documentation quickinfo)))
-           (when (not (equal documentation ""))
-             (tide-join (list display-string "\n\n" documentation))))))
-    (if documentation
-        (display-buffer (tide-doc-buffer documentation) t)
-      (message "No documentation available."))))
+  (tide-command:quickinfo
+   (tide-on-response-success-callback response
+     (let ((documentation
+            (-when-let* ((display-string (tide-quickinfo-text response))
+                         (documentation (tide-quickinfo-documentation response)))
+              (when (not (equal documentation ""))
+                (tide-join (list display-string "\n\n" documentation))))))
+       (if documentation
+           (display-buffer (tide-doc-buffer documentation) t)
+         (message "No documentation available."))))))
 
 ;;; Buffer Sync
 
