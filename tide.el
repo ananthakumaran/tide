@@ -464,7 +464,7 @@ LINE is one based, OFFSET is one based and column is zero based"
    (tide-tsfmt-options)))
 
 (defun tide-tsfmt-options ()
-  (let ((config-file (file-relative-name "tsfmt.json" (tide-project-root))))
+  (let ((config-file (expand-file-name "tsfmt.json" (tide-project-root))))
     (when (file-exists-p config-file)
       (tide-safe-json-read-file config-file))))
 
