@@ -520,7 +520,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   (interactive "P")
   (let ((cb (lambda (response)
               (tide-on-response-success response
-                (let ((filespan (car (plist-get response :body))))
+                (-when-let (filespan (car (plist-get response :body)))
                   ;; if we're still at the same location...
                   ;; maybe we're a abstract member which has impementations?
                   (if (and (not arg)
