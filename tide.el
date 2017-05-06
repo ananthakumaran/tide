@@ -860,6 +860,34 @@ Noise can be anything like braces, reserved keywords, etc."
       ("let" " l")
       (_ nil))))
 
+(defun tide-completion-rank (completion)
+  "Get the sorting order of a COMPLETION candidate."
+  (or
+   (-elem-index
+    (plist-get completion :kind)
+    '("parameter"
+      "local function"
+      "local var"
+      "let"
+      "var"
+      "const"
+      "function"
+      "class"
+      "method"
+      "getter"
+      "setter"
+      ))
+   100))
+
+(defun tide-compare-completions (completion-a completion-b)
+  "Compare COMPLETION-A and COMPLETION-B based on their kind."
+  (let ((modifier-a (plist-get completion-a :kindModifiers))
+        (modifier-b (plist-get completion-b :kindModifiers)))
+    (if (string-equal modifier-a modifier-b)
+        (< (tide-completion-rank completion-a) (tide-completion-rank completion-b))
+      ;; Rank declarations lower than variables
+      (string-equal modifier-b "declare"))))
+
 (defun tide-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
 
@@ -869,6 +897,10 @@ Noise can be anything like braces, reserved keywords, etc."
     (and (> (point) (point-min))
          (equal (string (char-before (point))) "."))))
 
+(defun tide-kind-member-p (kind)
+  "Check if a completion's KIND is a property or method."
+  (member kind '("method" "property" "getter" "setter")))
+
 (defun tide-annotate-completions (completions prefix file-location)
   (-map
    (lambda (completion)
@@ -876,10 +908,14 @@ Noise can be anything like braces, reserved keywords, etc."
        (put-text-property 0 1 'file-location file-location name)
        (put-text-property 0 1 'completion completion name)
        name))
-   (-filter
-    (lambda (completion)
-      (string-prefix-p prefix (plist-get completion :name)))
-    completions)))
+   (-sort
+    'tide-compare-completions
+    (-filter
+     (let ((member-p (tide-member-completion-p prefix)))
+       (lambda (completion)
+         (and (string-prefix-p prefix (plist-get completion :name))
+              (or (not member-p) (tide-kind-member-p (plist-get completion :kind))))))
+     completions))))
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location
