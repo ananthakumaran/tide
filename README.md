@@ -1,5 +1,7 @@
 # Tide
 
+[![Build Status](https://api.travis-ci.org/ananthakumaran/tide.svg?branch=master)](https://travis-ci.org/ananthakumaran/tide)
+
 *TypeScript Interactive Development Environment for Emacs*
 
 [screencast](http://i.imgur.com/jEwgPsd.gif)
