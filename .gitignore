@@ -5,3 +5,4 @@ dist
 todo
 example/test.js
 .dir-locals.el
+*~
