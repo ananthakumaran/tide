@@ -6,12 +6,30 @@
 
 ;;; Code:
 
+
+;; Test setuup:
+
 (require 'ert)
-;;(require 'tide)
 
-(ert-deftest ci-test ()
-  "Test which checks that ERT-tests are run on CI-builds.")
+;; development only packages, not declared as a package-dependency
+(package-initialize)
+(add-to-list 'package-archives '("melpa" . "https://stable.melpa.org/packages/"))
 
+;; tide depends on typescript-mode
+(dolist (p '(typescript-mode))
+  (when (not (package-installed-p p))
+    (package-refresh-contents)
+    (package-install p)))
+
+(require 'tide)
+
+;; actual tests:
+
+(ert-deftest strings-get-normalized ()
+  "Tests that incoming strings (like in codefixes) get normalized properly."
+
+  (should (equal "this\nis\nfour\nlines"
+                 (tide-normalize-lineshift "this\nis\r\nfour\nlines"))))
 
 (provide 'tide-tests)
 
