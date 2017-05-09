@@ -397,6 +397,9 @@ LINE is one based, OFFSET is one based and column is zero based"
          (tsserverjs (or (and tide-tsserver-executable
                               (expand-file-name tide-tsserver-executable))
                          (expand-file-name "tsserver.js" tide-tsserver-directory)))
+         ;; Use a pipe to communicate with the subprocess. This fixes a hang
+         ;; when a >1k message is sent on macOS.
+         (process-connection-type nil)
          (process
           (start-file-process "tsserver" buf tide-node-executable tsserverjs)))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
