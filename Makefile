@@ -1,4 +1,6 @@
 EMACS=$(shell which emacs) -Q -batch -L .
+WORKDIR=/tmp/emacs_tide
+export HOME := $(WORKDIR)
 
 setup:
 	cd .. && git clone git@github.com:Microsoft/TypeScript.git
@@ -12,6 +14,11 @@ cask:
 	cask build
 
 test: cask
-	  + $(EMACS) -l tide-tests.el -f ert-run-tests-batch-and-exit
+	mkdir $(WORKDIR) || echo Already has workdir.
+	+ $(EMACS) -l tide-tests.el -f ert-run-tests-batch-and-exit
+
+clean:
+	rm -rf *.elc
+	rm -rf $(WORKDIR)
 
 # end
