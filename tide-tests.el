@@ -32,25 +32,6 @@
   (should (equal "this\nis\nfour\nlines"
                  (tide-normalize-lineshift "this\nis\r\nfour\nlines"))))
 
-(ert-deftest member-completetions-get-filtered ()
-  "Tests that completions get filtered by kind."
-  (let ((mock-completions
-         '(
-           (:name "DOMError" :kind "interface" :kindModifiers "declare")
-           (:name "data" :kind "property" :kindModifiers)
-           (:name "declare" :kind "keyword" :kindModifiers)
-           (:name "decode" :kind "method" :kindModifiers "declare")
-           (:name "deleteText" :kind "local function" :kindModifiers)))
-        (filtered-completions
-         '((:name "data" :kind "property" :kindModifiers)
-           (:name "decode" :kind "method" :kindModifiers "declare"))))
-    (should (-same-items?
-             (-filter
-              (lambda (completion)
-                (tide-kind-member-p (plist-get completion :kind)))
-              mock-completions)
-             filtered-completions))))
-
 (ert-deftest completions-get-sorted ()
   "Tests that completion candidates get sorted by kind."
   (let ((mock-completions

@@ -897,10 +897,6 @@ Noise can be anything like braces, reserved keywords, etc."
     (and (> (point) (point-min))
          (equal (string (char-before (point))) "."))))
 
-(defun tide-kind-member-p (kind)
-  "Check if a completion's KIND is a property or method."
-  (member kind '("method" "property" "getter" "setter")))
-
 (defun tide-annotate-completions (completions prefix file-location)
   (-map
    (lambda (completion)
@@ -911,10 +907,8 @@ Noise can be anything like braces, reserved keywords, etc."
    (-sort
     'tide-compare-completions
     (-filter
-     (let ((member-p (tide-member-completion-p prefix)))
-       (lambda (completion)
-         (and (string-prefix-p prefix (plist-get completion :name))
-              (or (not member-p) (tide-kind-member-p (plist-get completion :kind))))))
+     (lambda (completion)
+       (string-prefix-p prefix (plist-get completion :name)))
      completions))))
 
 (defun tide-command:completions (prefix cb)
