@@ -115,6 +115,11 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-imenu-flatten nil
+  "Imenu index will be flattened if set to non-nil."
+  :type 'boolean
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -1136,23 +1141,35 @@ number."
 
 ;;; Imenu
 
-(defun tide-flatten-navitem (items)
-  (if items
-      (nconc items (apply #'nconc (-map (lambda (item) (tide-flatten-navitem (plist-get item :childItems))) items)))
-    '()))
+(defun tide-flatten-imenu-index (index &optional parent)
+  (when (consp index)
+    (let* ((name (car index))
+           (new-name (if parent (concat parent imenu-level-separator name) name)))
+      (if (and (consp (cdr index)) (listp (cdr index)))
+          (-map (lambda (i) (tide-flatten-imenu-index i new-name)) (cdr index))
+        (cons new-name (cdr index))))))
+
+(defun tide-build-imenu-index (navbar-item)
+  (let ((child-items (plist-get navbar-item :childItems))
+        (text (plist-get navbar-item :text)))
+    (if child-items
+        (cons text
+              (-map #'tide-build-imenu-index child-items))
+      (cons (concat text " " (propertize (plist-get navbar-item :kind) 'face 'tide-imenu-type-face))
+            (tide-span-to-position (plist-get (car (plist-get navbar-item :spans)) :start))))))
 
 (defun tide-command:navbar ()
   (tide-send-command-sync "navbar" `(:file ,buffer-file-name)))
 
 (defun tide-imenu-index ()
   (let ((response (tide-command:navbar)))
-    (when (tide-response-success-p response)
-      (-map
-       (lambda (item)
-         (cons (concat (plist-get item :text) " " (propertize (plist-get item :kind) 'face 'tide-imenu-type-face))
-               (tide-span-to-position (plist-get (car (plist-get item :spans)) :start))))
-       (tide-flatten-navitem (plist-get response :body))))))
-
+    (tide-on-response-success response
+      (let ((index (-map
+                    #'tide-build-imenu-index
+                    (plist-get response :body))))
+        (if tide-imenu-flatten
+            (-flatten (-map #'tide-flatten-imenu-index index))
+          index)))))
 
 ;;; Rename
 
