@@ -75,8 +75,29 @@ Tide also provides support for editing js & jsx files. Tide checkers
 jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck.org/en/latest/user/syntax-checkers.html#variable-flycheck-checker)
 
 #### JavaScript
+
+Create `jsconfig.json` in the root folder of your project.
+`jsconfig.json` is `tsconfig.json` with `allowJs` attribute set to
+true.
+
+```json
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "allowSyntheticDefaultImports": true,
+    "noEmit": true,
+    "checkJs": true,
+    "jsx": "react",
+    "lib": [ "dom", "es2017" ]
+  }
+}
+```
+
+
 ```elisp
 (add-hook 'js2-mode-hook #'setup-tide-mode)
+;; configure javascript-tide checker to run after your default javascript checker
+(flycheck-add-next-checker 'javascript-eslint 'javascript-tide 'append)
 ```
 
 #### JSX
@@ -87,6 +108,8 @@ jsx files. It can be enabled by setting [`flycheck-checker`](http://www.flycheck
           (lambda ()
             (when (string-equal "jsx" (file-name-extension buffer-file-name))
               (setup-tide-mode))))
+;; configure jsx-tide checker to run after your default jsx checker
+(flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
 
 ### Notes
