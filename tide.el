@@ -36,6 +36,7 @@
 (require 'flycheck)
 (require 'imenu)
 (require 'thingatpt)
+(require 'tide-lv)
 
 ;; Silence compiler warnings
 
@@ -108,6 +109,11 @@ above."
 (defface tide-imenu-type-face
   '((t (:inherit font-lock-type-face)))
   "Face for type in imenu list."
+  :group 'tide)
+
+(defface tide-choice-face
+  '((t (:inherit font-lock-warning-face)))
+  "Face for choices used in popup window."
   :group 'tide)
 
 (defcustom tide-jump-to-definition-reuse-window t
@@ -304,11 +310,34 @@ LINE is one based, OFFSET is one based and column is zero based"
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
+
+(defvar tide-alphabets '(?a ?s ?d ?f ?j ?k ?l))
+
+(defun tide-popup-select-item (prompt list)
+  (let ((hints (-map-indexed
+                (lambda (i item)
+                  (concat (propertize (char-to-string (nth i tide-alphabets)) 'face 'tide-choice-face)
+                          "  "
+                          item))
+                list)))
+    (unwind-protect
+        (progn
+          (tide-lv-message (mapconcat 'identity hints "\n"))
+          (let ((selected (read-char-choice prompt (-take (length list) tide-alphabets))))
+            (nth (-find-index (lambda (char) (eql selected char)) tide-alphabets) list)))
+        (tide-lv-delete-window))))
+
+(defun tide-completing-read-select-item (prompt list)
+  (completing-read prompt list nil t))
+
 (defun tide-select-item-from-list (prompt list label-fn)
   (let ((collection (make-hash-table :test 'equal)))
     (dolist (item list)
       (puthash (funcall label-fn item) item collection))
-    (let ((selected-text (completing-read prompt (hash-table-keys collection) nil t)))
+    (let ((selected-text
+           (if (<= (length list) (length tide-alphabets))
+               (tide-popup-select-item prompt (hash-table-keys collection))
+             (tide-completing-read-select-item prompt (hash-table-keys collection)))))
       (gethash selected-text collection))))
 
 ;;; Events
