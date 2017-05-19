@@ -761,7 +761,6 @@ With a prefix arg, Jump to the type definition."
              (bound-and-true-p tide-mode)
              (-any-p #'derived-mode-p tide-supported-modes)
              (tide-current-server)
-             (not (company-in-string-or-comment))
              (or (tide-completion-prefix) 'stop)))
     (candidates (cons :async
                       (lambda (cb)
