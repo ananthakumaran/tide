@@ -121,6 +121,12 @@ above."
   :type 'boolean
   :group 'tide)
 
+
+(defcustom tide-allow-popup-select '(code-fix jump-to-implementation)
+  "The list of commands where popup selection is allowed."
+  :type '(set (const code-fix) (const jump-to-implementation))
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -330,12 +336,15 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide-completing-read-select-item (prompt list)
   (completing-read prompt list nil t))
 
-(defun tide-select-item-from-list (prompt list label-fn)
+(defun tide-can-use-popup-p (feature)
+  (member feature tide-allow-popup-select))
+
+(defun tide-select-item-from-list (prompt list label-fn allow-popup)
   (let ((collection (make-hash-table :test 'equal)))
     (dolist (item list)
       (puthash (funcall label-fn item) item collection))
     (let ((selected-text
-           (if (<= (length list) (length tide-alphabets))
+           (if (and (<= (length list) (length tide-alphabets)) allow-popup)
                (tide-popup-select-item prompt (hash-table-keys collection))
              (tide-completing-read-select-item prompt (hash-table-keys collection)))))
       (gethash selected-text collection))))
@@ -622,7 +631,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
         (cond ((= 0 (length impls)) (message "No implementations available."))
               ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
               (t (tide-jump-to-filespan
-                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item))))))))
+                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item (tide-can-use-popup-p 'jump-to-implementation)))))))))
 
 ;;; Navigate to named member
 
@@ -851,7 +860,7 @@ Noise can be anything like braces, reserved keywords, etc."
         (cond ((= 0 (length fixes)) (message "No code-fixes available."))
               ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
               (t (tide-apply-codefix
-                  (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description))))))))
+                  (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix)))))))))
 
 
 ;;; Auto completion
