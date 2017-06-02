@@ -111,6 +111,38 @@ true.
 ;; configure jsx-tide checker to run after your default jsx checker
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
+### Both type errors and `tslint` errors
+`web-mode` doesn't display _all_ the `tslint` errors without a bit of jiggery pokery. Using `typescript-mode` will show all the errors, however to see both type and linting errors in `web-mode` you need to do the following:
+
+``` elisp
+  (use-package tide :diminish t)
+  (defun setup-tide-mode ()
+    (interactive)
+    (tide-setup)
+    (flycheck-add-next-checker 'typescript-tide '(t . typescript-tslint) 'append)
+    (eldoc-mode +1)
+    (company-mode +1)
+    (tide-hl-identifier-mode +1))
+
+  ;; aligns annotation to the right hand side
+  (setq company-tooltip-align-annotations t)
+
+  ;; formats the buffer before saving
+  (add-hook 'before-save-hook 'tide-format-before-save)
+  (add-hook 'typescript-mode-hook #'setup-tide-mode)
+
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
+  (add-hook 'typescript-mode-hook
+    (lambda ()
+		  (when (string-equal "tsx" (file-name-extension buffer-file-name))
+		    (setup-tide-mode))))
+  (add-hook 'web-mode-hook
+    (lambda ()
+		  (when (string-equal "tsx" (file-name-extension buffer-file-name))
+		    (setup-tide-mode))))
+  ;; funky typescript linting in web-mode
+  (flycheck-add-mode 'typescript-tslint 'web-mode)
+```
 
 ### Notes
 
