@@ -121,6 +121,10 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-imenu-flatten nil
+  "Imenu index will be flattened if set to non-nil."
+  :type 'boolean
+  :group 'tide)
 
 (defcustom tide-allow-popup-select '(code-fix)
   "The list of commands where popup selection is allowed."
@@ -1174,23 +1178,37 @@ number."
 
 ;;; Imenu
 
-(defun tide-flatten-navitem (items)
-  (if items
-      (nconc items (apply #'nconc (-map (lambda (item) (tide-flatten-navitem (plist-get item :childItems))) items)))
-    '()))
+(defun tide-build-flat-imenu-index (navtree &optional parent)
+  (let* ((child-items (plist-get navtree :childItems))
+         (text (plist-get navtree :text))
+         (new-text (if parent (concat parent imenu-level-separator text) text))
+         (node (cons (concat new-text " " (propertize (plist-get navtree :kind) 'face 'tide-imenu-type-face))
+                     (tide-span-to-position (plist-get (car (plist-get navtree :spans)) :start)))))
+    (if child-items
+        (-concat (list node) (-flatten (-map (lambda (i) (tide-build-flat-imenu-index i new-text)) child-items)))
+      (list node))))
+
+(defun tide-build-imenu-index (navtree)
+  (let* ((child-items (plist-get navtree :childItems))
+         (text (plist-get navtree :text))
+         (node (cons (concat text " " (propertize (plist-get navtree :kind) 'face 'tide-imenu-type-face))
+                     (tide-span-to-position (plist-get (car (plist-get navtree :spans)) :start)))))
+    (if child-items
+        (cons text
+              (-concat (list node)
+                       (-map #'tide-build-imenu-index child-items)))
+      node)))
 
 (defun tide-command:navbar ()
-  (tide-send-command-sync "navbar" `(:file ,buffer-file-name)))
+  (tide-send-command-sync "navtree" `(:file ,buffer-file-name)))
 
 (defun tide-imenu-index ()
   (let ((response (tide-command:navbar)))
-    (when (tide-response-success-p response)
-      (-map
-       (lambda (item)
-         (cons (concat (plist-get item :text) " " (propertize (plist-get item :kind) 'face 'tide-imenu-type-face))
-               (tide-span-to-position (plist-get (car (plist-get item :spans)) :start))))
-       (tide-flatten-navitem (plist-get response :body))))))
-
+    (tide-on-response-success response
+      (let ((navtree (plist-get response :body)))
+        (if tide-imenu-flatten
+            (-flatten (-map #'tide-build-flat-imenu-index (plist-get navtree :childItems)))
+          (list (tide-build-imenu-index navtree)))))))
 
 ;;; Rename
 
