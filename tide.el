@@ -122,7 +122,7 @@ above."
   :group 'tide)
 
 
-(defcustom tide-allow-popup-select '(code-fix jump-to-implementation)
+(defcustom tide-allow-popup-select '(code-fix)
   "The list of commands where popup selection is allowed."
   :type '(set (const code-fix) (const jump-to-implementation))
   :group 'tide)
