@@ -170,7 +170,7 @@ at point.
 
 ### Debugging
 
-![architecture](https://github.com/ananthakumaran/tide/raw/master/doc/architecture.mmd.png)
+![architecture](https://github.com/ananthakumaran/tide/raw/master/doc/architecture.mmd.svg)
 
 Tide uses
 [tsserver](https://github.com/Microsoft/TypeScript/pull/2041) as the
