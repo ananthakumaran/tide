@@ -124,9 +124,8 @@ Keyboard shortcuts                  | Description
 <kbd>M-.</kbd>                      | Jump to the definition of the symbol at point. With a prefix arg, Jump to the type definition.
 <kbd>M-,</kbd>                      | Return to your pre-jump position.
 
-<kbd>M-x tide-restart-server</kbd> Restart tsserver. Currently
-tsserver doesn't pickup tsconfig.json file changes. This would come in
-handy after you edit tsconfig.json.
+<kbd>M-x tide-restart-server</kbd> Restart tsserver. This would come
+in handy after you edit tsconfig.json or checkout a different branch.
 
 <kbd>M-x tide-documentation-at-point</kbd> Show documentation for the
 symbol at point.
