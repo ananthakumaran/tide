@@ -23,6 +23,6 @@ clean:
 
 .PHONY: doc
 doc:
-	cd doc && mermaid -c config.json architecture.mmd -w 940 -s
+	cd doc && mermaid -c config.json architecture.mmd -w 940 -p
 
 # end
