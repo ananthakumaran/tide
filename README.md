@@ -9,6 +9,11 @@
 ### Installation
 
 * Install [node.js](https://nodejs.org/) v0.12.0 or greater.
+* Make sure
+  [tsconfig.json](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)
+  or
+  [jsconfig.json](https://code.visualstudio.com/docs/languages/jsconfig)
+  is present in the root folder of the project.
 * Tide is available in [melpa](http://melpa.org/#/tide). You can
   install tide via package-install <kbd>M-x package-install [ret] tide</kbd>
 
@@ -112,20 +117,6 @@ true.
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
 
-### Notes
-
-* Make sure
-  [tsconfig.json](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)
-  or
-  [jsconfig.json](https://code.visualstudio.com/docs/languages/jsconfig)
-  is present in the root folder of the project.
-
-* tsserver mangles output
-  sometimes [issue - #2758](https://github.com/Microsoft/TypeScript/issues/2758),
-  which will result in json parse error. Try node version 0.12.x if
-  you get this error.
-
-
 ### Commands
 
 Keyboard shortcuts                  | Description
@@ -173,7 +164,7 @@ at point.
 ![architecture](https://github.com/ananthakumaran/tide/raw/master/doc/architecture.mmd.png)
 
 Tide uses
-[tsserver](https://github.com/Microsoft/TypeScript/pull/2041) as the
+[tsserver](https://github.com/Microsoft/TypeScript/wiki/Standalone-Server-%28tsserver%29) as the
 backend for most of the features. It writes out a comprehensive log
 file which can be captured by setting
 `tide-tsserver-process-environment` variable.
