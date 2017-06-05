@@ -1,0 +1,7 @@
+%% Example of sequence diagram
+sequenceDiagram
+    participant Emacs
+    participant tsserver
+    Emacs ->> tsserver: {command:'open', arguments:{file:'src/index.js'}}
+    Emacs ->> tsserver: {command:'completions', arguments:{file:'src/index.js', line:73, offset:14}}
+    tsserver -->> Emacs: {type:'response', command:'completions', body:[..]}

@@ -170,6 +170,8 @@ at point.
 
 ### Debugging
 
+![architecture](https://github.com/ananthakumaran/tide/raw/master/doc/architecture.mmd.png)
+
 Tide uses
 [tsserver](https://github.com/Microsoft/TypeScript/pull/2041) as the
 backend for most of the features. It writes out a comprehensive log
