@@ -1520,36 +1520,38 @@ code-analysis."
            (last-file-name nil))
       (tide-set-event-listener
        (lambda (response)
-         (let ((inhibit-read-only t)
-               (file-name (tide-plist-get response :body :file))
-               (diagnostics (tide-plist-get response :body :diagnostics)))
-           (pcase (plist-get response :event)
-             ("syntaxDiag"
-              (progn
-                (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-                (cl-incf syntax-errors (length diagnostics))))
-             ("semanticDiag"
-              (progn
-                (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-                (cl-incf semantic-errors (length diagnostics)))))
+         (save-excursion
+           (goto-char (point-max))
+           (let ((inhibit-read-only t)
+                 (file-name (tide-plist-get response :body :file))
+                 (diagnostics (tide-plist-get response :body :diagnostics)))
+             (pcase (plist-get response :event)
+               ("syntaxDiag"
+                (progn
+                  (setq syntax-remaining-files (remove file-name syntax-remaining-files))
+                  (cl-incf syntax-errors (length diagnostics))))
+               ("semanticDiag"
+                (progn
+                  (setq semantic-remaining-files (remove file-name semantic-remaining-files))
+                  (cl-incf semantic-errors (length diagnostics)))))
 
-           (when diagnostics
-             (-each diagnostics
-               (lambda (diagnostic)
-                 (let ((line-number (tide-plist-get diagnostic :start :line)))
-                   (when (not (equal last-file-name file-name))
-                     (setq last-file-name file-name)
-                     (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
-                     (insert "\n"))
+             (when diagnostics
+               (-each diagnostics
+                 (lambda (diagnostic)
+                   (let ((line-number (tide-plist-get diagnostic :start :line)))
+                     (when (not (equal last-file-name file-name))
+                       (setq last-file-name file-name)
+                       (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
+                       (insert "\n"))
 
-                   (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
-                   (insert ": ")
-                   (insert (plist-get diagnostic :text))
-                   (insert "\n")))))
-           (when (and (null syntax-remaining-files) (null semantic-remaining-files))
-             (insert (format "\n%d syntax error(s), %d semantic error(s)\n" syntax-errors semantic-errors))
-             (goto-char (point-min))
-             (tide-clear-event-listener)))))))
+                     (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
+                     (insert ": ")
+                     (insert (plist-get diagnostic :text))
+                     (insert "\n")))))
+             (when (and (null syntax-remaining-files) (null semantic-remaining-files))
+               (insert (format "\n%d syntax error(s), %d semantic error(s)\n" syntax-errors semantic-errors))
+               (goto-char (point-min))
+               (tide-clear-event-listener))))))))
   (tide-command:geterrForProject))
 
 (defun tide-next-error-function (n &optional reset)
