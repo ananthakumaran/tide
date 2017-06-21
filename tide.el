@@ -316,7 +316,7 @@ LINE is one based, OFFSET is one based and column is zero based"
       (erase-buffer)
       (when string
         (save-excursion
-          (insert string))))
+          (tide-insert string))))
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
@@ -1296,11 +1296,16 @@ code-analysis."
   (setq str (subst-char-in-string ?\r ?\n str))
   str)
 
+(defun tide-insert (str)
+  "Insert `STR' into the buffer, but normalize the line-enings."
+
+  (insert (tide-normalize-lineshift str)))
+
 (defun tide-apply-edit (edit)
   (goto-char (tide-location-to-point (plist-get edit :start)))
   (delete-region (point) (tide-location-to-point (plist-get edit :end)))
   (let ((start (point-marker)))
-    (insert (tide-normalize-lineshift (plist-get edit :newText)))
+    (tide-insert (plist-get edit :newText))
     (cons start (point-marker))))
 
 (defun tide-apply-edits (edits)
