@@ -145,6 +145,8 @@ at point.
 
 <kbd>M-x tide-fix</kbd> Apply code fix for the error at point.
 
+<kbd>M-x tide-refactor</kbd> Refactor code at point.
+
 ### Features
 
 * ElDoc
@@ -157,6 +159,7 @@ at point.
 * Compile On Save
 * Highlight Identifiers
 * Code Fixes
+* Code Refactor
 
 ### Debugging
 
