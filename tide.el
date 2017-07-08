@@ -375,8 +375,10 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((request-id (plist-get response :request_seq))
          (callback (gethash request-id tide-response-callbacks)))
     (when callback
-      (with-current-buffer (car callback)
-        (apply (cdr callback) (list response)))
+      (let ((buffer (car callback)))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer
+            (apply (cdr callback) (list response)))))
       (remhash request-id tide-response-callbacks))))
 
 (defun tide-dispatch-event (event)
