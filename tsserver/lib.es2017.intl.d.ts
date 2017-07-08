@@ -18,8 +18,13 @@ and limitations under the License.
 /// <reference no-default-lib="true"/>
 
 
-/// <reference path="lib.es2016.d.ts" />
-/// <reference path="lib.es2017.object.d.ts" />
-/// <reference path="lib.es2017.sharedmemory.d.ts" />
-/// <reference path="lib.es2017.string.d.ts" />
-/// <reference path="lib.es2017.intl.d.ts" />
+type DateTimeFormatPartTypes = "day" | "dayPeriod" | "era" | "hour" | "literal" | "minute" | "month" | "second" | "timeZoneName" | "weekday" | "year";
+
+interface DateTimeFormatPart {
+    type: DateTimeFormatPartTypes;
+    value: string;
+}
+
+interface DateTimeFormat {
+    formatToParts(date?: Date | number): DateTimeFormatPart[];
+}
