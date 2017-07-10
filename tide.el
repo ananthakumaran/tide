@@ -138,7 +138,7 @@ above."
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode))
+(defvar tide-supported-modes '(typescript-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
@@ -523,6 +523,7 @@ LINE is one based, OFFSET is one based and column is zero based"
     (`js3-mode js3-indent-level)
     (`web-mode web-mode-code-indent-offset)
     (`js2-jsx-mode sgml-basic-offset)
+    (`rjsx-mode sgml-basic-offset)
     (_ standard-indent)))
 
 (defun tide-command:configure ()
@@ -1487,7 +1488,7 @@ code-analysis."
   "A JSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode js2-jsx-mode)
+  :modes '(web-mode js2-jsx-mode rjsx-mode)
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'jsx-tide t)
