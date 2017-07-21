@@ -236,18 +236,19 @@ ones and overrule settings in the other lists."
 (defun tide-tsserver-version-not-supported ()
   (error "Only tsserver 2.0 or greater is supported. Upgrade your tsserver or use older version of tide."))
 
-(defmacro tide-on-response-success (response &rest body)
+(defmacro tide-on-response-success (response ignore-empty-response &rest body)
   (declare (indent 1))
   `(if (tide-response-success-p ,response)
        ,@body
      (-when-let (msg (plist-get response :message))
-       (message "%s" msg))
+       (unless (and ,ignore-empty-response (string-equal msg "No content available."))
+         (message "%s" msg)))
      nil))
 
-(defmacro tide-on-response-success-callback (response &rest body)
+(defmacro tide-on-response-success-callback (response ignore-empty-response &rest body)
   (declare (indent 1))
   `(lambda (,response)
-     (tide-on-response-success ,response
+     (tide-on-response-success ,response ,ignore-empty-response
        ,@body)))
 
 (defun tide-join (list)
@@ -564,7 +565,7 @@ If pointed at an abstract member-declaration, will proceed to look for
 implementations.  When invoked with a prefix arg, jump to the type definition."
   (interactive "P")
   (let ((cb (lambda (response)
-              (tide-on-response-success response
+              (tide-on-response-success response nil
                 (-when-let (filespan (car (plist-get response :body)))
                   ;; if we're still at the same location...
                   ;; maybe we're a abstract member which has impementations?
@@ -633,7 +634,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   "Jump to a implementation of the symbol at point."
   (interactive)
   (let ((response (tide-command:implementation)))
-    (tide-on-response-success response
+    (tide-on-response-success response nil
       (let ((impls (plist-get response :body)))
         (cond ((= 0 (length impls)) (message "No implementations available."))
               ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
@@ -669,7 +670,7 @@ Noise can be anything like braces, reserved keywords, etc."
                  (completion-table-dynamic
                   (lambda (prefix)
                     (let ((response (tide-command:navto prefix)))
-                      (tide-on-response-success response
+                      (tide-on-response-success response nil
                         (when-let (navto-items (plist-get response :body))
                           (setq navto-items
                                 (-filter
@@ -751,7 +752,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-send-command
    "signatureHelp"
    `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
-   (tide-on-response-success-callback response
+   (tide-on-response-success-callback response t
      (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
@@ -784,7 +785,7 @@ Noise can be anything like braces, reserved keywords, etc."
         (tide-command:signatureHelp #'tide-eldoc-maybe-show)
       (when (looking-at "\\s_\\|\\sw")
         (tide-command:quickinfo
-         (tide-on-response-success-callback response
+         (tide-on-response-success-callback response t
            (tide-eldoc-maybe-show (tide-quickinfo-text response)))))))
   nil)
 
@@ -804,7 +805,7 @@ Noise can be anything like braces, reserved keywords, etc."
   "Show documentation of the symbol at point."
   (interactive)
   (tide-command:quickinfo
-   (tide-on-response-success-callback response
+   (tide-on-response-success-callback response nil
      (let ((documentation
             (-when-let* ((display-string (tide-quickinfo-text response))
                          (documentation (tide-quickinfo-documentation response)))
@@ -862,7 +863,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (unless (tide-get-flycheck-errors-ids-at-point)
     (error "No errors available at current point."))
   (let ((response (tide-command:getCodeFixes)))
-    (tide-on-response-success response
+    (tide-on-response-success response nil
       (let ((fixes (plist-get response :body)))
         (cond ((= 0 (length fixes)) (message "No code-fixes available."))
               ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
@@ -1169,14 +1170,13 @@ number."
   "List all references to the symbol at point."
   (interactive)
   (let ((response (tide-command:references)))
-    (if (tide-response-success-p response)
-        (let ((references (tide-plist-get response :body :refs)))
-          (-if-let (usage (tide-find-single-usage references))
-              (progn
-                (message "This is the only usage.")
-                (tide-jump-to-filespan usage nil t))
-            (display-buffer (tide-insert-references references))))
-      (message (plist-get response :message)))))
+    (tide-on-response-success response nil
+      (let ((references (tide-plist-get response :body :refs)))
+        (-if-let (usage (tide-find-single-usage references))
+            (progn
+              (message "This is the only usage.")
+              (tide-jump-to-filespan usage nil t))
+          (display-buffer (tide-insert-references references)))))))
 
 
 ;;; Imenu
@@ -1207,7 +1207,7 @@ number."
 
 (defun tide-imenu-index ()
   (let ((response (tide-command:navbar)))
-    (tide-on-response-success response
+    (tide-on-response-success response nil
       (let ((navtree (plist-get response :body)))
         (if tide-imenu-flatten
             (-flatten (-map #'tide-build-flat-imenu-index (plist-get navtree :childItems)))
@@ -1246,7 +1246,7 @@ number."
   "Rename symbol at point."
   (interactive)
   (let ((response (tide-command:rename)))
-    (tide-on-response-success response
+    (tide-on-response-success response nil
       (if (eq (tide-plist-get response :body :info :canRename) :json-false)
           (message "%s" (tide-plist-get response :body :info :localizedErrorMessage))
         (let* ((old-symbol (tide-plist-get response :body :info :displayName))
@@ -1324,7 +1324,7 @@ code-analysis."
                            :offset ,(tide-offset start)
                            :endLine ,(tide-line-number-at-pos end)
                            :endOffset ,(tide-offset end)))))
-    (tide-on-response-success response
+    (tide-on-response-success response nil
       (tide-apply-edits (plist-get response :body)))))
 
 (defun tide-format-regions (ranges)
@@ -1623,7 +1623,7 @@ code-analysis."
   (interactive)
   (tide-command:projectInfo
    (lambda (response)
-     (tide-on-response-success response
+     (tide-on-response-success response nil
        (tide-display-erros (tide-plist-get response :body :fileNames))))
    t))
 
@@ -1767,7 +1767,7 @@ timeout."
     (if (eq config :not-loaded)
         (tide-command:projectInfo
          (lambda (response)
-           (tide-on-response-success response
+           (tide-on-response-success response nil
              (let* ((config-file-name (tide-plist-get response :body :configFileName))
                     (config (and config-file-name (file-exists-p config-file-name) (tide-safe-json-read-file config-file-name))))
                (puthash (tide-project-name) config tide-project-configs)
