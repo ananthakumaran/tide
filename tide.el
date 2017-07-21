@@ -751,7 +751,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-send-command
    "signatureHelp"
    `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
-   (tide-on-response-success-callback response nil
+   (tide-on-response-success-callback response t
      (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
