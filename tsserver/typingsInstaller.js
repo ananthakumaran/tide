@@ -1295,7 +1295,7 @@ var ts;
 var ts;
 (function (ts) {
     /** The version of the TypeScript compiler release */
-    ts.version = "2.4.1";
+    ts.version = "2.4.2";
 })(ts || (ts = {}));
 /* @internal */
 (function (ts) {
