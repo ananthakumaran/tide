@@ -131,6 +131,11 @@ above."
   :type '(set (const code-fix) (const jump-to-implementation))
   :group 'tide)
 
+(defcustom tide-always-show-documentation nil
+  "Show the documentation window even if only type information is available."
+  :type 'boolean
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -809,7 +814,7 @@ Noise can be anything like braces, reserved keywords, etc."
      (let ((documentation
             (-when-let* ((display-string (tide-quickinfo-text response))
                          (documentation (tide-quickinfo-documentation response)))
-              (when (not (equal documentation ""))
+              (when (or (not (equal documentation "")) tide-always-show-documentation)
                 (tide-join (list display-string "\n\n" documentation))))))
        (if documentation
            (display-buffer (tide-doc-buffer documentation) t)
