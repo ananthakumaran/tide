@@ -126,9 +126,9 @@ above."
   :type 'boolean
   :group 'tide)
 
-(defcustom tide-allow-popup-select '(code-fix)
+(defcustom tide-allow-popup-select '(code-fix refactor)
   "The list of commands where popup selection is allowed."
-  :type '(set (const code-fix) (const jump-to-implementation))
+  :type '(set (const code-fix) (const jump-to-implementation) (const refactor))
   :group 'tide)
 
 (defcustom tide-always-show-documentation nil
@@ -240,6 +240,9 @@ ones and overrule settings in the other lists."
 
 (defun tide-tsserver-version-not-supported ()
   (error "Only tsserver 2.0 or greater is supported. Upgrade your tsserver or use older version of tide."))
+
+(defun tide-tsserver-feature-not-supported (min-version)
+  (error "tsserver %S or greater is required for this feature." min-version))
 
 (defmacro tide-on-response-success (response ignore-empty-response &rest body)
   (declare (indent 1))
@@ -843,6 +846,13 @@ Noise can be anything like braces, reserved keywords, etc."
 
 ;;; Code-fixes
 
+(defun tide-apply-code-edits (file-code-edits)
+  (save-excursion
+    (dolist (file-code-edit file-code-edits)
+      (with-current-buffer (find-file-noselect (plist-get file-code-edit :fileName))
+        (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
+        (basic-save-buffer)))))
+
 (defun tide-get-flycheck-errors-ids-at-point ()
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
 
@@ -854,12 +864,7 @@ Noise can be anything like braces, reserved keywords, etc."
 
 (defun tide-apply-codefix (fix)
   "Apply a single `FIX', which may apply to several files."
-  (let ((file-changes (plist-get fix :changes)))
-    (save-excursion
-      (dolist (file-change file-changes)
-        (with-current-buffer (find-file-noselect (plist-get file-change :fileName))
-          (tide-format-regions (tide-apply-edits (plist-get file-change :textChanges)))
-          (basic-save-buffer))))))
+  (tide-apply-code-edits (plist-get fix :changes)))
 
 
 (defun tide-fix ()
@@ -875,6 +880,44 @@ Noise can be anything like braces, reserved keywords, etc."
               (t (tide-apply-codefix
                   (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix)))))))))
 
+;;; Refactor
+
+(defun tide-command:getEditsForRefactor (refactor action)
+  (tide-send-command-sync "getEditsForRefactor"
+                          `(:refactor ,refactor :action ,action :file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-command:getApplicableRefactors ()
+  (tide-send-command-sync "getApplicableRefactors" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-get-refactor-description (refactor)
+  (plist-get refactor :description))
+
+(defun tide-select-refactor (applicable-refactor-infos)
+  (let ((available-refactors
+         (-mapcat
+          (lambda (applicable-refactor-info)
+            (-map (lambda (refactor-action-info)
+                    `(:action ,(plist-get refactor-action-info :name)
+                              :refactor ,(plist-get applicable-refactor-info :name)
+                              :inlineable ,(plist-get applicable-refactor-info :inlineable)
+                              :description ,(plist-get refactor-action-info :description)))
+                  (plist-get applicable-refactor-info :actions)))
+          applicable-refactor-infos)))
+    (tide-select-item-from-list "Select refactor: " available-refactors #'tide-get-refactor-description (tide-can-use-popup-p 'refactor))))
+
+(defun tide-apply-refactor (selected)
+  (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
+    (tide-on-response-success response nil
+      (tide-apply-code-edits (tide-plist-get response :body :edits)))))
+
+(defun tide-refactor ()
+  "Refactor code at point"
+  (interactive)
+  (let ((response (tide-command:getApplicableRefactors)))
+    (cond ((tide-command-unknown-p response) (tide-tsserver-feature-not-supported "2.4"))
+          ((tide-response-success-p response) (tide-apply-refactor
+                                               (tide-select-refactor (plist-get response :body))))
+          (t (message "No refactors available. (NOTE: As of typescript 2.4.1, refactors are only available for js files)")))))
 
 ;;; Auto completion
 
