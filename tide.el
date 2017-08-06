@@ -912,7 +912,7 @@ Noise can be anything like braces, reserved keywords, etc."
     (cond ((tide-command-unknown-p response) (tide-tsserver-feature-not-supported "2.4"))
           ((tide-response-success-p response) (tide-apply-refactor
                                                (tide-select-refactor (plist-get response :body))))
-          (t (message "No refactors available.")))))
+          (t (message "No refactors available. (NOTE: As of typescript 2.4.1, refactors are only available for js files)")))))
 
 ;;; Auto completion
 
