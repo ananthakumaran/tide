@@ -906,12 +906,24 @@ Noise can be anything like braces, reserved keywords, etc."
 
 ;;; Refactor
 
+(defun tide-location-or-range ()
+  (if (use-region-p)
+      (let ((start (region-beginning))
+            (end (region-end)))
+        `(:startLine ,(tide-line-number-at-pos start) :startOffset ,(tide-offset start)
+          :endLine ,(tide-line-number-at-pos end) :endOffset ,(tide-offset end)))
+    `(:line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
 (defun tide-command:getEditsForRefactor (refactor action)
-  (tide-send-command-sync "getEditsForRefactor"
-                          `(:refactor ,refactor :action ,action :file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+  (tide-send-command-sync
+   "getEditsForRefactor"
+   (append `(:refactor ,refactor :action ,action :file ,buffer-file-name)
+           (tide-location-or-range))))
 
 (defun tide-command:getApplicableRefactors ()
-  (tide-send-command-sync "getApplicableRefactors" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+  (tide-send-command-sync
+   "getApplicableRefactors"
+   (append `(:file ,buffer-file-name) (tide-location-or-range))))
 
 (defun tide-get-refactor-description (refactor)
   (plist-get refactor :description))
@@ -935,13 +947,13 @@ Noise can be anything like braces, reserved keywords, etc."
       (tide-apply-code-edits (tide-plist-get response :body :edits)))))
 
 (defun tide-refactor ()
-  "Refactor code at point"
+  "Refactor code at point or current region"
   (interactive)
   (let ((response (tide-command:getApplicableRefactors)))
     (cond ((tide-command-unknown-p response) (tide-tsserver-feature-not-supported "2.4"))
-          ((tide-response-success-p response) (tide-apply-refactor
-                                               (tide-select-refactor (plist-get response :body))))
-          (t (message "No refactors available. (NOTE: As of typescript 2.4.1, refactors are only available for js files)")))))
+          ((and (tide-response-success-p response) (plist-get response :body)) (tide-apply-refactor
+                                                                                (tide-select-refactor (plist-get response :body))))
+          (t (message "No refactors available.")))))
 
 ;;; Auto completion
 
