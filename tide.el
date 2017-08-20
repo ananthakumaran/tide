@@ -153,6 +153,7 @@ above."
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
 (tide-def-permanent-buffer-local tide-buffer-tmp-file nil)
+(tide-def-permanent-buffer-local tide-active-buffer-file-name nil)
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
@@ -861,6 +862,12 @@ Noise can be anything like braces, reserved keywords, etc."
   (setq tide-buffer-dirty t))
 
 (defun tide-sync-buffer-contents ()
+  ;; The real file that backs a buffer could be changed in various
+  ;; ways, one common example is the rename operation. Ensure that we
+  ;; send the open command for the new file before using it as an
+  ;; argument for any other command.
+  (unless (string-equal tide-active-buffer-file-name buffer-file-name)
+    (tide-configure-buffer))
   (when tide-buffer-dirty
     (setq tide-buffer-dirty nil)
     (when (not tide-buffer-tmp-file)
@@ -1418,6 +1425,7 @@ code-analysis."
     map))
 
 (defun tide-configure-buffer ()
+  (setq tide-active-buffer-file-name buffer-file-name)
   (tide-command:openfile)
   (tide-command:configure))
 
