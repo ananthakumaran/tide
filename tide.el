@@ -83,6 +83,11 @@ above."
   :type '(choice (const nil) string)
   :group 'tide)
 
+(defcustom tide-post-code-edit-hook nil
+  "Hook run after code edits are applied in a buffer."
+  :type 'hook
+  :group 'tide)
+
 (defvar tide-format-options '()
   "Format options plist.")
 
@@ -882,7 +887,8 @@ Noise can be anything like braces, reserved keywords, etc."
     (dolist (file-code-edit file-code-edits)
       (with-current-buffer (find-file-noselect (plist-get file-code-edit :fileName))
         (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
-        (basic-save-buffer)))))
+        (basic-save-buffer)
+        (run-hooks 'tide-post-code-edit-hook)))))
 
 (defun tide-get-flycheck-errors-ids-at-point ()
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
