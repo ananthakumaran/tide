@@ -351,7 +351,7 @@ LINE is one based, OFFSET is one based and column is zero based"
           (tide-lv-message (mapconcat 'identity hints "\n"))
           (let ((selected (read-char-choice prompt (-take (length list) tide-alphabets))))
             (nth (-find-index (lambda (char) (eql selected char)) tide-alphabets) list)))
-        (tide-lv-delete-window))))
+      (tide-lv-delete-window))))
 
 (defun tide-completing-read-select-item (prompt list)
   (completing-read prompt list nil t))
@@ -433,10 +433,36 @@ LINE is one based, OFFSET is one based and column is zero based"
         (error "Sync request timed out %s" name)))
     response))
 
+(defun tide-json-shred-insert (json)
+  "Inserts `JSON' and breaks lines in areas not syntactically important.
+
+This is done to avoid long lines, which is known to cause severe performance
+degradations in Emacs."
+  (let* ((pos 0)
+         (match-pos nil))
+    (while pos
+      ;; regexp to match JSON property-declaration
+      (setq match-pos (string-match "\"[^\"]+\":" json (+ 1 pos)))
+      (if match-pos
+          (progn
+            ;; insert everything up to declaration (that is previous
+            ;; property's actual content)
+            (insert (substring json pos match-pos))
+            (newline)
+            ;; ensure we dont repeat hit the same property!
+            (setq pos match-pos))
+        (progn
+          ;; insert rest of buffer
+          (insert (substring json pos))
+          (setq pos nil))))))
+
+
+;; (setq tide-debug-data nil)
 (defun tide-net-filter (process data)
   (with-current-buffer (process-buffer process)
     (goto-char (point-max))
-    (insert data))
+    ;; (setq tide-debug-data data)
+    (tide-json-shred-insert data))
   (tide-decode-response process))
 
 (defun tide-net-sentinel (process message)
@@ -500,23 +526,85 @@ LINE is one based, OFFSET is one based and column is zero based"
   (save-excursion
     (when (search-forward "{" nil t)
       (backward-char 1)
-      (>= (- (position-bytes (point-max)) (position-bytes (point))) (1- length)))))
+      (>= (- (position-bytes (point-max))
+             (position-bytes (point)))
+          (1- length)))))
+
+;; (defun tide-json-char-equal (char1 char2)
+;;   (and (not (equal char1 :json-eof))
+;;        (char-equal char1 char2)))
+
+;; (defun tide-json-read-object ()
+;;   "Read the JSON object at point."
+;;   ;; Skip over the "{"
+;;   (json-advance)
+;;   (json-skip-whitespace)
+;;   ;; read key/value pairs until "}"
+;;   (let ((elements (json-new-object))
+;;         key value)
+;;     (while (tide-json-char-equal (json-peek) ?})        
+;;       (json-skip-whitespace)
+;;       (setq key (json-read-string))
+;;       (json-skip-whitespace)
+;;       (if (tide-json-char-equal (json-peek) ?:)
+;;           (json-advance)
+;;         (when (characterp (json-peek))
+;;           (signal 'json-object-format (list ":" (json-peek)))))
+;;       (json-skip-whitespace)
+;;       (when json-pre-element-read-function
+;;         (funcall json-pre-element-read-function key))
+;;       (setq value (json-read))
+;;       (when json-post-element-read-function
+;;         (funcall json-post-element-read-function))
+;;       (setq elements (json-add-to-object elements key value))
+;;       (json-skip-whitespace)
+;;       (let ((next (json-peek)))
+;;         (unless (or (equal :json-eof next)
+;;                     (char-equal next ?}))
+;;           (if (char-equal (json-peek) ?,)
+;;               (json-advance)
+;;             (signal 'json-object-format (list "," (json-peek)))))
+;;         )
+;;       )
+;;     ;; Skip over the "}"
+;;     (ignore-errors
+;;       (json-advance))
+;;     (pcase json-object-type
+;;       (`alist (nreverse elements))
+;;       (`plist (json--plist-reverse elements))
+;;       (_ elements))))
 
 (defun tide-decode-response (process)
   (with-current-buffer (process-buffer process)
     (let ((length (tide-decode-response-legth))
           (json-object-type 'plist)
           (json-array-type 'list))
-      (when (and length (tide-enough-response-p length))
-        (tide-dispatch
-         (prog2
-             (progn
-               (search-forward "{")
-               (backward-char 1))
-             (json-read-object)
-           (delete-region (point-min) (point))))
-        (when (>= (buffer-size) 16)
-          (tide-decode-response process))))))
+      (if (and length (tide-enough-response-p length))
+          (progn
+            ;; (message (concat
+            ;;           "We should now have enough response (" (number-to-string length) "bytes. "
+            ;;           "Buffer size is " (number-to-string (point-max)) " chars."))
+            (tide-dispatch
+             (prog2
+                 (progn
+                   (search-forward "{")
+                   (backward-char 1))
+                 (json-read-object)
+               (delete-region (point-min) (point))))
+            (when (>= (buffer-size) 16)
+              (tide-decode-response process))))
+      ;; (message (concat
+      ;;           "Still awaiting more data. Need: " (number-to-string length) " bytes. "
+      ;;           "Received: "
+      ;;           (number-to-string
+      ;;            (save-excursion
+      ;;              (if (search-forward "{" nil t)
+      ;;                  (progn
+      ;;                    (backward-char 1)
+      ;;                    (- (position-bytes (point-max))
+      ;;                       (position-bytes (point))))
+      ;;                0)))))
+      )))
 
 ;;; Initialization
 
@@ -924,7 +1012,7 @@ Noise can be anything like braces, reserved keywords, etc."
       (let ((start (region-beginning))
             (end (region-end)))
         `(:startLine ,(tide-line-number-at-pos start) :startOffset ,(tide-offset start)
-          :endLine ,(tide-line-number-at-pos end) :endOffset ,(tide-offset end)))
+                     :endLine ,(tide-line-number-at-pos end) :endOffset ,(tide-offset end)))
     `(:line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-command:getEditsForRefactor (refactor action)
