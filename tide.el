@@ -446,6 +446,24 @@ LINE is one based, OFFSET is one based and column is zero based"
       (kill-buffer (process-buffer process)))
     (tide-cleanup-project project-name)))
 
+(defun tide--npm-bin (&optional global-p)
+  "Return the npm bin path.  Relative to the default directory or the global path if GLOBAL-P is not nil."
+  (let ((exe (expand-file-name
+              "tsserver"
+              (with-temp-buffer
+                (when (= 0 (call-process "npm" nil (current-buffer) nil "bin" (if global-p "--global" "")))
+                  (string-trim-right (buffer-string)))))))
+    (when (file-exists-p exe) exe)))
+
+(defun tide-locate-tsserver-executable ()
+  "Locate the typescript server executable.
+If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check npm package local first and npm global installation after.  If nothing is found use the bundled version."
+  (or
+   (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
+   (tide--npm-bin)
+   (tide--npm-bin 'global)
+   (expand-file-name "tsserver.js" tide-tsserver-directory)))
+
 (defun tide-start-server ()
   (when (tide-current-server)
     (error "Server already exist"))
@@ -454,9 +472,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
-         (tsserverjs (or (and tide-tsserver-executable
-                              (expand-file-name tide-tsserver-executable))
-                         (expand-file-name "tsserver.js" tide-tsserver-directory)))
+         (tsserverjs (tide-locate-tsserver-executable))
          ;; Use a pipe to communicate with the subprocess. This fixes a hang
          ;; when a >1k message is sent on macOS.
          (process-connection-type nil)
