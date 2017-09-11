@@ -142,6 +142,11 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-server-max-response-length 102400
+  "Maximum allowed response length from tsserver. Any response greater than this would be ignored."
+  :type 'integer
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -154,6 +159,7 @@ above."
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
 (defvar tide-project-configs (make-hash-table :test 'equal))
+(defvar tide-max-response-length-error-message "Reponse length from tsserver is greater than maximum allowed response.")
 
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
@@ -466,6 +472,8 @@ LINE is one based, OFFSET is one based and column is zero based"
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
     (set-process-query-on-exit-flag process nil)
+    (with-current-buffer (process-buffer process)
+      (buffer-disable-undo))
     (process-put process 'project-name (tide-project-name))
     (puthash (tide-project-name) process tide-servers)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
@@ -508,13 +516,18 @@ LINE is one based, OFFSET is one based and column is zero based"
           (json-object-type 'plist)
           (json-array-type 'list))
       (when (and length (tide-enough-response-p length))
-        (tide-dispatch
-         (prog2
-             (progn
-               (search-forward "{")
-               (backward-char 1))
-             (json-read-object)
-           (delete-region (point-min) (point))))
+        (search-forward "{")
+        (backward-char 1)
+        (let ((response (if (> length tide-server-max-response-length)
+                            (let ((seq (when (re-search-forward "\"request_seq\":\"\\([0-9]+\\)\"" nil t)
+                                         (match-string 1))))
+                              (forward-line 1)
+                              (when seq
+                                `(:success :json-false :type "response" :message ,tide-max-response-length-error-message :request_seq ,seq)))
+                          (json-read-object))))
+          (delete-region (point-min) (point))
+          (when response
+            (tide-dispatch response)))
         (when (>= (buffer-size) 16)
           (tide-decode-response process))))))
 
