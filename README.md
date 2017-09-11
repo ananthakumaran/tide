@@ -73,6 +73,8 @@ Check [here][format_options] for the full list of supported format options.
           (lambda ()
             (when (string-equal "tsx" (file-name-extension buffer-file-name))
               (setup-tide-mode))))
+;; enable typescript-tslint checker
+(flycheck-add-mode 'typescript-tslint 'web-mode)
 ```
 
 Tide also provides support for editing js & jsx files. Tide checkers
@@ -114,6 +116,7 @@ true.
             (when (string-equal "jsx" (file-name-extension buffer-file-name))
               (setup-tide-mode))))
 ;; configure jsx-tide checker to run after your default jsx checker
+(flycheck-add-mode 'javascript-eslint 'web-mode)
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
 

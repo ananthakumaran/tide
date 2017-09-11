@@ -1603,6 +1603,7 @@ code-analysis."
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
+(flycheck-add-next-checker 'tsx-tide '(warning . typescript-tslint) 'append)
 
 ;;; Project errors
 
