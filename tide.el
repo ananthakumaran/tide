@@ -1458,15 +1458,21 @@ code-analysis."
 (defun tide-setup ()
   "Setup `tide-mode' in current buffer."
   (interactive)
-  (tide-start-server-if-required)
-  (tide-mode 1)
-  (set (make-local-variable 'eldoc-documentation-function)
-       'tide-eldoc-function)
-  (set (make-local-variable 'imenu-auto-rescan) t)
-  (set (make-local-variable 'imenu-create-index-function)
-       'tide-imenu-index)
 
-  (tide-configure-buffer))
+  ;; skip buffers where buffer-file-name is not defined, such as org-mode code
+  ;; blocks as they are fontified for html export
+  (if (stringp buffer-file-name)
+      (progn
+        (tide-start-server-if-required)
+        (tide-mode 1)
+        (set (make-local-variable 'eldoc-documentation-function)
+             'tide-eldoc-function)
+        (set (make-local-variable 'imenu-auto-rescan) t)
+        (set (make-local-variable 'imenu-create-index-function)
+             'tide-imenu-index)
+
+        (tide-configure-buffer))
+    (display-warning 'tide "A file backed buffer is required to start the tsserver.")))
 
 ;;;###autoload
 (define-minor-mode tide-mode
