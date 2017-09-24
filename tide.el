@@ -260,7 +260,8 @@ ones and overrule settings in the other lists."
 (defmacro tide-on-response-success (response ignore-empty-response &rest body)
   (declare (indent 2))
   `(if (tide-response-success-p ,response)
-       ,@body
+       (progn
+         ,@body)
      (-when-let (msg (plist-get response :message))
        (unless (and ,ignore-empty-response (string-equal msg "No content available."))
          (message "%s" msg)))
@@ -970,7 +971,13 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-apply-refactor (selected)
   (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
     (tide-on-response-success response nil
-      (tide-apply-code-edits (tide-plist-get response :body :edits)))))
+      (deactivate-mark)
+      (tide-apply-code-edits (tide-plist-get response :body :edits))
+      (-when-let (rename-location (tide-plist-get response :body :renameLocation))
+        (with-current-buffer (find-file-noselect (tide-plist-get response :body :renameFilename))
+          (tide-move-to-location rename-location)
+          (when (tide-can-rename-symbol-p)
+            (tide-rename-symbol)))))))
 
 (defun tide-refactor ()
   "Refactor code at point or current region"
@@ -1342,6 +1349,12 @@ number."
     (if (string-match-p "\\`[ \t\n\r]*\\'" new-symbol)
         (error "Invalid name")
       new-symbol)))
+
+(defun tide-can-rename-symbol-p ()
+  (let ((response (tide-command:rename)))
+    (and
+     (tide-response-success-p response)
+     (eq (tide-plist-get response :body :info :canRename) t))))
 
 (defun tide-rename-symbol ()
   "Rename symbol at point."
