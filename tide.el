@@ -169,7 +169,7 @@ above."
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
 
-(defvar tide-source-root-directory (file-name-directory load-file-name))
+(defvar tide-source-root-directory (file-name-directory (or load-file-name buffer-file-name)))
 (defvar tide-tsserver-directory (expand-file-name "tsserver" tide-source-root-directory))
 
 (defun tide-project-root ()
