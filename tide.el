@@ -57,6 +57,11 @@
   :prefix "tide-"
   :group 'tools)
 
+(defcustom tide-completion-insert-arguments t
+  "When non-nil, insert function arguments as a template after completion."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-sync-request-timeout 2
   "The number of seconds to wait for a sync response."
   :type 'integer
@@ -332,6 +337,23 @@ LINE is one based, OFFSET is one based and column is zero based"
       (forward-char (1- (plist-get span :offset)))
       (point))))
 
+(defun tide-completion-template (name)
+  "Defines the template for insertion after autocomplete."
+    (when (member
+         (plist-get (get-text-property 0 'completion name) :kind)
+         '("function" "localFunction" "method", "constructor" "class"))
+    (let ((meta (tide-completion-meta name)))
+      ;; To make this work with functions that have overloads, we match on
+      ;; anything in parenthesis that doesn't have with a +, since that's
+      ;; what we use for overloads. Otherwise, it will insert, e.g.,
+      ;; `(+1 overload)` at the end of the completion, which will make
+      ;; company think that `(+1 overload)` is the actual completion.
+      ;; This also means it will complete the first option, which isn't the
+      ;; greatest experience, but it's good enough for now.
+      (when (string-match (concat name "\\(?:<.*?>\\)?\\(([^+]*)\\).*") meta)
+        (match-string 1 meta)))))
+
+
 (defun tide-doc-buffer (string)
   (with-current-buffer (get-buffer-create "*tide-documentation*")
     (setq buffer-read-only t)
@@ -560,6 +582,7 @@ LINE is one based, OFFSET is one based and column is zero based"
   (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,buffer-file-name :formatOptions ,(tide-file-format-options))))
 
 (defun tide-command:projectInfo (cb &optional need-file-name-list)
+  (message "hi")
   (tide-send-command "projectInfo" `(:file ,buffer-file-name :needFileNameList ,need-file-name-list) cb))
 
 (defun tide-command:openfile ()
@@ -1130,7 +1153,13 @@ Noise can be anything like braces, reserved keywords, etc."
     (ignore-case tide-completion-ignore-case)
     (meta (tide-completion-meta arg))
     (annotation (tide-completion-annotation arg))
-    (doc-buffer (tide-completion-doc-buffer arg))))
+    (doc-buffer (tide-completion-doc-buffer arg))
+    (post-completion  (-when-let (template (tide-completion-template arg))
+                        (when tide-completion-insert-arguments
+                          (insert template)
+                          ;; TS is not c-like, so we should write out own
+                          ;; templating function for this when we have time.
+                          (company-template-c-like-templatify template))))))
 
 (eval-after-load 'company
   '(progn
