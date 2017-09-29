@@ -446,13 +446,28 @@ LINE is one based, OFFSET is one based and column is zero based"
       (kill-buffer (process-buffer process)))
     (tide-cleanup-project project-name)))
 
-(defun tide--npm-bin (&optional global-p)
-  "Return the npm bin path.  Relative to the default directory or the global path if GLOBAL-P is not nil."
-  (let ((exe (expand-file-name
-              "tsserver"
-              (with-temp-buffer
-                (when (= 0 (call-process "npm" nil (current-buffer) nil "bin" (if global-p "--global" "")))
-                  (string-trim-right (buffer-string)))))))
+(defun tide--npm-bin (&optional globalp)
+  "Return the path to the npm bin folder.
+Use the global package path if GLOBALP is not nil, or the local path otherwise.
+Return a string representing the path or nil."
+  (let ((no-errors 0)
+        (no-input nil)
+        (no-redisplay nil)
+        (global-switch (if globalp "--global" "")))
+    (with-temp-buffer
+      (when (= no-errors
+               (call-process "npm" no-input (current-buffer) no-redisplay
+                             "bin" global-switch))
+        (string-trim-right (buffer-string))))))
+
+(defun tide--tsserver-file-name ()
+  "Return a string representing the full path to the typescript server, including the system's extension, or nil."
+  (let ((extension (if (eq system-type 'windows-nt) ".cmd" "")))
+    (concat "tsserver" extension)))
+
+(defun tide--locate (file-name path)
+  "Locate the FILE-NAME in PATH.  Return a string representing the full path or nil."
+  (let ((exe (expand-file-name file-name path)))
     (when (file-exists-p exe) exe)))
 
 (defun tide-locate-tsserver-executable ()
@@ -460,8 +475,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check npm package local first and npm global installation after.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
-   (tide--npm-bin)
-   (tide--npm-bin 'global)
+   (tide--locate (tide--tsserver-file-name) (tide--npm-bin))
+   (tide--locate (tide--tsserver-file-name) (tide--npm-bin 'global))
    (expand-file-name "tsserver.js" tide-tsserver-directory)))
 
 (defun tide-start-server ()
