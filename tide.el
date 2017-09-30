@@ -463,8 +463,8 @@ Return a string representing the path or nil."
 
 (defun tide--project-package-bin ()
   "Return the package's node_module bin directory using projectile's project root or nil."
-  (when (functionp 'projectile-project-root)
-    (concat (projectile-project-root) "node_modules/typescript/lib")))
+  (when (and (functionp 'projectile-project-p) (projectile-project-p))
+    (concat (projectile-project-p) "node_modules/typescript/lib")))
 
 (defun tide--tsserver-file-name ()
   "Return a string representing the full path to the typescript server, including the system's extension, or nil."
