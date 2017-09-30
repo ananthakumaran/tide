@@ -460,6 +460,11 @@ Return a string representing the path or nil."
                              "bin" global-switch))
         (string-trim-right (buffer-string))))))
 
+(defun tide--project-package-bin ()
+  "Return the package's node_module bin directory using projectile's project root or nil."
+  (when (functionp 'projectile-project-root)
+    (concat (projectile-project-root) "node_modules/.bin/")))
+
 (defun tide--tsserver-file-name ()
   "Return a string representing the full path to the typescript server, including the system's extension, or nil."
   (let ((extension (if (eq system-type 'windows-nt) ".cmd" "")))
@@ -472,10 +477,11 @@ Return a string representing the path or nil."
 
 (defun tide-locate-tsserver-executable ()
   "Locate the typescript server executable.
-If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check npm package local first and npm global installation after.  If nothing is found use the bundled version."
+If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
    (tide--locate (tide--tsserver-file-name) (tide--npm-bin))
+   (tide--locate (tide--tsserver-file-name) (tide--project-package-bin))
    (tide--locate (tide--tsserver-file-name) (tide--npm-bin 'global))
    (expand-file-name "tsserver.js" tide-tsserver-directory)))
 
