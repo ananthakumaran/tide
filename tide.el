@@ -466,11 +466,6 @@ Return a string representing the path or nil."
   (when (and (functionp 'projectile-project-p) (projectile-project-p))
     (concat (projectile-project-root) "node_modules/typescript/lib")))
 
-(defun tide--tsserver-file-name ()
-  "Return a string representing the full path to the typescript server, including the system's extension, or nil."
-  (let ((extension (if (eq system-type 'windows-nt) ".cmd" "")))
-    (concat "tsserver" extension)))
-
 (defun tide--locate (file-name path)
   "Locate the FILE-NAME in PATH.  Return a string representing the full path or nil."
   (let ((exe (expand-file-name file-name path)))
