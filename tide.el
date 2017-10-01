@@ -449,7 +449,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide--typescript-npm-package (&optional globalp)
   "Return the path to the npm bin folder.
 Use the global package path if GLOBALP is not nil, or the local path otherwise.
-Return a string representing the path or nil."
+Return a string representing the path or nil.
+If there are multiple results throw an error."
   (let ((no-errors 0)
         (no-input nil)
         (no-redisplay nil)
@@ -459,7 +460,17 @@ Return a string representing the path or nil."
                (call-process "npm" no-input (current-buffer) no-redisplay
                              "list" "typescript"
                              "--depth 0" "--parseable" global-switch))
-        (concat (string-trim-right (buffer-string)) "/lib")))))
+        ;; when the process returns without errors,
+        ;; split the buffer into LINES
+        (let ((lines (split-string (buffer-string) "\r?\n" 'omit-empty-lines)))
+          ;; if there are 0 lines return nil
+          ;; if there is only 1 line return it with /lib appended
+          (if (= 1 (length lines))
+              (concat (string-trim (car lines)) "/lib")
+            ;; if there are multiple results signal an error
+            (when (> 1 (length lines))
+              (error "Enexpected multiple tsserver paths:\n%s"
+                     (string-join lines "\n")))))))))
 
 (defun tide--project-package-bin ()
   "Return the package's node_module bin directory using projectile's project root or nil."
