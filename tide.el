@@ -446,53 +446,73 @@ LINE is one based, OFFSET is one based and column is zero based"
       (kill-buffer (process-buffer process)))
     (tide-cleanup-project project-name)))
 
-(defun tide--typescript-npm-package (&optional globalp)
-  "Return the path to the npm bin folder.
+(defun tide--typescript-npm-list (&optional globalp)
+  "Return a list of paths to the root of the typescript package as per npm list.
 Use the global package path if GLOBALP is not nil, or the local path otherwise.
-Return a string representing the path or nil.
-If there are multiple results throw an error."
-  (let ((no-errors 0)
-        (no-input nil)
-        (no-redisplay nil)
-        (global-switch (if globalp "--global" "")))
-    (with-temp-buffer
+Return a list of strings representing each path or nil."
+  (with-temp-buffer
+    (let ((no-errors 0)
+          (no-input nil)
+          (no-redisplay nil)
+          (global-switch (if globalp "--global" "")))
       (when (= no-errors
                (call-process "npm" no-input (current-buffer) no-redisplay
                              "list" "typescript"
                              "--depth 0" "--parseable" global-switch))
-        ;; when the process returns without errors,
-        ;; split the buffer into LINES
-        (let ((lines (split-string (buffer-string) "\r?\n" 'omit-empty-lines)))
-          ;; if there are 0 lines return nil
-          ;; if there is only 1 line return it with /lib appended
-          (if (= 1 (length lines))
-              (concat (string-trim (car lines)) "/lib")
-            ;; if there are multiple results signal an error
-            (when (> 1 (length lines))
-              (error "Enexpected multiple tsserver paths:\n%s"
-                     (string-join lines "\n")))))))))
+        ;; when the process returns without errors split the buffer into LINES
+        (split-string (buffer-string) "\r?\n" 'omit-empty-lines)))))
 
-(defun tide--project-package-bin ()
+(defun tide--multiple-paths-msg (context path-list used-path)
+  "Return a string with the typescript paths found either locally or globally.
+Use for logging purposes.
+CONTEXT is a string representing the context of the paths.
+PATH-LIST is the list of paths to the typescript package as strings.
+USED-PATH is a string representing the chosen path."
+  (concat "Multiple " context " typescript paths:\n"
+          (string-join path-list "\n")
+          "\nUsing: " used-path))
+
+(defun tide--pick-typescript-path (path-list &optional globalp)
+  "Return a single path to the typescript package directory or nil.
+PATH-LIST is the list of paths to the typescript package as strings.
+GLOBALP is an optional boolean representing whether PATH-LIST is the result of a global or local search."
+  (let ((path-list-length (length path-list)))
+    (when (> path-list-length 0)
+      (let ((chosen-path (string-trim (car path-list))))
+        (when (> path-list-length 1)
+          (display-warning
+           'tide (tide--multiple-paths-msg
+                  (if globalp "global" "local") path-list chosen-path)))
+        chosen-path))))
+
+(defun tide--npm-package (&optional globalp)
+  "Return a single path to the typescript package directory or nil.
+GLOBALP is an optional boolean indicating if the search is global or local."
+  (concat (tide--pick-typescript-path (tide--typescript-npm-list globalp) globalp)
+          "/lib"))
+
+(defun tide--project-package ()
   "Return the package's node_module bin directory using projectile's project root or nil."
   (when (and (functionp 'projectile-project-p) (projectile-project-p))
     (concat (projectile-project-root) "node_modules/typescript/lib")))
 
-(defun tide--locate (file-name path)
-  "Locate the FILE-NAME in PATH.  Return a string representing the full path or nil."
-  (let ((exe (expand-file-name file-name path)))
-    (when (file-exists-p exe) exe)))
-
 (defconst tide--tsserver "tsserver.js"
   "File-name of the file that node executes to start the typescript server.")
+
+(defun tide--locate-tsserver (path)
+  "Locate the typescript server in PATH.
+Return a string representing the existing full path or nil."
+  (let ((exe (expand-file-name tide--tsserver path)))
+    (when (file-exists-p exe) exe)))
 
 (defun tide-locate-tsserver-executable ()
   "Locate the typescript server executable.
 If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
-   (tide--locate tide--tsserver (tide--typescript-npm-package))
-   (tide--locate tide--tsserver (tide--project-package-bin))
-   (tide--locate tide--tsserver (tide--typescript-npm-package 'global))
+   (tide--locate-tsserver (tide--npm-package))
+   (tide--locate-tsserver (tide--project-package))
+   (tide--locate-tsserver (tide--npm-package 'global))
    (expand-file-name tide--tsserver tide-tsserver-directory)))
 
 (defun tide-start-server ()
