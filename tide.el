@@ -480,14 +480,24 @@ Return a string representing the existing full path or nil."
   (let ((exe (expand-file-name tide--tsserver path)))
     (when (file-exists-p exe) exe)))
 
+(defun tide-tsserver-locater-npmlocal-projectile-npmglobal ()
+  "Locate tsserver through project-local or global system settings."
+  (or
+   (tide--locate-tsserver (tide--npm-local))
+   (tide--locate-tsserver (tide--project-package))
+   (tide--locate-tsserver (tide--npm-global))))
+
+(defcustom tide-tsserver-locator-function #'tide-tsserver-locater-npmlocal-projectile-npmglobal
+  "Function used by tide to locate tsserver."
+  :type 'function
+  :group 'tide)
+
 (defun tide-locate-tsserver-executable ()
   "Locate the typescript server executable.
 If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
-   (tide--locate-tsserver (tide--npm-local))
-   (tide--locate-tsserver (tide--project-package))
-   (tide--locate-tsserver (tide--npm-global))
+   (funcall tide-tsserver-locator-function)
    (expand-file-name tide--tsserver tide-tsserver-directory)))
 
 (defun tide-start-server ()
