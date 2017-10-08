@@ -461,7 +461,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide--npm-local ()
   "Return a single path to the package-local typescript package directory or nil."
 
-  (-when-let ((packages-folder (locate-dominating-file default-directory "package.json")))
+  (-when-let (packages-folder (locate-dominating-file default-directory "package.json"))
     (concat packages-folder "node_modules/typescript/lib/")))
 
 (defun tide--npm-global ()
