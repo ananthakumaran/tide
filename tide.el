@@ -476,7 +476,9 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide--project-package ()
   "Return the package's node_module bin directory using projectile's project root or nil."
-  (when (and (functionp 'projectile-project-p) (projectile-project-p))
+  (when (and (functionp 'projectile-project-p)
+             (functionp 'projectile-project-root)
+             (projectile-project-p))
     (concat (projectile-project-root) "node_modules/typescript/lib")))
 
 (defconst tide--tsserver "tsserver.js"
