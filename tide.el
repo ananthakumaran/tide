@@ -456,7 +456,7 @@ LINE is one based, OFFSET is one based and column is zero based"
 (defun tide--npm-local ()
   "Return a single path to the package-local typescript package directory or nil."
 
-  (when-let* ((packages-folder (locate-dominating-file default-directory "package.json")))
+  (-when-let ((packages-folder (locate-dominating-file default-directory "package.json")))
     (concat packages-folder "node_modules/typescript/lib/")))
 
 (defun tide--npm-global ()
@@ -465,6 +465,14 @@ LINE is one based, OFFSET is one based and column is zero based"
   (if (eq system-type 'windows-nt)
       (concat (getenv "appdata") "\\npm\\node_modules")
     "/usr/lib/node_modules/typescript/lib/"))
+
+(defun tide--npm-global-usrlocal ()
+  "Return a single path to the global typescript package directory or nil."
+
+  ;; this check does not apply to windows.
+  (if (eq system-type 'windows-nt)
+      nil
+    "/usr/local/lib/node_modules/typescript/lib/"))
 
 (defun tide--project-package ()
   "Return the package's node_module bin directory using projectile's project root or nil."
@@ -485,7 +493,8 @@ Return a string representing the existing full path or nil."
   (or
    (tide--locate-tsserver (tide--npm-local))
    (tide--locate-tsserver (tide--project-package))
-   (tide--locate-tsserver (tide--npm-global))))
+   (tide--locate-tsserver (tide--npm-global))
+   (tide--locate-tsserver (tide--npm-global-usrlocal))))
 
 (defcustom tide-tsserver-locator-function #'tide-tsserver-locater-npmlocal-projectile-npmglobal
   "Function used by tide to locate tsserver."
@@ -745,7 +754,7 @@ Noise can be anything like braces, reserved keywords, etc."
                   (lambda (prefix)
                     (let ((response (tide-command:navto prefix)))
                       (tide-on-response-success response nil
-                        (when-let (navto-items (plist-get response :body))
+                        (-when-let (navto-items (plist-get response :body))
                           (setq navto-items
                                 (-filter
                                  (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
