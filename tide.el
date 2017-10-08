@@ -147,6 +147,11 @@ above."
   :type 'integer
   :group 'tide)
 
+(defcustom tide-tsserver-locator-function #'tide-tsserver-locater-npmlocal-projectile-npmglobal
+  "Function used by tide to locate tsserver."
+  :type 'function
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -497,11 +502,6 @@ Return a string representing the existing full path or nil."
    (tide--locate-tsserver (tide--project-package))
    (tide--locate-tsserver (tide--npm-global))
    (tide--locate-tsserver (tide--npm-global-usrlocal))))
-
-(defcustom tide-tsserver-locator-function #'tide-tsserver-locater-npmlocal-projectile-npmglobal
-  "Function used by tide to locate tsserver."
-  :type 'function
-  :group 'tide)
 
 (defun tide-locate-tsserver-executable ()
   "Locate the typescript server executable.
