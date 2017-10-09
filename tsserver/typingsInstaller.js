@@ -1229,7 +1229,8 @@ var ts;
         EmitHint[EmitHint["SourceFile"] = 0] = "SourceFile";
         EmitHint[EmitHint["Expression"] = 1] = "Expression";
         EmitHint[EmitHint["IdentifierName"] = 2] = "IdentifierName";
-        EmitHint[EmitHint["Unspecified"] = 3] = "Unspecified";
+        EmitHint[EmitHint["MappedTypeParameter"] = 3] = "MappedTypeParameter";
+        EmitHint[EmitHint["Unspecified"] = 4] = "Unspecified";
     })(EmitHint = ts.EmitHint || (ts.EmitHint = {}));
 })(ts || (ts = {}));
 /*@internal*/
@@ -1334,7 +1335,7 @@ var ts;
     // If changing the text in this section, be sure to test `configureNightly` too.
     ts.versionMajorMinor = "2.5";
     /** The version of the TypeScript compiler release */
-    ts.version = ts.versionMajorMinor + ".2";
+    ts.version = ts.versionMajorMinor + ".3";
 })(ts || (ts = {}));
 /* @internal */
 (function (ts) {
@@ -3702,6 +3703,8 @@ var ts;
         return sourceFile.checkJsDirective ? sourceFile.checkJsDirective.enabled : compilerOptions.checkJs;
     }
     ts.isCheckJsEnabledForFile = isCheckJsEnabledForFile;
+    function assertTypeIsNever(_) { }
+    ts.assertTypeIsNever = assertTypeIsNever;
 })(ts || (ts = {}));
 /// <reference path="core.ts"/>
 var ts;
@@ -5158,7 +5161,7 @@ var ts;
     }
     ts.moduleResolutionIsEqualTo = moduleResolutionIsEqualTo;
     function packageIdIsEqual(a, b) {
-        return a === b || a && b && a.name === b.name && a.version === b.version;
+        return a === b || a && b && a.name === b.name && a.subModuleName === b.subModuleName && a.version === b.version;
     }
     function typeDirectiveIsEqualTo(oldResolution, newResolution) {
         return oldResolution.resolvedFileName === newResolution.resolvedFileName && oldResolution.primary === newResolution.primary;
@@ -9414,8 +9417,7 @@ var ts;
     // Node Arrays
     /* @internal */
     function isNodeArray(array) {
-        return array.hasOwnProperty("pos")
-            && array.hasOwnProperty("end");
+        return array.hasOwnProperty("pos") && array.hasOwnProperty("end");
     }
     ts.isNodeArray = isNodeArray;
     // Literals
@@ -12283,9 +12285,11 @@ var ts;
                         visitNode(cbNode, node.typeExpression);
                 }
             case 285 /* JSDocTypeLiteral */:
-                for (var _i = 0, _a = node.jsDocPropertyTags; _i < _a.length; _i++) {
-                    var tag = _a[_i];
-                    visitNode(cbNode, tag);
+                if (node.jsDocPropertyTags) {
+                    for (var _i = 0, _a = node.jsDocPropertyTags; _i < _a.length; _i++) {
+                        var tag = _a[_i];
+                        visitNode(cbNode, tag);
+                    }
                 }
                 return;
             case 288 /* PartiallyEmittedExpression */:
@@ -13830,9 +13834,10 @@ var ts;
             return token() === 24 /* DotDotDotToken */ ||
                 isIdentifierOrPattern() ||
                 ts.isModifierKind(token()) ||
-                token() === 57 /* AtToken */ || isStartOfType();
+                token() === 57 /* AtToken */ ||
+                isStartOfType(/*inStartOfParameter*/ true);
         }
-        function parseParameter() {
+        function parseParameter(requireEqualsToken) {
             var node = createNode(146 /* Parameter */);
             if (token() === 99 /* ThisKeyword */) {
                 node.name = createIdentifier(/*isIdentifier*/ true);
@@ -13858,14 +13863,8 @@ var ts;
             }
             node.questionToken = parseOptionalToken(55 /* QuestionToken */);
             node.type = parseParameterType();
-            node.initializer = parseBindingElementInitializer(/*inParameter*/ true);
+            node.initializer = parseInitializer(/*inParameter*/ true, requireEqualsToken);
             return addJSDocComment(finishNode(node));
-        }
-        function parseBindingElementInitializer(inParameter) {
-            return inParameter ? parseParameterInitializer() : parseNonParameterInitializer();
-        }
-        function parseParameterInitializer() {
-            return parseInitializer(/*inParameter*/ true);
         }
         function fillSignature(returnToken, flags, signature) {
             if (!(flags & 32 /* JSDoc */)) {
@@ -13910,7 +13909,7 @@ var ts;
                 var savedAwaitContext = inAwaitContext();
                 setYieldContext(!!(flags & 1 /* Yield */));
                 setAwaitContext(!!(flags & 2 /* Await */));
-                var result = parseDelimitedList(16 /* Parameters */, flags & 32 /* JSDoc */ ? parseJSDocParameter : parseParameter);
+                var result = parseDelimitedList(16 /* Parameters */, flags & 32 /* JSDoc */ ? parseJSDocParameter : function () { return parseParameter(!!(flags & 8 /* RequireCompleteParameterList */)); });
                 setYieldContext(savedYieldContext);
                 setAwaitContext(savedAwaitContext);
                 if (!parseExpected(20 /* CloseParenToken */) && (flags & 8 /* RequireCompleteParameterList */)) {
@@ -14237,7 +14236,7 @@ var ts;
                     return parseTypeReference();
             }
         }
-        function isStartOfType() {
+        function isStartOfType(inStartOfParameter) {
             switch (token()) {
                 case 119 /* AnyKeyword */:
                 case 136 /* StringKeyword */:
@@ -14264,11 +14263,11 @@ var ts;
                 case 39 /* AsteriskToken */:
                     return true;
                 case 38 /* MinusToken */:
-                    return lookAhead(nextTokenIsNumericLiteral);
+                    return !inStartOfParameter && lookAhead(nextTokenIsNumericLiteral);
                 case 19 /* OpenParenToken */:
                     // Only consider '(' the start of a type if followed by ')', '...', an identifier, a modifier,
                     // or something that starts a type. We don't want to consider things like '(1)' a type.
-                    return lookAhead(isStartOfParenthesizedOrFunctionType);
+                    return !inStartOfParameter && lookAhead(isStartOfParenthesizedOrFunctionType);
                 default:
                     return isIdentifier();
             }
@@ -14527,7 +14526,7 @@ var ts;
             }
             return expr;
         }
-        function parseInitializer(inParameter) {
+        function parseInitializer(inParameter, requireEqualsToken) {
             if (token() !== 58 /* EqualsToken */) {
                 // It's not uncommon during typing for the user to miss writing the '=' token.  Check if
                 // there is no newline after the last token and if we're on an expression.  If so, parse
@@ -14541,6 +14540,13 @@ var ts;
                     // preceding line break, open brace in a parameter (likely a function body) or current token is not an expression -
                     // do not try to parse initializer
                     return undefined;
+                }
+                if (inParameter && requireEqualsToken) {
+                    // = is required when speculatively parsing arrow function parameters,
+                    // so return a fake initializer as a signal that the equals token was missing
+                    var result = createMissingNode(71 /* Identifier */, /*reportAtCurrentPosition*/ true, ts.Diagnostics._0_expected, "=");
+                    result.escapedText = "= not found";
+                    return result;
                 }
             }
             // Initializer[In, Yield] :
@@ -14817,8 +14823,7 @@ var ts;
         function tryParseAsyncSimpleArrowFunctionExpression() {
             // We do a check here so that we won't be doing unnecessarily call to "lookAhead"
             if (token() === 120 /* AsyncKeyword */) {
-                var isUnParenthesizedAsyncArrowFunction = lookAhead(isUnParenthesizedAsyncArrowFunctionWorker);
-                if (isUnParenthesizedAsyncArrowFunction === 1 /* True */) {
+                if (lookAhead(isUnParenthesizedAsyncArrowFunctionWorker) === 1 /* True */) {
                     var asyncModifier = parseModifiersForArrowFunction();
                     var expr = parseBinaryExpressionOrHigher(/*precedence*/ 0);
                     return parseSimpleArrowFunctionExpression(expr, asyncModifier);
@@ -14869,7 +14874,8 @@ var ts;
             //  - "a ? (b): c" will have "(b):" parsed as a signature with a return type annotation.
             //
             // So we need just a bit of lookahead to ensure that it can only be a signature.
-            if (!allowAmbiguity && token() !== 36 /* EqualsGreaterThanToken */ && token() !== 17 /* OpenBraceToken */) {
+            if (!allowAmbiguity && ((token() !== 36 /* EqualsGreaterThanToken */ && token() !== 17 /* OpenBraceToken */) ||
+                ts.find(node.parameters, function (p) { return p.initializer && ts.isIdentifier(p.initializer) && p.initializer.escapedText === "= not found"; }))) {
                 // Returning undefined here will cause our caller to rewind to where we started from.
                 return undefined;
             }
@@ -16428,7 +16434,7 @@ var ts;
             var node = createNode(176 /* BindingElement */);
             node.dotDotDotToken = parseOptionalToken(24 /* DotDotDotToken */);
             node.name = parseIdentifierOrPattern();
-            node.initializer = parseBindingElementInitializer(/*inParameter*/ false);
+            node.initializer = parseInitializer(/*inParameter*/ false);
             return finishNode(node);
         }
         function parseObjectBindingElement() {
@@ -16444,7 +16450,7 @@ var ts;
                 node.propertyName = propertyName;
                 node.name = parseIdentifierOrPattern();
             }
-            node.initializer = parseBindingElementInitializer(/*inParameter*/ false);
+            node.initializer = parseInitializer(/*inParameter*/ false);
             return finishNode(node);
         }
         function parseObjectBindingPattern() {
@@ -16478,7 +16484,7 @@ var ts;
             node.name = parseIdentifierOrPattern();
             node.type = parseTypeAnnotation();
             if (!isInOrOfKeyword(token())) {
-                node.initializer = parseInitializer(/*inParameter*/ false);
+                node.initializer = parseNonParameterInitializer();
             }
             return finishNode(node);
         }
@@ -17766,19 +17772,18 @@ var ts;
                     if (!typeExpression || isObjectOrObjectArrayTypeReference(typeExpression.type)) {
                         var child = void 0;
                         var jsdocTypeLiteral = void 0;
-                        var alreadyHasTypeTag = false;
+                        var childTypeTag = void 0;
                         var start_3 = scanner.getStartPos();
                         while (child = tryParse(function () { return parseChildParameterOrPropertyTag(0 /* Property */); })) {
                             if (!jsdocTypeLiteral) {
                                 jsdocTypeLiteral = createNode(285 /* JSDocTypeLiteral */, start_3);
                             }
                             if (child.kind === 281 /* JSDocTypeTag */) {
-                                if (alreadyHasTypeTag) {
+                                if (childTypeTag) {
                                     break;
                                 }
                                 else {
-                                    jsdocTypeLiteral.jsDocTypeTag = child;
-                                    alreadyHasTypeTag = true;
+                                    childTypeTag = child;
                                 }
                             }
                             else {
@@ -17792,7 +17797,9 @@ var ts;
                             if (typeExpression && typeExpression.type.kind === 164 /* ArrayType */) {
                                 jsdocTypeLiteral.isArrayType = true;
                             }
-                            typedefTag.typeExpression = finishNode(jsdocTypeLiteral);
+                            typedefTag.typeExpression = childTypeTag && !isObjectOrObjectArrayTypeReference(childTypeTag.typeExpression.type) ?
+                                childTypeTag.typeExpression :
+                                finishNode(jsdocTypeLiteral);
                         }
                     }
                     return finishNode(typedefTag);
@@ -20679,7 +20686,7 @@ var ts;
             return undefined;
         }
         ts.Debug.assert(ts.extensionIsTypeScript(resolved.extension));
-        return resolved.path;
+        return { fileName: resolved.path, packageId: resolved.packageId };
     }
     function createResolvedModuleWithFailedLookupLocations(resolved, isExternalLibraryImport, failedLookupLocations) {
         return {
@@ -20794,12 +20801,12 @@ var ts;
         var resolvedTypeReferenceDirective;
         if (resolved) {
             if (!options.preserveSymlinks) {
-                resolved = realpath(resolved, host, traceEnabled);
+                resolved = __assign({}, resolved, { fileName: realpath(resolved.fileName, host, traceEnabled) });
             }
             if (traceEnabled) {
-                trace(host, ts.Diagnostics.Type_reference_directive_0_was_successfully_resolved_to_1_primary_Colon_2, typeReferenceDirectiveName, resolved, primary);
+                trace(host, ts.Diagnostics.Type_reference_directive_0_was_successfully_resolved_to_1_primary_Colon_2, typeReferenceDirectiveName, resolved.fileName, primary);
             }
-            resolvedTypeReferenceDirective = { primary: primary, resolvedFileName: resolved };
+            resolvedTypeReferenceDirective = { primary: primary, resolvedFileName: resolved.fileName, packageId: resolved.packageId };
         }
         return { resolvedTypeReferenceDirective: resolvedTypeReferenceDirective, failedLookupLocations: failedLookupLocations };
         function primaryLookup() {
@@ -21199,7 +21206,7 @@ var ts;
                 if (extension !== undefined) {
                     var path_1 = tryFile(candidate, failedLookupLocations, /*onlyRecordFailures*/ false, state);
                     if (path_1 !== undefined) {
-                        return { path: path_1, extension: extension, packageId: undefined };
+                        return noPackageId({ path: path_1, ext: extension });
                     }
                 }
                 return loader(extensions, candidate, failedLookupLocations, !directoryProbablyExists(ts.getDirectoryPath(candidate), state.host), state);
@@ -21380,32 +21387,41 @@ var ts;
     }
     function loadNodeModuleFromDirectory(extensions, candidate, failedLookupLocations, onlyRecordFailures, state, considerPackageJson) {
         if (considerPackageJson === void 0) { considerPackageJson = true; }
-        var directoryExists = !onlyRecordFailures && directoryProbablyExists(candidate, state.host);
-        var packageId;
-        if (considerPackageJson) {
-            var packageJsonPath = pathToPackageJson(candidate);
-            if (directoryExists && state.host.fileExists(packageJsonPath)) {
-                if (state.traceEnabled) {
-                    trace(state.host, ts.Diagnostics.Found_package_json_at_0, packageJsonPath);
-                }
-                var jsonContent = readJson(packageJsonPath, state.host);
-                if (typeof jsonContent.name === "string" && typeof jsonContent.version === "string") {
-                    packageId = { name: jsonContent.name, version: jsonContent.version };
-                }
-                var fromPackageJson = loadModuleFromPackageJson(jsonContent, extensions, candidate, failedLookupLocations, state);
-                if (fromPackageJson) {
-                    return withPackageId(packageId, fromPackageJson);
-                }
-            }
-            else {
-                if (directoryExists && state.traceEnabled) {
-                    trace(state.host, ts.Diagnostics.File_0_does_not_exist, packageJsonPath);
-                }
-                // record package json as one of failed lookup locations - in the future if this file will appear it will invalidate resolution results
-                failedLookupLocations.push(packageJsonPath);
-            }
+        var _a = considerPackageJson
+            ? getPackageJsonInfo(candidate, "", failedLookupLocations, onlyRecordFailures, state)
+            : { packageJsonContent: undefined, packageId: undefined }, packageJsonContent = _a.packageJsonContent, packageId = _a.packageId;
+        return withPackageId(packageId, loadNodeModuleFromDirectoryWorker(extensions, candidate, failedLookupLocations, onlyRecordFailures, state, packageJsonContent));
+    }
+    function loadNodeModuleFromDirectoryWorker(extensions, candidate, failedLookupLocations, onlyRecordFailures, state, packageJsonContent) {
+        var fromPackageJson = packageJsonContent && loadModuleFromPackageJson(packageJsonContent, extensions, candidate, failedLookupLocations, state);
+        if (fromPackageJson) {
+            return fromPackageJson;
         }
-        return withPackageId(packageId, loadModuleFromFile(extensions, ts.combinePaths(candidate, "index"), failedLookupLocations, !directoryExists, state));
+        var directoryExists = !onlyRecordFailures && directoryProbablyExists(candidate, state.host);
+        return loadModuleFromFile(extensions, ts.combinePaths(candidate, "index"), failedLookupLocations, !directoryExists, state);
+    }
+    function getPackageJsonInfo(nodeModuleDirectory, subModuleName, failedLookupLocations, onlyRecordFailures, _a) {
+        var host = _a.host, traceEnabled = _a.traceEnabled;
+        var directoryExists = !onlyRecordFailures && directoryProbablyExists(nodeModuleDirectory, host);
+        var packageJsonPath = pathToPackageJson(nodeModuleDirectory);
+        if (directoryExists && host.fileExists(packageJsonPath)) {
+            if (traceEnabled) {
+                trace(host, ts.Diagnostics.Found_package_json_at_0, packageJsonPath);
+            }
+            var packageJsonContent = readJson(packageJsonPath, host);
+            var packageId = typeof packageJsonContent.name === "string" && typeof packageJsonContent.version === "string"
+                ? { name: packageJsonContent.name, subModuleName: subModuleName, version: packageJsonContent.version }
+                : undefined;
+            return { packageJsonContent: packageJsonContent, packageId: packageId };
+        }
+        else {
+            if (directoryExists && traceEnabled) {
+                trace(host, ts.Diagnostics.File_0_does_not_exist, packageJsonPath);
+            }
+            // record package json as one of failed lookup locations - in the future if this file will appear it will invalidate resolution results
+            failedLookupLocations.push(packageJsonPath);
+            return { packageJsonContent: undefined, packageId: undefined };
+        }
     }
     function loadModuleFromPackageJson(jsonContent, extensions, candidate, failedLookupLocations, state) {
         var file = tryReadPackageJsonFields(extensions !== Extensions.JavaScript, jsonContent, candidate, state);
@@ -21453,9 +21469,20 @@ var ts;
         return ts.combinePaths(directory, "package.json");
     }
     function loadModuleFromNodeModulesFolder(extensions, moduleName, nodeModulesFolder, nodeModulesFolderExists, failedLookupLocations, state) {
+        var _a = getPackageName(moduleName), packageName = _a.packageName, rest = _a.rest;
+        var packageRootPath = ts.combinePaths(nodeModulesFolder, packageName);
+        var _b = getPackageJsonInfo(packageRootPath, rest, failedLookupLocations, !nodeModulesFolderExists, state), packageJsonContent = _b.packageJsonContent, packageId = _b.packageId;
         var candidate = ts.normalizePath(ts.combinePaths(nodeModulesFolder, moduleName));
-        return loadModuleFromFileNoPackageId(extensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state) ||
-            loadNodeModuleFromDirectory(extensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state);
+        var pathAndExtension = loadModuleFromFile(extensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state) ||
+            loadNodeModuleFromDirectoryWorker(extensions, candidate, failedLookupLocations, !nodeModulesFolderExists, state, packageJsonContent);
+        return withPackageId(packageId, pathAndExtension);
+    }
+    function getPackageName(moduleName) {
+        var idx = moduleName.indexOf(ts.directorySeparator);
+        if (moduleName[0] === "@") {
+            idx = moduleName.indexOf(ts.directorySeparator, idx + 1);
+        }
+        return idx === -1 ? { packageName: moduleName, rest: "" } : { packageName: moduleName.slice(0, idx), rest: moduleName.slice(idx + 1) };
     }
     function loadModuleFromNodeModules(extensions, moduleName, directory, failedLookupLocations, state, cache) {
         return loadModuleFromNodeModulesWorker(extensions, moduleName, directory, failedLookupLocations, state, /*typesOnly*/ false, cache);
