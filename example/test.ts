@@ -9,7 +9,7 @@ var y = Game;
 var obj: Object;
 
 @readonly
-class Person {
+export class Person {
     name: string;
     isAdmin: boolean;
 
