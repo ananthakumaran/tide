@@ -212,15 +212,14 @@ above."
     (concat (file-name-nondirectory full-path) "-" (substring (md5 full-path) 0 10))))
 
 (defun tide-buffer-file-name ()
-  "Returns either the path to the currently open file. This is
-  needed to support indirect buffers, as they don't set
-  `buffer-file-name' correctly."
-  (or (and (bound-and-true-p edit-indirect--overlay)
-           (buffer-file-name (overlay-buffer edit-indirect--overlay)))
-      (and (bound-and-true-p org-src--overlay)
-           (buffer-file-name (overlay-buffer org-src--overlay)))
-      buffer-file-name
-      (buffer-file-name (buffer-base-buffer))))
+  "Returns the path to either the currently open file or the
+  current buffer's parent. This is needed to support indirect
+  buffers, as they don't set `buffer-file-name' correctly."
+  (buffer-file-name (or (and (bound-and-true-p edit-indirect--overlay)
+                             (overlay-buffer edit-indirect--overlay))
+                        (and (bound-and-true-p org-src--overlay)
+                             (overlay-buffer org-src--overlay))
+                        (buffer-base-buffer))))
 
 ;;; Compatibility
 
@@ -1626,7 +1625,7 @@ code-analysis."
   ;; tsconfig.json, otherwise the file will be loaded as part of an 'inferred
   ;; project'. This won't be necessary anymore after TypeScript allows defining
   ;; custom file extensions. https://github.com/Microsoft/TypeScript/issues/8328
-  (when tide-require-manual-sync
+  (when (and tide-require-manual-sync (tide-buffer-file-name))
     (tide-command:projectInfo
      (lambda (response)
        (tide-on-response-success response nil
