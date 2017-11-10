@@ -1175,11 +1175,11 @@ Noise can be anything like braces, reserved keywords, etc."
     (tide-construct-documentation detail)))
 
 (defun tide-post-completion (name)
-  (when (plist-get (get-text-property 0 'completion name) :hasAction)
-    (-when-let* ((response (tide-completion-entry-details name))
-                 (detail (car (plist-get response :body)))
-                 (fixes (plist-get detail :codeActions)))
-      (tide-apply-codefixes fixes))))
+  (-when-let* ((has-action (plist-get (get-text-property 0 'completion name) :hasAction))
+               (response (tide-completion-entry-details name))
+               (detail (car (plist-get response :body)))
+               (fixes (plist-get detail :codeActions)))
+    (tide-apply-codefixes fixes)))
 
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
