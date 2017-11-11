@@ -1149,10 +1149,11 @@ Noise can be anything like braces, reserved keywords, etc."
 
 (defun tide-command:completionEntryDetails (name)
   (let* ((source (plist-get (get-text-property 0 'completion name) :source))
+         (entry-names (if source
+                          `(:entryNames [(:name ,name :source ,source)])
+                        `(:entryNames (,name))))
          (arguments (-concat (get-text-property 0 'file-location name)
-                            (if source
-                                `(:entryNames [(:name ,name :source ,source)])
-                              `(:entryNames (,name))))))
+                             entry-names)))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
       (when (tide-response-success-p response)
         response))))
