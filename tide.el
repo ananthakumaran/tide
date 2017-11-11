@@ -1024,6 +1024,19 @@ Noise can be anything like braces, reserved keywords, etc."
           applicable-refactor-infos)))
     (tide-select-item-from-list "Select refactor: " available-refactors #'tide-get-refactor-description (tide-can-use-popup-p 'refactor))))
 
+(defun tide-refactor-class ()
+  (interactive)
+  (tide-apply-refactor '(:action "convert" :refactor "Convert to ES2015 class")))
+
+(defun tide-refactor-extract-function ()
+  (interactive)
+  (tide-apply-refactor '(:action "function_scope_1" :refactor "Extract Symbol")))
+
+(defun tide-refactor-extract-internal-function ()
+  (interactive)
+  (tide-apply-refactor '(:action "function_scope_0" :refactor "Extract Symbol")))
+
+my-test
 (defun tide-apply-refactor (selected)
   (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
     (tide-on-response-success response nil
