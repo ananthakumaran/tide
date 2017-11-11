@@ -973,6 +973,12 @@ Noise can be anything like braces, reserved keywords, etc."
   "Apply a single `FIX', which may apply to several files."
   (tide-apply-code-edits (plist-get fix :changes)))
 
+(defun tide-apply-codefixes (fixes)
+  (cond ((= 0 (length fixes)) (message "No code-fixes available."))
+        ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
+        (t (tide-apply-codefix
+            (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix))))))
+
 
 (defun tide-fix ()
   "Apply code fix for the error at point."
@@ -982,10 +988,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (let ((response (tide-command:getCodeFixes)))
     (tide-on-response-success response nil
       (let ((fixes (plist-get response :body)))
-        (cond ((= 0 (length fixes)) (message "No code-fixes available."))
-              ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
-              (t (tide-apply-codefix
-                  (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix)))))))))
+        (tide-apply-codefixes fixes)))))
 
 ;;; Refactor
 
@@ -1145,8 +1148,12 @@ Noise can be anything like braces, reserved keywords, etc."
           (tide-annotate-completions (plist-get response :body) prefix file-location)))))))
 
 (defun tide-command:completionEntryDetails (name)
-  (let ((arguments (-concat (get-text-property 0 'file-location name)
-                            `(:entryNames (,name)))))
+  (let* ((source (plist-get (get-text-property 0 'completion name) :source))
+         (entry-names (if source
+                          `(:entryNames [(:name ,name :source ,source)])
+                        `(:entryNames (,name))))
+         (arguments (-concat (get-text-property 0 'file-location name)
+                             entry-names)))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
       (when (tide-response-success-p response)
         response))))
@@ -1168,6 +1175,13 @@ Noise can be anything like braces, reserved keywords, etc."
                (detail (car (plist-get response :body))))
     (tide-construct-documentation detail)))
 
+(defun tide-post-completion (name)
+  (-when-let* ((has-action (plist-get (get-text-property 0 'completion name) :hasAction))
+               (response (tide-completion-entry-details name))
+               (detail (car (plist-get response :body)))
+               (fixes (plist-get detail :codeActions)))
+    (tide-apply-codefixes fixes)))
+
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
   (interactive (list 'interactive))
@@ -1186,7 +1200,8 @@ Noise can be anything like braces, reserved keywords, etc."
     (ignore-case tide-completion-ignore-case)
     (meta (tide-completion-meta arg))
     (annotation (tide-completion-annotation arg))
-    (doc-buffer (tide-completion-doc-buffer arg))))
+    (doc-buffer (tide-completion-doc-buffer arg))
+    (post-completion (tide-post-completion arg))))
 
 (eval-after-load 'company
   '(progn
