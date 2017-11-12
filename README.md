@@ -150,6 +150,8 @@ at point.
 
 <kbd>M-x tide-refactor</kbd> Refactor code at point or current region.
 
+<kbd>M-x tide-jsdoc-template</kbd> Insert JSDoc comment template at point.
+
 ### Features
 
 * ElDoc

@@ -1519,6 +1519,20 @@ code-analysis."
                     (-sort '<))))
     (tide-format-region (-min positions) (-max positions))))
 
+;;; JSDoc Comment Template
+
+(defun tide-command:docCommentTemplate ()
+  (tide-send-command-sync "docCommentTemplate" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+
+(defun tide-jsdoc-template ()
+  "Insert JSDoc comment template at point"
+  (interactive)
+  (let ((response (tide-command:docCommentTemplate)))
+    (tide-on-response-success response nil
+      (save-excursion
+        (tide-insert (tide-plist-get response :body :newText)))
+      (forward-char (tide-plist-get response :body :caretOffset)))))
+
 ;;; Mode
 
 (defvar tide-mode-map
