@@ -168,6 +168,12 @@ above."
   :type 'function
   :group 'tide)
 
+(defcustom tide-default-mode "TS"
+  "The default mode to open buffers not backed by files (e.g. Org
+  source blocks) in."
+  :type '(choice (const "TS") (const "TSX") (const "JS")(const  "JSX"))
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -658,8 +664,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
                      (if tide-require-manual-sync
                          `(:file
                            ,(tide-buffer-file-name)
-                           ;; TODO: Set this according to a variable or an alist
-                           :scriptKindName "TS"
+                           :scriptKindName ,tide-default-mode
                            :fileContent ,(buffer-string))
                        (append `(:file ,(tide-buffer-file-name))
                                (let ((extension (upcase (file-name-extension (tide-buffer-file-name)))))
