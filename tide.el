@@ -192,7 +192,7 @@ above."
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
 (tide-def-permanent-buffer-local tide-buffer-tmp-file nil)
 (tide-def-permanent-buffer-local tide-active-buffer-file-name nil)
-(tide-def-permanent-buffer-local tide-require-manual-sync nil)
+(tide-def-permanent-buffer-local tide-require-manual-setup nil)
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
@@ -661,7 +661,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
 
 (defun tide-command:openfile ()
   (tide-send-command "open"
-                     (if tide-require-manual-sync
+                     (if tide-require-manual-setup
                          `(:file
                            ,(tide-buffer-file-name)
                            :scriptKindName ,tide-default-mode
@@ -1614,7 +1614,7 @@ code-analysis."
   ;; case we should either add an ignore list or don't do anything at all when
   ;; there are more than a certain amount of snippets.
   (unless (stringp buffer-file-name)
-    (setq tide-require-manual-sync t))
+    (setq tide-require-manual-setup t))
 
   (tide-start-server-if-required)
   (tide-mode 1)
@@ -1630,7 +1630,7 @@ code-analysis."
   ;; tsconfig.json, otherwise the file will be loaded as part of an 'inferred
   ;; project'. This won't be necessary anymore after TypeScript allows defining
   ;; custom file extensions. https://github.com/Microsoft/TypeScript/issues/8328
-  (when (and tide-require-manual-sync (tide-buffer-file-name))
+  (when (and tide-require-manual-setup (tide-buffer-file-name))
     (tide-command:projectInfo
      (lambda (response)
        (tide-on-response-success response nil
