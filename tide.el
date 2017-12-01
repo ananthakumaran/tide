@@ -88,14 +88,20 @@ above."
   :type 'hook
   :group 'tide)
 
-(defvar tide-format-options '()
-  "Format options plist.")
+(defcustom tide-format-options '()
+  "Format options plist."
+  :type '(plist :value-type sexp)
+  :group 'tide)
 
-(defvar tide-completion-ignore-case nil
-  "CASE will be ignored in completion if set to non-nil.")
+(defcustom tide-completion-ignore-case nil
+  "CASE will be ignored in completion if set to non-nil."
+  :type 'boolean
+  :group 'tide)
 
-(defvar tide-completion-detailed nil
-  "Completion dropdown will contain detailed method information if set to non-nil.")
+(defcustom tide-completion-detailed nil
+  "Completion dropdown will contain detailed method information if set to non-nil."
+  :type 'boolean
+  :group 'tide)
 
 (defface tide-file
   '((t (:inherit dired-header)))
