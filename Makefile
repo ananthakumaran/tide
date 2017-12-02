@@ -11,6 +11,9 @@ define ESCRIPT
         (let ((sexp (read (current-buffer))))
           (when sexp
             (when (eq (car sexp) 'defcustom)
+              (unless (cadr (cddr sexp))
+                (princ (format "Documentation missing for defcustom %S\n" (cadr sexp)))
+                (kill-emacs 1))
               (princ (format "**%s** `%s`\n\n%s\n\n" (cadr sexp) (pp-to-string (car (cddr sexp))) (cadr (cddr sexp)))))
             t)))))
 endef
