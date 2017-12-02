@@ -2,6 +2,23 @@ EMACS=$(shell which emacs) -Q -batch -L .
 WORKDIR=/tmp/emacs_tide
 export HOME := $(WORKDIR)
 
+define ESCRIPT
+(with-temp-buffer
+  (require 'pp)
+  (insert-file-contents "tide.el")
+  (while
+      (ignore-errors
+        (let ((sexp (read (current-buffer))))
+          (when sexp
+            (when (eq (car sexp) 'defcustom)
+              (unless (cadr (cddr sexp))
+                (princ (format "Documentation missing for defcustom %S\n" (cadr sexp)))
+                (kill-emacs 1))
+              (princ (format "**%s** `%s`\n\n%s\n\n" (cadr sexp) (pp-to-string (car (cddr sexp))) (cadr (cddr sexp)))))
+            t)))))
+endef
+export ESCRIPT
+
 setup:
 	cd .. && git clone git@github.com:Microsoft/TypeScript.git
 
@@ -25,4 +42,6 @@ clean:
 doc:
 	cd doc && mermaid -c config.json architecture.mmd -w 940 -p
 
-# end
+readme:
+	ruby -e 'puts IO.read("README.md").split("### Custom Variables")[0] + "### Custom Variables\n\n" + `emacs --batch --eval "$$ESCRIPT"`' | sponge README.md
+
