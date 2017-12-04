@@ -88,11 +88,9 @@ above."
   :type 'hook
   :group 'tide)
 
-(defcustom tide-sort-completions 'default
-  "How to sort completions. The default from Typescript is case-insensitive."
-  :type '(choice (const :tag "Default" default)
-                 (const :tag "Case-sensitive" case)
-                 (const :tag "Kind" kind))
+(defcustom tide-sort-completions-by-kind nil
+  "Whether completions should be sorted by kind"
+  :type 'boolean
   :group 'tide)
 
 (defvar tide-format-options '()
@@ -1108,7 +1106,7 @@ Noise can be anything like braces, reserved keywords, etc."
       ))
    100))
 
-(defun tide-compare-completions-by-kind (completion-a completion-b)
+(defun tide-compare-completions (completion-a completion-b)
   "Compare COMPLETION-A and COMPLETION-B based on their kind."
   (let ((modifier-a (plist-get completion-a :kindModifiers))
         (modifier-b (plist-get completion-b :kindModifiers)))
@@ -1116,12 +1114,6 @@ Noise can be anything like braces, reserved keywords, etc."
         (< (tide-completion-rank completion-a) (tide-completion-rank completion-b))
       ;; Rank declarations lower than variables
       (string-equal modifier-b "declare"))))
-
-(defun tide-compare-completions-by-case (completion-a completion-b)
-  "Compare COMPLETION-A and COMPLETION-B based on their names."
-  (let ((name-a (plist-get completion-a :name))
-        (name-b (plist-get completion-b :name)))
-    (string-lessp name-a name-b)))
 
 (defun tide-completion-prefix ()
   (company-grab-symbol-cons "\\." 1))
@@ -1143,10 +1135,9 @@ Noise can be anything like braces, reserved keywords, etc."
           (-filter (lambda (completion)
                      (string-prefix-p prefix (plist-get completion :name)))
                    completions)))
-     (cl-case tide-sort-completions
-       (kind (-sort 'tide-compare-completions-by-kind filtered))
-       (case (-sort 'tide-compare-completions-by-case filtered))
-       (default filtered)))))
+     (if tide-sort-completions-by-kind
+         (-sort 'tide-compare-completions filtered)
+       filtered))))
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location

@@ -32,7 +32,7 @@
   (should (equal "this\nis\nfour\nlines"
                  (tide-normalize-lineshift "this\nis\r\nfour\nlines"))))
 
-(ert-deftest completions-get-sorted-by-kind ()
+(ert-deftest completions-get-sorted ()
   "Tests that completion candidates get sorted by kind."
   (let ((mock-completions
          '(
@@ -58,28 +58,8 @@
            (:name "DOMError" :kind "interface" :kindModifiers "declare"))
          ))
     (should (-same-items?
-             (-sort 'tide-compare-completions-by-kind mock-completions)
+             (-sort 'tide-compare-completions mock-completions)
              sorted-completions))))
-
-(ert-deftest completions-get-sorted-by-case ()
-  "Tests that completion candidates get sorted by case."
-  (let ((mock-completions
-         '(
-           (:name "a" :kind "var" :kindModifiers "declare")
-           (:name "c" :kind "var" :kindModifiers)
-           (:name "b" :kind "function" :kindModifiers)
-           (:name "D" :kind "const" :kindModifiers)))
-        (sorted-completions
-         '(
-           (:name "D" :kind "const" :kindModifiers)
-           (:name "a" :kind "var" :kindModifiers "declare")
-           (:name "b" :kind "function" :kindModifiers)
-           (:name "c" :kind "var" :kindModifiers))
-         ))
-    (should (-same-items?
-             (-sort 'tide-compare-completions-by-case mock-completions)
-             sorted-completions))))
-
 
 (provide 'tide-tests)
 
