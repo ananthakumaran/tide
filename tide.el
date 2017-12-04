@@ -4,7 +4,7 @@
 
 ;; Author: Anantha kumaran <ananthakumaran@gmail.com>
 ;; URL: http://github.com/ananthakumaran/tide
-;; Version: 2.6.1
+;; Version: 2.6.2
 ;; Keywords: typescript
 ;; Package-Requires: ((dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
@@ -93,14 +93,20 @@ above."
   :type 'boolean
   :group 'tide)
 
-(defvar tide-format-options '()
-  "Format options plist.")
+(defcustom tide-format-options '()
+  "Format options plist."
+  :type '(plist :value-type sexp)
+  :group 'tide)
 
-(defvar tide-completion-ignore-case nil
-  "CASE will be ignored in completion if set to non-nil.")
+(defcustom tide-completion-ignore-case nil
+  "CASE will be ignored in completion if set to non-nil."
+  :type 'boolean
+  :group 'tide)
 
-(defvar tide-completion-detailed nil
-  "Completion dropdown will contain detailed method information if set to non-nil.")
+(defcustom tide-completion-detailed nil
+  "Completion dropdown will contain detailed method information if set to non-nil."
+  :type 'boolean
+  :group 'tide)
 
 (defface tide-file
   '((t (:inherit dired-header)))
