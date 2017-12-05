@@ -1396,10 +1396,10 @@ number."
 (defun tide-imenu-index ()
   (let ((response (tide-command:navbar)))
     (tide-on-response-success response nil
-      (let ((navtree (plist-get response :body)))
+      (let ((children (tide-plist-get response :body :childItems)))
         (if tide-imenu-flatten
-            (-flatten (-map #'tide-build-flat-imenu-index (plist-get navtree :childItems)))
-          (list (tide-build-imenu-index navtree)))))))
+            (-flatten (-map #'tide-build-flat-imenu-index children))
+          (mapcar #'tide-build-imenu-index children))))))
 
 ;;; Rename
 
