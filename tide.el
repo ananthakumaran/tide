@@ -88,6 +88,11 @@ above."
   :type 'hook
   :group 'tide)
 
+(defcustom tide-sort-completions-by-kind nil
+  "Whether completions should be sorted by kind"
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-format-options '()
   "Format options plist."
   :type '(plist :value-type sexp)
@@ -1132,12 +1137,13 @@ Noise can be anything like braces, reserved keywords, etc."
        (put-text-property 0 1 'file-location file-location name)
        (put-text-property 0 1 'completion completion name)
        name))
-   (-sort
-    'tide-compare-completions
-    (-filter
-     (lambda (completion)
-       (string-prefix-p prefix (plist-get completion :name)))
-     completions))))
+   (let ((filtered
+          (-filter (lambda (completion)
+                     (string-prefix-p prefix (plist-get completion :name)))
+                   completions)))
+     (if tide-sort-completions-by-kind
+         (-sort 'tide-compare-completions filtered)
+       filtered))))
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location
