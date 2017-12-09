@@ -224,6 +224,10 @@ Name or path of the node executable binary file.
 
 Hook run after code edits are applied in a buffer.
 
+**tide-sort-completions-by-kind** `nil`
+
+Whether completions should be sorted by kind.
+
 **tide-format-options** `'nil`
 
 Format options plist.
@@ -235,6 +239,10 @@ CASE will be ignored in completion if set to non-nil.
 **tide-completion-detailed** `nil`
 
 Completion dropdown will contain detailed method information if set to non-nil.
+
+**tide-completion-enable-autoimport-suggestions** `t`
+
+Whether to include external module exports in completions.
 
 **tide-jump-to-definition-reuse-window** `t`
 
