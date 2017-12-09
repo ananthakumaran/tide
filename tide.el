@@ -89,7 +89,7 @@ above."
   :group 'tide)
 
 (defcustom tide-sort-completions-by-kind nil
-  "Whether completions should be sorted by kind"
+  "Whether completions should be sorted by kind."
   :type 'boolean
   :group 'tide)
 
@@ -105,6 +105,11 @@ above."
 
 (defcustom tide-completion-detailed nil
   "Completion dropdown will contain detailed method information if set to non-nil."
+  :type 'boolean
+  :group 'tide)
+
+(defcustom tide-completion-enable-autoimport-suggestions t
+  "Whether to include external module exports in completions."
   :type 'boolean
   :group 'tide)
 
@@ -1147,7 +1152,7 @@ Noise can be anything like braces, reserved keywords, etc."
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location
-          `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)))))
+          `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions)))
     (when (not (tide-member-completion-p prefix))
       (setq file-location (plist-put file-location :prefix prefix)))
     (tide-send-command
