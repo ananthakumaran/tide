@@ -225,6 +225,9 @@ above."
                              (overlay-buffer edit-indirect--overlay))
                         (and (bound-and-true-p org-src--overlay)
                              (overlay-buffer org-src--overlay))
+                        ;; Needed for org-mode 8.x compatibility
+                        (and (bound-and-true-p org-edit-src-overlay)
+                             (overlay-buffer org-edit-src-overlay))
                         (buffer-base-buffer))))
 
 ;;; Compatibility
