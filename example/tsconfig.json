@@ -13,6 +13,8 @@
     "all.d.ts",
     "reactComponent.tsx",
     "test.ts",
-    "another.js"
+    "another.js",
+    "vueComponent.vue",
+    "literate.org"
   ]
 }
