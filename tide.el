@@ -1016,7 +1016,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
 
 (defun tide-command:getCodeFixes ()
-  (tide-send-command-sync "getCodeFixes" `(:file ,((tide-buffer-file-name)) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+  (tide-send-command-sync "getCodeFixes" `(:file ,(tide-buffer-file-name) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
 
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
