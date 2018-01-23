@@ -2042,7 +2042,7 @@ timeout."
   (when (not (file-exists-p path))
     (error "tsconfig file not found at %S." path))
   (let ((config (tide-safe-json-read-file path)))
-    (if-let (extends (plist-get config :extends))
+    (-if-let (extends (plist-get config :extends))
         (let ((base (tide-load-tsconfig (expand-file-name extends (file-name-directory path)) (cons path loaded-paths))))
           (tide-combine-plists
            base
