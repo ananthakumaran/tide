@@ -38,7 +38,7 @@ clean:
 	rm -rf *.elc
 	rm -rf $(WORKDIR)
 
-.PHONY: doc
+.PHONY: doc test
 doc:
 	cd doc && mermaid -c config.json architecture.mmd -w 940 -p
 

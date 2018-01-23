@@ -61,6 +61,17 @@
              (-sort 'tide-compare-completions mock-completions)
              sorted-completions))))
 
+(ert-deftest load-tsconfig ()
+  (should (equal '(:compileOnSave t :compilerOptions (:target "ES7" :sourceMap t) :extends "./base.json")
+                 (tide-load-tsconfig "test/tsconfig.json" '())))
+
+  (should (equal '(:compileOnSave t :compilerOptions (:target "ES6" :sourceMap t))
+                 (tide-load-tsconfig "test/base.json" '())))
+
+  (should-error (tide-load-tsconfig "test/loop.json" '()))
+
+  (should-error (tide-load-tsconfig "test/notfound.json" '())))
+
 (provide 'tide-tests)
 
 ;;; tide-tests.el ends here
