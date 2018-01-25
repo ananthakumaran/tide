@@ -2036,6 +2036,20 @@ timeout."
      (when (and config (eq (plist-get config :compileOnSave) t))
        (tide-command:compileOnSaveEmitFile)))))
 
+(defun tide-load-tsconfig (path loaded-paths)
+  (when (member path loaded-paths)
+    (error "tsconfig file has cyclic dependency, config file at %S is already loaded." path))
+  (when (not (file-exists-p path))
+    (error "tsconfig file not found at %S." path))
+  (let ((config (tide-safe-json-read-file path)))
+    (-if-let (extends (plist-get config :extends))
+        (let ((base (tide-load-tsconfig (expand-file-name extends (file-name-directory path)) (cons path loaded-paths))))
+          (tide-combine-plists
+           base
+           config
+           `(:compilerOptions ,(tide-combine-plists (plist-get base :compilerOptions) (plist-get config :compilerOptions)))))
+      config)))
+
 (defun tide-project-config (cb)
   (let ((config (gethash (tide-project-name) tide-project-configs :not-loaded)))
     (if (eq config :not-loaded)
@@ -2043,7 +2057,7 @@ timeout."
          (lambda (response)
            (tide-on-response-success response nil
              (let* ((config-file-name (tide-plist-get response :body :configFileName))
-                    (config (and config-file-name (file-exists-p config-file-name) (tide-safe-json-read-file config-file-name))))
+                    (config (and config-file-name (file-exists-p config-file-name) (tide-load-tsconfig config-file-name '()))))
                (puthash (tide-project-name) config tide-project-configs)
                (funcall cb config)))))
       (funcall cb config))))
