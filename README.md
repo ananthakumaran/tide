@@ -42,6 +42,47 @@
 (add-hook 'typescript-mode-hook #'setup-tide-mode)
 ```
 
+#### Integration with use-package
+```elisp
+(use-package tide
+  :commands tide-setup tide-mode setup-tide-mode
+  :config
+  (defun setup-tide-mode ()
+    (interactive)
+    (tide-setup)
+    (tide-mode +1)
+    ;; Flycheck, eldoc and company are optional
+    (flycheck-mode +1)
+    (setq-default tab-width 2)
+    (setq flycheck-check-syntax-automatically '(save mode-enabled))
+    (eldoc-mode +1)
+    (tide-hl-identifier-mode +1)
+    (company-mode +1))
+  (require 'typescript-mode)
+  (add-hook 'typescript-mode-hook #'setup-tide-mode)
+
+  ;; aligns annotation to the right hand side
+  (setq company-tooltip-align-annotations t)
+  ;; format options
+  (setq tide-format-options '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t :placeOpenBraceOnNewLineForFunctions nil))
+  ;; support for JS files
+  (add-hook 'js2-mode-hook #'setup-tide-mode)
+  ;; from now on web-mode is required
+  (require 'web-mode)
+  ;; support for TSX files
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
+  (add-hook 'web-mode-hook
+            (lambda ()
+              (when (string-equal "tsx" (file-name-extension buffer-file-name))
+                (setup-tide-mode))))
+  ;; support for JSX files
+  (add-to-list 'auto-mode-alist '("\\.jsx\\'" . web-mode))
+  (add-hook 'web-mode-hook
+            (lambda ()
+              (when (string-equal "jsx" (file-name-extension buffer-file-name))
+                (setup-tide-mode)))))
+```
+
 #### Format options
 
 Format options can be specified in multiple ways.
@@ -272,4 +313,3 @@ Function used by tide to locate tsserver.
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
-
