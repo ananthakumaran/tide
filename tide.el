@@ -2091,6 +2091,34 @@ timeout."
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
+(defun tide-command:status ()
+  (tide-send-command-sync "status" '()))
+
+(defun tide-show-project-info (version config-file-name)
+  (with-current-buffer (get-buffer-create "*tide-project-info*")
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (insert "tsserver version: ")
+      (insert (propertize version 'face '(success bold)))
+      (insert "\n\n")
+      (insert "config file path: ")
+      (insert (propertize config-file-name 'face 'success)))
+    (special-mode)
+    (display-buffer (current-buffer) t)))
+
+(defun tide-project-info ()
+  "Show the version of tsserver."
+  (interactive)
+  (let ((response (tide-command:status)))
+    (if (tide-command-unknown-p response)
+        (tide-tsserver-feature-not-supported "2.7")
+      (let ((version (tide-plist-get response :body :version)))
+        (tide-command:projectInfo
+         (lambda (response)
+           (tide-on-response-success response nil
+             (let ((config-file-name (tide-plist-get response :body :configFileName)))
+               (tide-show-project-info version config-file-name)))))))))
+
 (provide 'tide)
 
 ;;; tide.el ends here

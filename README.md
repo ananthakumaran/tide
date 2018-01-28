@@ -152,7 +152,10 @@ that are similar to the error at point.
 
 <kbd>M-x tide-refactor</kbd> Refactor code at point or current region.
 
-<kbd>M-x tide-jsdoc-template</kbd> Insert JSDoc comment template at point.
+<kbd>M-x tide-jsdoc-template</kbd> Insert JSDoc comment template at
+point.
+
+<kbd>M-x tide-project-info</kbd> Show the version of tsserver.
 
 ### Features
 
