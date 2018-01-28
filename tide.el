@@ -1018,6 +1018,9 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-command:getCodeFixes ()
   (tide-send-command-sync "getCodeFixes" `(:file ,(tide-buffer-file-name) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
 
+(defun tide-command:getCombinedCodeFix (fixId)
+  (tide-send-command-sync "getCombinedCodeFix" `(:scope (:type "file" :args (:file ,(tide-buffer-file-name))) :fixId ,fixId)))
+
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
 
@@ -1025,22 +1028,38 @@ Noise can be anything like braces, reserved keywords, etc."
   "Apply a single `FIX', which may apply to several files."
   (tide-apply-code-edits (plist-get fix :changes)))
 
-(defun tide-apply-codefixes (fixes)
+(defun tide-apply-codefix-for-all-in-file (fix)
+  (tide-apply-codefix fix)
+  (-when-let* ((fix-id (plist-get fix :fixId))
+               (response (tide-command:getCombinedCodeFix fix-id)))
+    (tide-on-response-success response nil
+      (tide-apply-codefix (plist-get response :body)))))
+
+(defun tide-apply-codefixes (fixes apply-codefix)
   (cond ((= 0 (length fixes)) (message "No code-fixes available."))
-        ((= 1 (length fixes)) (tide-apply-codefix (car fixes)))
-        (t (tide-apply-codefix
+        ((= 1 (length fixes)) (funcall apply-codefix (car fixes)))
+        (t (funcall
+            apply-codefix
             (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix))))))
 
-
-(defun tide-fix ()
-  "Apply code fix for the error at point."
-  (interactive)
+(defun tide-code-fix (apply-codefix)
   (unless (tide-get-flycheck-errors-ids-at-point)
     (error "No errors available at current point."))
   (let ((response (tide-command:getCodeFixes)))
     (tide-on-response-success response nil
       (let ((fixes (plist-get response :body)))
-        (tide-apply-codefixes fixes)))))
+        (tide-apply-codefixes fixes apply-codefix)))))
+
+(defun tide-fix (&optional arg)
+  "Apply code fix for the error at point.
+
+When invoked with a prefix arg, apply code fix for all the errors
+in the file that are similar to the error at point."
+  (interactive "P")
+  (if arg
+      (tide-code-fix #'tide-apply-codefix-for-all-in-file)
+    (tide-code-fix #'tide-apply-codefix)))
+
 
 ;;; Refactor
 

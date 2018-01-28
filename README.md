@@ -146,7 +146,9 @@ at point.
 
 <kbd>M-x tide-format</kbd> Format the current region or buffer.
 
-<kbd>M-x tide-fix</kbd> Apply code fix for the error at point.
+<kbd>M-x tide-fix</kbd> Apply code fix for the error at point. When
+invoked with a prefix arg, apply code fix for all the errors in the file
+that are similar to the error at point.
 
 <kbd>M-x tide-refactor</kbd> Refactor code at point or current region.
 
