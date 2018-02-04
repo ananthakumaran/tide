@@ -155,7 +155,7 @@ that are similar to the error at point.
 <kbd>M-x tide-jsdoc-template</kbd> Insert JSDoc comment template at
 point.
 
-<kbd>M-x tide-project-info</kbd> Show the version of tsserver.
+<kbd>M-x tide-verify-setup</kbd> Show the version of tsserver.
 
 ### Features
 

@@ -1035,20 +1035,20 @@ Noise can be anything like braces, reserved keywords, etc."
     (tide-on-response-success response nil
       (tide-apply-codefix (plist-get response :body)))))
 
-(defun tide-apply-codefixes (fixes apply-codefix)
+(defun tide-apply-codefixes (fixes codefix-fn)
   (cond ((= 0 (length fixes)) (message "No code-fixes available."))
-        ((= 1 (length fixes)) (funcall apply-codefix (car fixes)))
+        ((= 1 (length fixes)) (funcall codefix-fn (car fixes)))
         (t (funcall
-            apply-codefix
+            codefix-fn
             (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix))))))
 
-(defun tide-code-fix (apply-codefix)
+(defun tide-code-fix (codefix-fn)
   (unless (tide-get-flycheck-errors-ids-at-point)
     (error "No errors available at current point."))
   (let ((response (tide-command:getCodeFixes)))
     (tide-on-response-success response nil
       (let ((fixes (plist-get response :body)))
-        (tide-apply-codefixes fixes apply-codefix)))))
+        (tide-apply-codefixes fixes codefix-fn)))))
 
 (defun tide-fix (&optional arg)
   "Apply code fix for the error at point.
@@ -2106,7 +2106,7 @@ timeout."
     (special-mode)
     (display-buffer (current-buffer) t)))
 
-(defun tide-project-info ()
+(defun tide-verify-setup ()
   "Show the version of tsserver."
   (interactive)
   (let ((response (tide-command:status)))
