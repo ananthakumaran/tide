@@ -2065,12 +2065,22 @@ timeout."
     (error "tsconfig file not found at %S." path))
   (let ((config (tide-safe-json-read-file path)))
     (-if-let (extends (plist-get config :extends))
-        (let ((base (tide-load-tsconfig (expand-file-name extends (file-name-directory path)) (cons path loaded-paths))))
-          (tide-combine-plists
-           base
-           config
-           `(:compilerOptions ,(tide-combine-plists (plist-get base :compilerOptions) (plist-get config :compilerOptions)))))
+        (tide--load-tsconfig-extension config (expand-file-name extends (file-name-directory path)) (cons path loaded-paths))
       config)))
+
+(defun tide--load-tsconfig-extension (config path loaded-paths)
+  ;; This replicates the logic from TypeScript in src/compiler/commandLineParser.ts
+  ;; function getExtendsConfigPath. If the file in "extends" does not exist, then TS
+  ;; slaps an extension on it, and tries to load that file.
+  (when (not (or (file-exists-p path)
+                 (string= (file-name-extension path) "json")))
+    (setq path (concat path ".json")))
+  ;; We don't recheck the path's existence: tide-load-tsconfig will fail if the path  does not exist.
+  (let ((extension (tide-load-tsconfig path loaded-paths)))
+    (tide-combine-plists
+     extension
+     config
+     `(:compilerOptions ,(tide-combine-plists (plist-get extension :compilerOptions) (plist-get config :compilerOptions))))))
 
 (defun tide-project-config (cb)
   (let ((config (gethash (tide-project-name) tide-project-configs :not-loaded)))
