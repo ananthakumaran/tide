@@ -3,6 +3,6 @@
 tsserver/.log*
 dist
 todo
-example/test.js
+example
 .dir-locals.el
 *~
