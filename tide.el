@@ -1979,7 +1979,10 @@ highlights from previously highlighted identifier."
 
 (defun tide--hl-highlight (response)
   "Highlight all instances of the identifier under point."
-  (let ((references (plist-get (car (plist-get response :body)) :highlightSpans)))
+  (-when-let* ((item (-first (lambda (item)
+                               (equal (tide-buffer-file-name) (plist-get item :file)))
+                             (plist-get response :body)))
+               (references (plist-get item :highlightSpans)))
     (-each references
       (lambda (reference)
         (let* ((kind (plist-get reference :kind))
