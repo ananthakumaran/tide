@@ -1252,7 +1252,7 @@ in the file that are similar to the error at point."
                (response (tide-completion-entry-details name))
                (detail (car (plist-get response :body)))
                (fixes (plist-get detail :codeActions)))
-    (tide-apply-codefixes fixes)))
+    (tide-apply-codefixes fixes #'tide-apply-codefix)))
 
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
