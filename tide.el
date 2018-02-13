@@ -1196,6 +1196,7 @@ in the file that are similar to the error at point."
      (let ((name (plist-get completion :name)))
        (put-text-property 0 1 'file-location file-location name)
        (put-text-property 0 1 'completion completion name)
+       (put-text-property 0 1 'prefix prefix name)
        name))
    (let ((filtered
           (-filter (lambda (completion)
@@ -1207,7 +1208,7 @@ in the file that are similar to the error at point."
 
 (defun tide-command:completions (prefix cb)
   (let* ((file-location
-          `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions)))
+          `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions :includeInsertTextCompletions t)))
     (when (not (tide-member-completion-p prefix))
       (setq file-location (plist-put file-location :prefix prefix)))
     (tide-send-command
@@ -1248,11 +1249,23 @@ in the file that are similar to the error at point."
     (tide-construct-documentation detail)))
 
 (defun tide-post-completion (name)
-  (-when-let* ((has-action (plist-get (get-text-property 0 'completion name) :hasAction))
-               (response (tide-completion-entry-details name))
-               (detail (car (plist-get response :body)))
-               (fixes (plist-get detail :codeActions)))
-    (tide-apply-codefixes fixes #'tide-apply-codefix)))
+  (let ((completion (get-text-property 0 'completion name))
+        (prefix (get-text-property 0 'prefix name)))
+
+    (-when-let (insert-text (plist-get completion :insertText))
+      (when (looking-back (rx-to-string name))
+        (backward-delete-char (length name))
+        (-if-let (span (plist-get completion :replacementSpan))
+            (progn
+              (insert prefix) ;; tsserver assumes the prefix text is already inserted
+              (tide-apply-edit (tide-combine-plists span `(:newText ,insert-text))))
+          (insert insert-text))))
+
+    (-when-let* ((has-action (plist-get completion :hasAction))
+                 (response (tide-completion-entry-details name))
+                 (detail (car (plist-get response :body)))
+                 (fixes (plist-get detail :codeActions)))
+      (tide-apply-codefixes fixes #'tide-apply-codefix))))
 
 ;;;###autoload
 (defun company-tide (command &optional arg &rest ignored)
