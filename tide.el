@@ -37,6 +37,7 @@
 (require 'flycheck)
 (require 'imenu)
 (require 'thingatpt)
+(require 'tramp)
 (require 'tide-lv)
 
 ;; Silence compiler warnings
@@ -470,13 +471,32 @@ LINE is one based, OFFSET is one based and column is zero based"
   (tide-sync-buffer-contents)
 
   (let* ((request-id (tide-next-request-id))
-         (command `(:command ,name :seq ,request-id :arguments ,args))
+         (command `(:command ,name :seq ,request-id :arguments ,(tide--local-filename-args args)))
          (json-encoding-pretty-print nil)
          (encoded-command (json-encode command))
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
     (when callback
       (puthash request-id (cons (current-buffer) callback) tide-response-callbacks))))
+
+(defun tide--local-filename-args (args)
+  "Convert filename in the command arguments to local filename.
+If the file is on a remote host, filename should be converted to local filename 
+because tsserver runs on the remote host."
+  (tide--local-filename-in-plist (tide--local-filename-in-plist args :file) :tmpfile))
+
+(defun tide--local-filename-in-plist (plist FILE)
+  "Convert filename in plist to local filename."
+  (let ((filename (plist-get plist FILE)))
+    (if filename
+        (plist-put plist FILE (tide--local-filename filename))
+      plist)))
+
+(defun tide--local-filename (filename)
+  "Convert filename to local filename if it is on remote host."
+  (if (and tramp-mode (tramp-tramp-file-p filename))
+      (tramp-file-name-localname (tramp-dissect-file-name filename))
+    filename))
 
 (defun tide-send-command-sync (name args)
   (let* ((start-time (current-time))
@@ -563,7 +583,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
   (let* ((default-directory (tide-project-root))
          (process-environment (append tide-tsserver-process-environment process-environment))
          (buf (generate-new-buffer tide-server-buffer-name))
-         (tsserverjs (tide-locate-tsserver-executable))
+         (tsserverjs (tide--local-filename (tide-locate-tsserver-executable)))
          ;; Use a pipe to communicate with the subprocess. This fixes a hang
          ;; when a >1k message is sent on macOS.
          (process-connection-type nil)
@@ -699,7 +719,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   (interactive "P")
   (let ((cb (lambda (response)
               (tide-on-response-success response nil
-                (-when-let (filespan (car (plist-get response :body)))
+                (-when-let (filespan (tide--full-filename-in-plist (car (plist-get response :body))))
                   ;; if we're still at the same location...
                   ;; maybe we're a abstract member which has impementations?
                   (if (and (not arg)
@@ -709,6 +729,33 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
     (if arg
         (tide-command:typeDefinition cb)
       (tide-command:definition cb))))
+
+(defun tide--full-filename-in-plist (plist)
+  "Convert local filename in plist to full(tramp) filename.
+
+Filename passed from tsserver on remote host is local filename.
+So it should to be converted to full(tramp) filename."
+  (let ((filename (plist-get plist :file)))
+    (plist-put plist :file (tide--full-filename filename))))
+
+(defun tide--full-filename-in-plists (plists)
+  "Convert local filename in plists to full(tramp) filename."
+  (-each plists
+    (lambda (plist)
+      (tide--full-filename-in-plist plist)))
+  plists)
+
+(defun tide--full-filename (filename)
+  "Convert local filename to full(tramp) filename."
+  (if (and tramp-mode
+           (tramp-tramp-file-p tide-project-root)
+           (not (tramp-tramp-file-p filename)))
+      (let ((root-vec (tramp-dissect-file-name tide-project-root)))
+        (tramp-make-tramp-file-name (tramp-file-name-method root-vec)
+                                    (tramp-file-name-user root-vec)
+                                    (tramp-file-name-host root-vec)
+                                    filename))
+    filename))
 
 (defun tide-filespan-is-current-location-p (filespan)
   (let* ((location (plist-get filespan :start))
@@ -994,9 +1041,19 @@ Noise can be anything like braces, reserved keywords, etc."
   (when tide-buffer-dirty
     (setq tide-buffer-dirty nil)
     (when (not tide-buffer-tmp-file)
-      (setq tide-buffer-tmp-file (make-temp-file "tide")))
-    (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
+      (setq tide-buffer-tmp-file (tide--make-temp-file)))
+    (let (tramp-message-show-message)
+      (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message))
     (tide-send-command "reload" `(:file ,(tide-buffer-file-name) :tmpfile ,tide-buffer-tmp-file))))
+
+(defun tide--make-temp-file ()
+  "Make temp file for tsserver.
+If tsserver runs on remote host, temp file also should be created on remote host."
+  (let ((filename (tide-buffer-file-name)))
+    (if (and tramp-mode
+             (tramp-tramp-file-p filename))
+        (tide--full-filename (tramp-make-tramp-temp-file (tramp-dissect-file-name filename)))
+      (make-temp-file "tide"))))
 
 ;;; Code-fixes
 
@@ -1432,7 +1489,7 @@ number."
   (interactive)
   (let ((response (tide-command:references)))
     (tide-on-response-success response nil
-      (let ((references (tide-plist-get response :body :refs)))
+      (let ((references (tide--full-filename-in-plists (tide-plist-get response :body :refs))))
         (-if-let (usage (tide-find-single-usage references))
             (progn
               (message "This is the only usage.")
@@ -1521,7 +1578,7 @@ number."
           (message "%s" (tide-plist-get response :body :info :localizedErrorMessage))
         (let* ((old-symbol (tide-plist-get response :body :info :displayName))
                (new-symbol (tide-read-new-symbol old-symbol))
-               (locs (tide-plist-get response :body :locs))
+               (locs (tide--full-filename-in-plists (tide-plist-get response :body :locs)))
                (count 0))
           (cl-flet ((current-file-p (loc)
                                     (file-equal-p (expand-file-name (tide-buffer-file-name))
@@ -1840,7 +1897,7 @@ code-analysis."
          (save-excursion
            (goto-char (point-max))
            (let ((inhibit-read-only t)
-                 (file-name (tide-plist-get response :body :file))
+                 (file-name (tide--full-filename (tide-plist-get response :body :file)))
                  (diagnostics (tide-plist-get response :body :diagnostics)))
              (pcase (plist-get response :event)
                ("syntaxDiag"
@@ -1930,7 +1987,7 @@ code-analysis."
   (tide-command:projectInfo
    (lambda (response)
      (tide-on-response-success response nil
-       (tide-display-erros (tide-plist-get response :body :fileNames))))
+       (tide-display-erros (-map 'tide--full-filename (tide-plist-get response :body :fileNames)))))
    t))
 
 ;;; Identifier highlighting
