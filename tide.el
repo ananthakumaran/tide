@@ -306,20 +306,27 @@ ones and overrule settings in the other lists."
 (defun tide-tsserver-feature-not-supported (min-version)
   (error "tsserver %S or greater is required for this feature." min-version))
 
-(defmacro tide-on-response-success (response ignore-empty-response &rest body)
+(defmacro tide-on-response-success (response &optional options &rest body)
   (declare (indent 2))
-  `(if (tide-response-success-p ,response)
-       (progn
-         ,@body)
-     (-when-let (msg (plist-get response :message))
-       (unless (and ,ignore-empty-response (string-equal msg "No content available."))
-         (message "%s" msg)))
-     nil))
+  (when (not body)
+    (setq body `(,options))
+    (setq options '()))
+  (let ((ignore-empty-response (plist-get options :ignore-empty))
+        (min-version (plist-get options :min-version)))
+    `(cond ((and ,min-version (tide-command-unknown-p ,response)) (tide-tsserver-feature-not-supported ,min-version))
+           ((tide-response-success-p ,response)
+            (progn
+              ,@body))
+           (t
+            (-when-let (msg (plist-get ,response :message))
+              (unless (and ,ignore-empty-response (string-equal msg "No content available."))
+                (message "%s" msg))
+              nil)))))
 
-(defmacro tide-on-response-success-callback (response ignore-empty-response &rest body)
+(defmacro tide-on-response-success-callback (response &optional options &rest body)
   (declare (indent 2))
   `(lambda (,response)
-     (tide-on-response-success ,response ,ignore-empty-response
+     (tide-on-response-success ,response ,options
        ,@body)))
 
 (defun tide-join (list)
@@ -698,7 +705,7 @@ If pointed at an abstract member-declaration, will proceed to look for
 implementations.  When invoked with a prefix arg, jump to the type definition."
   (interactive "P")
   (let ((cb (lambda (response)
-              (tide-on-response-success response nil
+              (tide-on-response-success response
                 (-when-let (filespan (car (plist-get response :body)))
                   ;; if we're still at the same location...
                   ;; maybe we're a abstract member which has impementations?
@@ -767,7 +774,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   "Jump to a implementation of the symbol at point."
   (interactive)
   (let ((response (tide-command:implementation)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (let ((impls (plist-get response :body)))
         (cond ((= 0 (length impls)) (message "No implementations available."))
               ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
@@ -803,7 +810,7 @@ Noise can be anything like braces, reserved keywords, etc."
                  (completion-table-dynamic
                   (lambda (prefix)
                     (let ((response (tide-command:navto prefix)))
-                      (tide-on-response-success response nil
+                      (tide-on-response-success response
                         (-when-let (navto-items (plist-get response :body))
                           (setq navto-items
                                 (-filter
@@ -885,7 +892,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-send-command
    "signatureHelp"
    `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
-   (tide-on-response-success-callback response t
+   (tide-on-response-success-callback response (:ignore-empty t)
      (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
@@ -946,7 +953,7 @@ Noise can be anything like braces, reserved keywords, etc."
         (tide-command:signatureHelp #'tide-eldoc-maybe-show)
       (when (looking-at "\\s_\\|\\sw")
         (tide-command:quickinfo
-         (tide-on-response-success-callback response t
+         (tide-on-response-success-callback response (:ignore-empty t)
            (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body))))))))
   nil)
 
@@ -966,7 +973,7 @@ Noise can be anything like braces, reserved keywords, etc."
   "Show documentation of the symbol at point."
   (interactive)
   (tide-command:quickinfo
-   (tide-on-response-success-callback response nil
+   (tide-on-response-success-callback response
      (-if-let (buffer (tide-construct-documentation (plist-get response :body)))
          (display-buffer buffer t)
        (message "No documentation available.")))))
@@ -1032,7 +1039,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-apply-codefix fix)
   (-when-let* ((fix-id (plist-get fix :fixId))
                (response (tide-command:getCombinedCodeFix fix-id)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (tide-apply-codefix (plist-get response :body)))))
 
 (defun tide-apply-codefixes (fixes codefix-fn)
@@ -1046,7 +1053,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (unless (tide-get-flycheck-errors-ids-at-point)
     (error "No errors available at current point."))
   (let ((response (tide-command:getCodeFixes)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (let ((fixes (plist-get response :body)))
         (tide-apply-codefixes fixes codefix-fn)))))
 
@@ -1060,6 +1067,18 @@ in the file that are similar to the error at point."
       (tide-code-fix #'tide-apply-codefix-for-all-in-file)
     (tide-code-fix #'tide-apply-codefix)))
 
+;;; Organize Imports
+
+(defun tide-command:organizeImports ()
+  (tide-send-command-sync "organizeImports" `(:scope (:type "file" :args (:file ,(tide-buffer-file-name))))))
+
+(defun tide-organize-imports ()
+  "Organize imports in the file."
+  (interactive)
+  (let ((response (tide-command:organizeImports)))
+    (tide-on-response-success response (:min-version "2.8")
+      (-when-let (changes (plist-get response :body))
+        (tide-apply-code-edits changes)))))
 
 ;;; Refactor
 
@@ -1100,7 +1119,7 @@ in the file that are similar to the error at point."
 
 (defun tide-apply-refactor (selected)
   (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (deactivate-mark)
       (tide-apply-code-edits (tide-plist-get response :body :edits))
       (-when-let (rename-location (tide-plist-get response :body :renameLocation))
@@ -1113,10 +1132,11 @@ in the file that are similar to the error at point."
   "Refactor code at point or current region"
   (interactive)
   (let ((response (tide-command:getApplicableRefactors)))
-    (cond ((tide-command-unknown-p response) (tide-tsserver-feature-not-supported "2.4"))
-          ((and (tide-response-success-p response) (plist-get response :body)) (tide-apply-refactor
-                                                                                (tide-select-refactor (plist-get response :body))))
-          (t (message "No refactors available.")))))
+    (tide-on-response-success response (:min-version "2.4")
+      (-if-let (body (plist-get response :body))
+          (tide-apply-refactor
+           (tide-select-refactor body))
+        (message "No refactors available.")))))
 
 ;;; Auto completion
 
@@ -1431,7 +1451,7 @@ number."
   "List all references to the symbol at point."
   (interactive)
   (let ((response (tide-command:references)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (let ((references (tide-plist-get response :body :refs)))
         (-if-let (usage (tide-find-single-usage references))
             (progn
@@ -1468,7 +1488,7 @@ number."
 
 (defun tide-imenu-index ()
   (let ((response (tide-command:navbar)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (let ((children (tide-plist-get response :body :childItems)))
         (if tide-imenu-flatten
             (-flatten (-map #'tide-build-flat-imenu-index children))
@@ -1516,7 +1536,7 @@ number."
   "Rename symbol at point."
   (interactive)
   (let ((response (tide-command:rename)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (if (eq (tide-plist-get response :body :info :canRename) :json-false)
           (message "%s" (tide-plist-get response :body :info :localizedErrorMessage))
         (let* ((old-symbol (tide-plist-get response :body :info :displayName))
@@ -1594,7 +1614,7 @@ code-analysis."
                            :offset ,(tide-offset start)
                            :endLine ,(tide-line-number-at-pos end)
                            :endOffset ,(tide-offset end)))))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
 
 (defun tide-format-regions (ranges)
@@ -1613,7 +1633,7 @@ code-analysis."
   "Insert JSDoc comment template at point"
   (interactive)
   (let ((response (tide-command:docCommentTemplate)))
-    (tide-on-response-success response nil
+    (tide-on-response-success response
       (save-excursion
         (tide-insert (tide-plist-get response :body :newText)))
       (forward-char (tide-plist-get response :body :caretOffset)))))
@@ -1668,7 +1688,7 @@ code-analysis."
   (when (and tide-require-manual-setup (tide-buffer-file-name))
     (tide-command:projectInfo
      (lambda (response)
-       (tide-on-response-success response nil
+       (tide-on-response-success response
          (when (string-prefix-p "/dev/null/inferredProject"
                                 (tide-plist-get response :body :configFileName))
            (message (format "'%s' is not part of a project, add it to the files array in tsconfig.json"
@@ -1929,7 +1949,7 @@ code-analysis."
   (interactive)
   (tide-command:projectInfo
    (lambda (response)
-     (tide-on-response-success response nil
+     (tide-on-response-success response
        (tide-display-erros (tide-plist-get response :body :fileNames))))
    t))
 
@@ -2100,7 +2120,7 @@ timeout."
     (if (eq config :not-loaded)
         (tide-command:projectInfo
          (lambda (response)
-           (tide-on-response-success response nil
+           (tide-on-response-success response
              (let* ((config-file-name (tide-plist-get response :body :configFileName))
                     (config (and config-file-name (file-exists-p config-file-name) (tide-load-tsconfig config-file-name '()))))
                (puthash (tide-project-name) config tide-project-configs)
@@ -2136,14 +2156,13 @@ timeout."
   "Show the version of tsserver."
   (interactive)
   (let ((response (tide-command:status)))
-    (if (tide-command-unknown-p response)
-        (tide-tsserver-feature-not-supported "2.7")
+    (tide-on-response-success response (:min-version "2.7")
       (let ((version (tide-plist-get response :body :version)))
         (tide-command:projectInfo
          (lambda (response)
-           (tide-on-response-success response nil
-             (let ((config-file-name (tide-plist-get response :body :configFileName)))
-               (tide-show-project-info version config-file-name)))))))))
+           (tide-on-response-success response
+               (let ((config-file-name (tide-plist-get response :body :configFileName)))
+                 (tide-show-project-info version config-file-name)))))))))
 
 (provide 'tide)
 
