@@ -157,6 +157,8 @@ point.
 
 <kbd>M-x tide-verify-setup</kbd> Show the version of tsserver.
 
+<kbd>M-x tide-organize-imports</kbd> Organize imports in the file.
+
 ### Features
 
 * ElDoc
