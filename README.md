@@ -172,6 +172,7 @@ point.
 * Highlight Identifiers
 * Code Fixes
 * Code Refactor
+* Organize Imports
 
 ### Debugging
 
