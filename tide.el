@@ -1202,7 +1202,14 @@ in the file that are similar to the error at point."
       (string-equal modifier-b "declare"))))
 
 (defun tide-completion-prefix ()
-  (company-grab-symbol-cons "\\." 1))
+  (if (and (tide-in-string-p)
+           (looking-back
+            (rx (or (and "import" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
+                    (and "from" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
+                    (and "import(" (or ?\" ?') (0+ (not (any ?\" ?'))))
+                    (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))))
+      (cons (company-grab (rx (or ?/ ?\" ?') (group (0+ (not (any ?\" ?'))))) 1) t)
+    (company-grab-symbol-cons "\\." 1)))
 
 (defun tide-member-completion-p (prefix)
   (save-excursion
@@ -1227,10 +1234,10 @@ in the file that are similar to the error at point."
        filtered))))
 
 (defun tide-command:completions (prefix cb)
-  (let* ((file-location
-          `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions :includeInsertTextCompletions t)))
-    (when (not (tide-member-completion-p prefix))
-      (setq file-location (plist-put file-location :prefix prefix)))
+  (let ((file-location
+         `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions :includeInsertTextCompletions t)))
+    (when (and (not (tide-in-string-p)) (not (tide-member-completion-p prefix)))
+      (setq file-location (-concat file-location `(:prefix ,prefix))))
     (tide-send-command
      "completions"
      file-location
