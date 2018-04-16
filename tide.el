@@ -312,6 +312,7 @@ ones and overrule settings in the other lists."
   (error "tsserver %S or greater is required for this feature." min-version))
 
 (defmacro tide-on-response-success (response &optional options &rest body)
+  "BODY must be a single expression if OPTIONS is not passed."
   (declare (indent 2))
   (when (not body)
     (setq body `(,options))
