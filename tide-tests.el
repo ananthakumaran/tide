@@ -1,4 +1,3 @@
-
 ;;; tide-tests --- This file contains automated tests for tide.el
 
 ;;; Commentary:
@@ -23,10 +22,6 @@
 
 (require 'tide)
 (require 'dash)
-
-
-(defun tide-plist-map (fn plist)
-  (-map (-lambda ((key value)) (funcall fn key value)) (-partition 2 plist)))
 
 (defun tide-plist-equal (a b)
   (and (listp a) (listp b)
