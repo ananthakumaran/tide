@@ -272,6 +272,11 @@ above."
    args
    :initial-value list))
 
+(defun tide-plist-map (fn plist)
+  (when (and plist (not (cl-evenp (length plist))))
+    (error "Invalid plist %S" plist))
+  (-map (-lambda ((key value)) (funcall fn key value)) (-partition 2 plist)))
+
 (defun tide-combine-plists (&rest plists)
   "Create a single property list from all plists in PLISTS.
 The process starts by copying the first list, and then setting properties
@@ -307,10 +312,16 @@ ones and overrule settings in the other lists."
   (error "tsserver %S or greater is required for this feature." min-version))
 
 (defmacro tide-on-response-success (response &optional options &rest body)
+  "BODY must be a single expression if OPTIONS is not passed."
   (declare (indent 2))
   (when (not body)
     (setq body `(,options))
     (setq options '()))
+  (tide-plist-map
+   (lambda (key _value)
+     (when (not (member key '(:ignore-empty :min-version)))
+       (error "Invalid options %S" options)))
+   options)
   (let ((ignore-empty-response (plist-get options :ignore-empty))
         (min-version (plist-get options :min-version)))
     `(cond ((and ,min-version (tide-command-unknown-p ,response)) (tide-tsserver-feature-not-supported ,min-version))
@@ -1120,13 +1131,14 @@ in the file that are similar to the error at point."
 (defun tide-apply-refactor (selected)
   (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
     (tide-on-response-success response
-      (deactivate-mark)
-      (tide-apply-code-edits (tide-plist-get response :body :edits))
-      (-when-let (rename-location (tide-plist-get response :body :renameLocation))
-        (with-current-buffer (tide-get-file-buffer (tide-plist-get response :body :renameFilename))
-          (tide-move-to-location rename-location)
-          (when (tide-can-rename-symbol-p)
-            (tide-rename-symbol)))))))
+      (progn
+        (deactivate-mark)
+        (tide-apply-code-edits (tide-plist-get response :body :edits))
+        (-when-let (rename-location (tide-plist-get response :body :renameLocation))
+          (with-current-buffer (tide-get-file-buffer (tide-plist-get response :body :renameFilename))
+            (tide-move-to-location rename-location)
+            (when (tide-can-rename-symbol-p)
+              (tide-rename-symbol))))))))
 
 (defun tide-refactor ()
   "Refactor code at point or current region"
@@ -1641,9 +1653,10 @@ code-analysis."
   (interactive)
   (let ((response (tide-command:docCommentTemplate)))
     (tide-on-response-success response
-      (save-excursion
-        (tide-insert (tide-plist-get response :body :newText)))
-      (forward-char (tide-plist-get response :body :caretOffset)))))
+      (progn
+        (save-excursion
+          (tide-insert (tide-plist-get response :body :newText)))
+        (forward-char (tide-plist-get response :body :caretOffset))))))
 
 ;;; Mode
 
