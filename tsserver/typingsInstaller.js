@@ -1590,7 +1590,7 @@ var ts;
     // If changing the text in this section, be sure to test `configureNightly` too.
     ts.versionMajorMinor = "2.8";
     /** The version of the TypeScript compiler release */
-    ts.version = ts.versionMajorMinor + ".1";
+    ts.version = ts.versionMajorMinor + ".3";
 })(ts || (ts = {}));
 (function (ts) {
     function isExternalModuleNameRelative(moduleName) {
@@ -3633,10 +3633,6 @@ var ts;
         return path;
     }
     ts.removeTrailingDirectorySeparator = removeTrailingDirectorySeparator;
-    /**
-     * Adds a trailing directory separator to a path, if it does not already have one.
-     * @param path The path.
-     */
     function ensureTrailingDirectorySeparator(path) {
         if (path.charAt(path.length - 1) !== ts.directorySeparator) {
             return path + ts.directorySeparator;
@@ -4797,13 +4793,18 @@ var ts;
          */
         function watchChildDirectories(parentDir, existingChildWatches, callback) {
             var newChildWatches;
-            ts.enumerateInsertsAndDeletes(host.directoryExists(parentDir) ? host.getAccessileSortedChildDirectories(parentDir) : ts.emptyArray, existingChildWatches, function (child, childWatcher) { return host.filePathComparer(ts.getNormalizedAbsolutePath(child, parentDir), childWatcher.dirName); }, createAndAddChildDirectoryWatcher, ts.closeFileWatcher, addChildDirectoryWatcher);
+            ts.enumerateInsertsAndDeletes(host.directoryExists(parentDir) ? ts.mapDefined(host.getAccessibleSortedChildDirectories(parentDir), function (child) {
+                var childFullName = ts.getNormalizedAbsolutePath(child, parentDir);
+                // Filter our the symbolic link directories since those arent included in recursive watch
+                // which is same behaviour when recursive: true is passed to fs.watch
+                return host.filePathComparer(childFullName, host.realpath(childFullName)) === 0 /* EqualTo */ ? childFullName : undefined;
+            }) : ts.emptyArray, existingChildWatches, function (child, childWatcher) { return host.filePathComparer(child, childWatcher.dirName); }, createAndAddChildDirectoryWatcher, ts.closeFileWatcher, addChildDirectoryWatcher);
             return newChildWatches || ts.emptyArray;
             /**
              * Create new childDirectoryWatcher and add it to the new ChildDirectoryWatcher list
              */
             function createAndAddChildDirectoryWatcher(childName) {
-                var result = createDirectoryWatcher(ts.getNormalizedAbsolutePath(childName, parentDir), callback);
+                var result = createDirectoryWatcher(childName, callback);
                 addChildDirectoryWatcher(result);
             }
             /**
@@ -4911,14 +4912,7 @@ var ts;
                 exit: function (exitCode) {
                     process.exit(exitCode);
                 },
-                realpath: function (path) {
-                    try {
-                        return _fs.realpathSync(path);
-                    }
-                    catch (_a) {
-                        return path;
-                    }
-                },
+                realpath: realpath,
                 debugMode: ts.some(process.execArgv, function (arg) { return /^--(inspect|debug)(-brk)?(=\d+)?$/i.test(arg); }),
                 tryEnableSourceMapsForHost: function () {
                     try {
@@ -4994,8 +4988,9 @@ var ts;
                 var watchDirectoryRecursively = createRecursiveDirectoryWatcher({
                     filePathComparer: useCaseSensitiveFileNames ? ts.compareStringsCaseSensitive : ts.compareStringsCaseInsensitive,
                     directoryExists: directoryExists,
-                    getAccessileSortedChildDirectories: function (path) { return getAccessibleFileSystemEntries(path).directories; },
-                    watchDirectory: watchDirectory
+                    getAccessibleSortedChildDirectories: function (path) { return getAccessibleFileSystemEntries(path).directories; },
+                    watchDirectory: watchDirectory,
+                    realpath: realpath
                 });
                 return function (directoryName, callback, recursive) {
                     if (recursive) {
@@ -5296,6 +5291,14 @@ var ts;
             }
             function getDirectories(path) {
                 return ts.filter(_fs.readdirSync(path), function (dir) { return fileSystemEntryExists(ts.combinePaths(path, dir), 1 /* Directory */); });
+            }
+            function realpath(path) {
+                try {
+                    return _fs.realpathSync(path);
+                }
+                catch (_a) {
+                    return path;
+                }
             }
             function getModifiedTime(path) {
                 try {
@@ -11475,6 +11478,10 @@ var ts;
             || kind === 251 /* MissingDeclaration */;
     }
     ts.isTypeElement = isTypeElement;
+    function isClassOrTypeElement(node) {
+        return isTypeElement(node) || isClassElement(node);
+    }
+    ts.isClassOrTypeElement = isClassOrTypeElement;
     function isObjectLiteralElementLike(node) {
         var kind = node.kind;
         return kind === 268 /* PropertyAssignment */
@@ -20191,7 +20198,7 @@ var ts;
                 if (ts.hasJSDocNodes(node)) {
                     for (var _i = 0, _a = node.jsDoc; _i < _a.length; _i++) {
                         var jsDocComment = _a[_i];
-                        forEachChild(jsDocComment, visitNode, visitArray);
+                        visitNode(jsDocComment);
                     }
                 }
                 checkNodePositions(node, aggressiveChecks);
@@ -20287,10 +20294,17 @@ var ts;
         function checkNodePositions(node, aggressiveChecks) {
             if (aggressiveChecks) {
                 var pos_2 = node.pos;
-                forEachChild(node, function (child) {
+                var visitNode_1 = function (child) {
                     ts.Debug.assert(child.pos >= pos_2);
                     pos_2 = child.end;
-                });
+                };
+                if (ts.hasJSDocNodes(node)) {
+                    for (var _i = 0, _a = node.jsDoc; _i < _a.length; _i++) {
+                        var jsDocComment = _a[_i];
+                        visitNode_1(jsDocComment);
+                    }
+                }
+                forEachChild(node, visitNode_1);
                 ts.Debug.assert(pos_2 <= node.end);
             }
         }
@@ -20315,6 +20329,12 @@ var ts;
                     // Adjust the pos or end (or both) of the intersecting element accordingly.
                     adjustIntersectingElement(child, changeStart, changeRangeOldEnd, changeRangeNewEnd, delta);
                     forEachChild(child, visitNode, visitArray);
+                    if (ts.hasJSDocNodes(child)) {
+                        for (var _i = 0, _a = child.jsDoc; _i < _a.length; _i++) {
+                            var jsDocComment = _a[_i];
+                            visitNode(jsDocComment);
+                        }
+                    }
                     checkNodePositions(child, aggressiveChecks);
                     return;
                 }
@@ -24269,6 +24289,13 @@ var ts;
                 : undefined;
         }
         server.findArgument = findArgument;
+        /*@internal*/
+        function nowString() {
+            // E.g. "12:34:56.789"
+            var d = new Date();
+            return d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds() + "." + d.getMilliseconds();
+        }
+        server.nowString = nowString;
     })(server = ts.server || (ts.server = {}));
 })(ts || (ts = {}));
 var ts;
@@ -24668,7 +24695,7 @@ var ts;
                     };
                     this.writeLine = function (text) {
                         try {
-                            fs.appendFileSync(_this.logFile, text + ts.sys.newLine);
+                            fs.appendFileSync(_this.logFile, "[" + server.nowString() + "] " + text + ts.sys.newLine);
                         }
                         catch (e) {
                             _this.logEnabled = false;
