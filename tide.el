@@ -4,7 +4,7 @@
 
 ;; Author: Anantha kumaran <ananthakumaran@gmail.com>
 ;; URL: http://github.com/ananthakumaran/tide
-;; Version: 2.8.3
+;; Version: 2.8.3.1
 ;; Keywords: typescript
 ;; Package-Requires: ((dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
@@ -272,10 +272,12 @@ above."
    args
    :initial-value list))
 
-(defun tide-plist-map (fn plist)
-  (when (and plist (not (cl-evenp (length plist))))
-    (error "Invalid plist %S" plist))
-  (-map (-lambda ((key value)) (funcall fn key value)) (-partition 2 plist)))
+(eval-and-compile
+  (defun tide-plist-map (fn plist)
+    (when (and plist (not (cl-evenp (length plist))))
+      (error "Invalid plist %S" plist))
+    (-map (-lambda ((key value)) (funcall fn key value)) (-partition 2 plist))))
+
 
 (defun tide-combine-plists (&rest plists)
   "Create a single property list from all plists in PLISTS.
