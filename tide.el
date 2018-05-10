@@ -721,7 +721,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
               (tide-on-response-success response
                 (-when-let (filespan (car (plist-get response :body)))
                   ;; if we're still at the same location...
-                  ;; maybe we're a abstract member which has impementations?
+                  ;; maybe we're a abstract member which has implementations?
                   (if (and (not arg)
                            (tide-filespan-is-current-location-p filespan))
                       (tide-jump-to-implementation)
