@@ -757,7 +757,8 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
     (if reuse-window
         (pop-to-buffer (tide-get-file-buffer file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (tide-get-file-buffer file)))
-    (tide-move-to-location (plist-get filespan :start))))
+    (tide-move-to-location (plist-get filespan :start))
+    (recenter)))
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
