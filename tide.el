@@ -174,6 +174,11 @@ above."
   :type '(choice (const "TS") (const "TSX") (const "JS")(const  "JSX"))
   :group 'tide)
 
+(defcustom tide-no-recenter-after-jump t
+  "Recenter buffer after jumping to definition"
+  :type 'boolean
+  :group 'tide)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -750,15 +755,35 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
     (tide-move-to-location location)
     (point)))
 
+(defun tide-recenter-p (filespan &optional no-recenter-pref)
+  (if no-recenter-pref
+      nil
+    (let* ((new-file-name (plist-get filespan :file)))
+      (if (string-equal new-file-name (tide-buffer-file-name))
+          (tide-recenter-in-same-buffer-p filespan)
+        t))
+    )
+  )
+
+(defun tide-recenter-in-same-buffer-p (filespan)
+  (let* ((newpos (plist-get (plist-get filespan :start) :line))
+         (line-diff (abs (- (line-number-at-pos) newpos))))
+    (if (> line-diff (count-screen-lines))
+        t
+      nil)))
+
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
-  (let ((file (plist-get filespan :file)))
+  (let ((file (plist-get filespan :file))
+        (recenter-decision (tide-recenter-p filespan tide-no-recenter-after-jump)))
     (unless no-marker
       (ring-insert find-tag-marker-ring (point-marker)))
     (if reuse-window
         (pop-to-buffer (tide-get-file-buffer file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (tide-get-file-buffer file)))
     (tide-move-to-location (plist-get filespan :start))
-    (recenter)))
+    (if recenter-decision
+        (recenter)))
+  )
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
