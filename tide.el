@@ -174,7 +174,7 @@ above."
   :type '(choice (const "TS") (const "TSX") (const "JS")(const  "JSX"))
   :group 'tide)
 
-(defcustom tide-recenter-after-jump nil
+(defcustom tide-recenter-after-jump t
   "Recenter buffer after jumping to definition"
   :type 'boolean
   :group 'tide)
