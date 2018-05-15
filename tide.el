@@ -174,7 +174,7 @@ above."
   :type '(choice (const "TS") (const "TSX") (const "JS")(const  "JSX"))
   :group 'tide)
 
-(defcustom tide-no-recenter-after-jump t
+(defcustom tide-recenter-after-jump nil
   "Recenter buffer after jumping to definition"
   :type 'boolean
   :group 'tide)
@@ -755,35 +755,29 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
     (tide-move-to-location location)
     (point)))
 
-(defun tide-recenter-p (filespan &optional no-recenter-pref)
-  (if no-recenter-pref
-      nil
+(defun tide-recenter-p (filespan &optional recenter-pref)
+  (when recenter-pref
     (let* ((new-file-name (plist-get filespan :file)))
       (if (string-equal new-file-name (tide-buffer-file-name))
           (tide-recenter-in-same-buffer-p filespan)
-        t))
-    )
-  )
+        t))))
 
 (defun tide-recenter-in-same-buffer-p (filespan)
   (let* ((newpos (plist-get (plist-get filespan :start) :line))
          (line-diff (abs (- (line-number-at-pos) newpos))))
-    (if (> line-diff (count-screen-lines))
-        t
-      nil)))
+    (> line-diff (count-screen-lines))))
 
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
   (let ((file (plist-get filespan :file))
-        (recenter-decision (tide-recenter-p filespan tide-no-recenter-after-jump)))
+        (should-recenter-p (tide-recenter-p filespan tide-recenter-after-jump)))
     (unless no-marker
       (ring-insert find-tag-marker-ring (point-marker)))
     (if reuse-window
         (pop-to-buffer (tide-get-file-buffer file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (tide-get-file-buffer file)))
     (tide-move-to-location (plist-get filespan :start))
-    (if recenter-decision
-        (recenter)))
-  )
+    (when should-recenter-p
+        (recenter))))
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
