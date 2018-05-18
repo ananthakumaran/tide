@@ -199,7 +199,7 @@ above."
 (tide-def-permanent-buffer-local tide-active-buffer-file-name nil)
 (tide-def-permanent-buffer-local tide-require-manual-setup nil)
 
-(defvar tide-servers (make-hash-table :test 'equal))
+(defvar tide-server nil)
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
 
 (defvar tide-source-root-directory (file-name-directory (or load-file-name buffer-file-name)))
@@ -462,9 +462,6 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 ;;; Server
 
-(defun tide-current-server ()
-  (gethash (tide-project-name) tide-servers))
-
 (defun tide-next-request-id ()
   (number-to-string (cl-incf tide-request-counter)))
 
@@ -489,7 +486,7 @@ LINE is one based, OFFSET is one based and column is zero based"
     ('event (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
-  (when (not (tide-current-server))
+  (when (not tide-server))
     (error "Server does not exist. Run M-x tide-restart-server to start it again"))
 
   (tide-sync-buffer-contents)
@@ -499,7 +496,7 @@ LINE is one based, OFFSET is one based and column is zero based"
          (json-encoding-pretty-print nil)
          (encoded-command (json-encode command))
          (payload (concat encoded-command "\n")))
-    (process-send-string (tide-current-server) payload)
+    (process-send-string tide-server payload)
     (when callback
       (puthash request-id (cons (current-buffer) callback) tide-response-callbacks))))
 
@@ -581,7 +578,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
    (expand-file-name tide--tsserver tide-tsserver-directory)))
 
 (defun tide-start-server ()
-  (when (tide-current-server)
+  (when tide-server
     (error "Server already exist"))
 
   (message "(%s) Starting tsserver..." (tide-project-name))
@@ -601,7 +598,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
     (with-current-buffer (process-buffer process)
       (buffer-disable-undo))
     (process-put process 'project-name (tide-project-name))
-    (puthash (tide-project-name) process tide-servers)
+    (setq tide-server process)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
 
 (defun tide-cleanup-buffer-callbacks ()
@@ -617,12 +614,11 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
   (tide-each-buffer project-name
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
-  (remhash project-name tide-servers)
   (remhash project-name tide-tsserver-unsupported-commands)
   (remhash project-name tide-project-configs))
 
 (defun tide-start-server-if-required ()
-  (when (not (tide-current-server))
+  (when (not tide-server)
     (tide-start-server)))
 
 (defun tide-decode-response-legth ()
@@ -1336,7 +1332,7 @@ in the file that are similar to the error at point."
     (prefix (and
              (bound-and-true-p tide-mode)
              (-any-p #'derived-mode-p tide-supported-modes)
-             (tide-current-server)
+             tide-server
              (not (nth 4 (syntax-ppss)))
              (or (tide-completion-prefix) 'stop)))
     (candidates (cons :async
@@ -1825,15 +1821,15 @@ code-analysis."
   (list
    (flycheck-verification-result-new
     :label "Typescript server"
-    :message (if (tide-current-server) "running" "not running")
-    :face (if (tide-current-server) 'success '(bold error)))
+    :message (if tide-server "running" "not running")
+    :face (if tide-server 'success '(bold error)))
    (flycheck-verification-result-new
     :label "Tide mode"
     :message (if (bound-and-true-p tide-mode) "enabled" "disabled")
     :face (if (bound-and-true-p tide-mode) 'success '(bold warning)))))
 
 (defun tide-flycheck-predicate ()
-  (and (bound-and-true-p tide-mode) (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
+  (and (bound-and-true-p tide-mode) tide-server (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
 
 (flycheck-define-generic-checker 'typescript-tide
   "A TypeScript syntax checker using tsserver."
@@ -2174,8 +2170,9 @@ timeout."
 (defun tide-restart-server ()
   "Restarts tsserver."
   (interactive)
-  (-when-let (server (tide-current-server))
-    (delete-process server))
+  (-when-let (server tide-server)
+    (delete-process server)
+    (setq tide-server nil))
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
