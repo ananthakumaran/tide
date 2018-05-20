@@ -1226,7 +1226,14 @@ in the file that are similar to the error at point."
       ))
    100))
 
-(defun tide-compare-completions (completion-a completion-b)
+(defun tide-compare-completions-basic (completion-a completion-b)
+  "Compare COMPLETION-A and COMPLETION-B based on their `sortText' property.
+This function is used for the basic completions sorting."
+  (let ((sort-text-a (plist-get completion-a :sortText))
+        (sort-text-b (plist-get completion-b :sortText)))
+    (string< sort-text-a sort-text-b)))
+
+(defun tide-compare-completions-by-kind (completion-a completion-b)
   "Compare COMPLETION-A and COMPLETION-B based on their kind."
   (let ((modifier-a (plist-get completion-a :kindModifiers))
         (modifier-b (plist-get completion-b :kindModifiers)))
@@ -1263,9 +1270,10 @@ in the file that are similar to the error at point."
           (-filter (lambda (completion)
                      (string-prefix-p prefix (plist-get completion :name)))
                    completions)))
-     (if tide-sort-completions-by-kind
-         (-sort 'tide-compare-completions filtered)
-       filtered))))
+     (let ((sorted (-sort 'tide-compare-completions-basic filtered)))
+       (if tide-sort-completions-by-kind
+           (-sort 'tide-compare-completions-by-kind sorted)
+         sorted)))))
 
 (defun tide-command:completions (prefix cb)
   (let ((file-location
