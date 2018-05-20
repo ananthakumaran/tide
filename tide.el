@@ -179,6 +179,15 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-filter-out-warning-completions nil
+  "Completions whose `:kind' property is \"warning\" will be filtered out if set to non-nil.
+This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
+completions whose `:kind' property is \"warning\" for Javascript code. You can fix this behavior by setting
+this variable to non-nil value for Javascript buffers using `setq-local' macro."
+  :type 'boolean
+  :group 'tide
+  :safe #'booleanp)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -1268,7 +1277,9 @@ This function is used for the basic completions sorting."
        name))
    (let ((filtered
           (-filter (lambda (completion)
-                     (string-prefix-p prefix (plist-get completion :name)))
+                     (and (string-prefix-p prefix (plist-get completion :name))
+                          (or (not tide-filter-out-warning-completions)
+                              (not (equal (plist-get completion :kind) "warning")))))
                    completions)))
      (let ((sorted (-sort 'tide-compare-completions-basic filtered)))
        (if tide-sort-completions-by-kind
