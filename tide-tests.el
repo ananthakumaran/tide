@@ -58,8 +58,8 @@
         (sorted-completions
          '(
            (:name "dimensions" :kind "parameter" :kindModifiers)
-           (:name "data" :kind "var" :kindModifiers)
            (:name "deleteText" :kind "local function" :kindModifiers)
+           (:name "data" :kind "var" :kindModifiers)
            (:name "debugger" :kind "keyword" :kindModifiers)
            (:name "declare" :kind "keyword" :kindModifiers)
            (:name "document" :kind "var" :kindModifiers "declare")
@@ -67,7 +67,7 @@
            (:name "decodeURIComponent" :kind "function" :kindModifiers "declare")
            (:name "DOMError" :kind "interface" :kindModifiers "declare"))
          ))
-    (should (-same-items?
+    (should (equal
              (-sort 'tide-compare-completions mock-completions)
              sorted-completions))))
 
