@@ -1235,6 +1235,13 @@ in the file that are similar to the error at point."
       ))
    100))
 
+(defun tide-compose-comparators (cmp1 cmp2)
+  "A helper function that composes two comparators CMP1 and CMP2."
+  (lambda (a b)
+    (or (funcall cmp1 a b)
+        (if (not (funcall cmp1 b a))
+            (funcall cmp2 a b)))))
+
 (defun tide-compare-completions-basic (completion-a completion-b)
   "Compare COMPLETION-A and COMPLETION-B based on their `sortText' property.
 This function is used for the basic completions sorting."
@@ -1281,10 +1288,12 @@ This function is used for the basic completions sorting."
                           (or (not tide-filter-out-warning-completions)
                               (not (equal (plist-get completion :kind) "warning")))))
                    completions)))
-     (let ((sorted (-sort 'tide-compare-completions-basic filtered)))
-       (if tide-sort-completions-by-kind
-           (-sort 'tide-compare-completions-by-kind sorted)
-         sorted)))))
+     (let ((completions-comparator
+            (if tide-sort-completions-by-kind
+                (tide-compose-comparators 'tide-compare-completions-basic
+                                          'tide-compare-completions-by-kind)
+              'tide-compare-completions-basic)))
+       (-sort completions-comparator filtered)))))
 
 (defun tide-command:completions (prefix cb)
   (let ((file-location
