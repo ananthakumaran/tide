@@ -179,6 +179,15 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-filter-out-warning-completions nil
+  "Completions whose `:kind' property is \"warning\" will be filtered out if set to non-nil.
+This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
+completions whose `:kind' property is \"warning\" for Javascript code. You can fix this behavior by setting
+this variable to non-nil value for Javascript buffers using `setq-local' macro."
+  :type 'boolean
+  :group 'tide
+  :safe #'booleanp)
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -1226,7 +1235,21 @@ in the file that are similar to the error at point."
       ))
    100))
 
-(defun tide-compare-completions (completion-a completion-b)
+(defun tide-compose-comparators (cmp1 cmp2)
+  "A helper function that composes two comparators CMP1 and CMP2."
+  (lambda (a b)
+    (or (funcall cmp1 a b)
+        (if (not (funcall cmp1 b a))
+            (funcall cmp2 a b)))))
+
+(defun tide-compare-completions-basic (completion-a completion-b)
+  "Compare COMPLETION-A and COMPLETION-B based on their `sortText' property.
+This function is used for the basic completions sorting."
+  (let ((sort-text-a (plist-get completion-a :sortText))
+        (sort-text-b (plist-get completion-b :sortText)))
+    (string< sort-text-a sort-text-b)))
+
+(defun tide-compare-completions-by-kind (completion-a completion-b)
   "Compare COMPLETION-A and COMPLETION-B based on their kind."
   (let ((modifier-a (plist-get completion-a :kindModifiers))
         (modifier-b (plist-get completion-b :kindModifiers)))
@@ -1261,11 +1284,16 @@ in the file that are similar to the error at point."
        name))
    (let ((filtered
           (-filter (lambda (completion)
-                     (string-prefix-p prefix (plist-get completion :name)))
+                     (and (string-prefix-p prefix (plist-get completion :name))
+                          (or (not tide-filter-out-warning-completions)
+                              (not (equal (plist-get completion :kind) "warning")))))
                    completions)))
-     (if tide-sort-completions-by-kind
-         (-sort 'tide-compare-completions filtered)
-       filtered))))
+     (let ((completions-comparator
+            (if tide-sort-completions-by-kind
+                (tide-compose-comparators 'tide-compare-completions-basic
+                                          'tide-compare-completions-by-kind)
+              'tide-compare-completions-basic)))
+       (-sort completions-comparator filtered)))))
 
 (defun tide-command:completions (prefix cb)
   (let ((file-location
