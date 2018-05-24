@@ -1645,7 +1645,7 @@ number."
     (when (not (and old (file-exists-p old)))
       (error "Buffer '%s' is not visiting a file." name))
     (let ((new (read-file-name "New name: " (file-name-directory old) basename nil basename)))
-      (when (get-buffer new)
+      (when (get-file-buffer new)
         (error "A buffer named '%s' already exists." new))
       (when (file-exists-p new)
         (error "A file named '%s' already exists." new))
