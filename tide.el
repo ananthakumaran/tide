@@ -1633,6 +1633,35 @@ number."
 
             (message "Renamed %d occurrences." count)))))))
 
+(defun tide-command:getEditsForFileRename (old new)
+  (tide-send-command-sync "getEditsForFileRename" `(:oldFilePath ,old :newFilePath ,new :file ,old)))
+
+(defun tide-rename-file ()
+  "Rename current file and all it's references in other files."
+  (interactive)
+  (let* ((name (buffer-name))
+         (old (tide-buffer-file-name))
+         (basename (file-name-nondirectory old)))
+    (when (not (and old (file-exists-p old)))
+      (error "Buffer '%s' is not visiting a file." name))
+    (let ((new (read-file-name "New name: " (file-name-directory old) basename nil basename)))
+      (when (get-buffer new)
+        (error "A buffer named '%s' already exists." new))
+      (when (file-exists-p new)
+        (error "A file named '%s' already exists." new))
+      (let ((response (tide-command:getEditsForFileRename (expand-file-name old) (expand-file-name new))))
+        (tide-on-response-success response (:min-version "2.9")
+          (-when-let (edits (plist-get response :body))
+            (tide-apply-code-edits edits))))
+      (tide-cleanup-buffer)
+      (mkdir (file-name-directory new) t)
+      (rename-file old new)
+      (rename-buffer new)
+      (set-visited-file-name new)
+      (set-buffer-modified-p nil)
+      (tide-configure-buffer)
+      (message "Renamed '%s to '%s'." name (file-name-nondirectory new)))))
+
 ;;; Format
 
 ;;;###autoload
