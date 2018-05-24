@@ -1017,7 +1017,13 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-command:quickinfo
    (tide-on-response-success-callback response
      (-if-let (buffer (tide-construct-documentation (plist-get response :body)))
-         (display-buffer buffer t)
+         (progn
+           (display-buffer buffer t)
+           (if help-window-select
+               (progn
+                 (pop-to-buffer buffer)
+                 (message "Type \"q\" to restore previous buffer"))
+             (message "Type \"q\" in the documentation buffer to close it")))
        (message "No documentation available.")))))
 
 ;;; Buffer Sync
