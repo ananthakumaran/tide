@@ -16,17 +16,6 @@
   is present in the root folder of the project.
 * Tide is available in [melpa](http://melpa.org/#/tide). You can
   install tide via package-install <kbd>M-x package-install [ret] tide</kbd>
-  
-  
-##### Use Package
-```elisp
-(use-package tide
-  :ensure t
-  :after (typescript-mode company flycheck)
-  :config (tide-setup)
-  :hook ((typescript-mode . tide-hl-identifier-mode)
-         (before-save . tide-format-before-save)))
-```
 
 ### Configuration
 
@@ -129,6 +118,16 @@ true.
 ;; configure jsx-tide checker to run after your default jsx checker
 (flycheck-add-mode 'javascript-eslint 'web-mode)
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
+```
+ 
+#### Use Package
+```elisp
+(use-package tide
+  :ensure t
+  :after (typescript-mode company flycheck)
+  :config (tide-setup)
+  :hook ((typescript-mode . tide-hl-identifier-mode)
+         (before-save . tide-format-before-save)))
 ```
 
 ### Commands
