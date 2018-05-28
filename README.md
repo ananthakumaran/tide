@@ -119,6 +119,16 @@ true.
 (flycheck-add-mode 'javascript-eslint 'web-mode)
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
+ 
+#### Use Package
+```elisp
+(use-package tide
+  :ensure t
+  :after (typescript-mode company flycheck)
+  :config (tide-setup)
+  :hook ((typescript-mode . tide-hl-identifier-mode)
+         (before-save . tide-format-before-save)))
+```
 
 ### Commands
 
