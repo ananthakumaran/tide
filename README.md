@@ -125,8 +125,8 @@ true.
 (use-package tide
   :ensure t
   :after (typescript-mode company flycheck)
-  :config (tide-setup)
-  :hook ((typescript-mode . tide-hl-identifier-mode)
+  :hook ((typescript-mode . tide-setup)
+         (typescript-mode . tide-hl-identifier-mode)
          (before-save . tide-format-before-save)))
 ```
 
