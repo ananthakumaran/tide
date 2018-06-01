@@ -298,10 +298,10 @@ Recenter buffer after jumping to definition
 
 **tide-filter-out-warning-completions** `nil`
 
-Completions whose `:kind' property is "warning" will be filtered out if set to non-nil.
+Completions whose `:kind` property is "warning" will be filtered out if set to non-nil.
 This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
-completions whose `:kind' property is "warning" for Javascript code. You can fix this behavior by setting
-this variable to non-nil value for Javascript buffers using `setq-local' macro.
+completions whose `:kind` property is "warning" for Javascript code. You can fix this behavior by setting
+this variable to non-nil value for Javascript buffers using `setq-local` macro.
 
 **tide-hl-identifier-idle-time** `0.5`
 
