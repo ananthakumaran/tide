@@ -287,6 +287,22 @@ Maximum allowed response length from tsserver. Any response greater than this wo
 
 Function used by tide to locate tsserver.
 
+**tide-default-mode** `"TS"`
+
+The default mode to open buffers not backed by files (e.g. Org
+  source blocks) in.
+
+**tide-recenter-after-jump** `t`
+
+Recenter buffer after jumping to definition
+
+**tide-filter-out-warning-completions** `nil`
+
+Completions whose `:kind' property is "warning" will be filtered out if set to non-nil.
+This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
+completions whose `:kind' property is "warning" for Javascript code. You can fix this behavior by setting
+this variable to non-nil value for Javascript buffers using `setq-local' macro.
+
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
