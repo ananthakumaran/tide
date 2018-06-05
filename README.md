@@ -119,7 +119,7 @@ true.
 (flycheck-add-mode 'javascript-eslint 'web-mode)
 (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
 ```
- 
+
 #### Use Package
 ```elisp
 (use-package tide
@@ -159,6 +159,11 @@ at point.
 <kbd>M-x tide-fix</kbd> Apply code fix for the error at point. When
 invoked with a prefix arg, apply code fix for all the errors in the file
 that are similar to the error at point.
+
+<kbd>M-x tide-add-tslint-disable-next-line</kbd> If the point is on
+one or more tslint errors, add a `tslint:disable-next-line` flag on
+the previous line to silence the errors. Or, if a flag already exists
+on the previous line, modify the flag to silence the errors.
 
 <kbd>M-x tide-refactor</kbd> Refactor code at point or current region.
 
@@ -306,4 +311,3 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
-
