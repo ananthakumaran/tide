@@ -154,6 +154,9 @@ project. Errors can be navigated using <kbd>n</kbd> and
 <kbd>M-x tide-rename-symbol</kbd> Rename all occurrences of the symbol
 at point.
 
+<kbd>M-x tide-rename-file</kbd> Rename current file and all it's
+references in other files.
+
 <kbd>M-x tide-format</kbd> Format the current region or buffer.
 
 <kbd>M-x tide-fix</kbd> Apply code fix for the error at point. When
