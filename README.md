@@ -258,6 +258,15 @@ Whether completions should be sorted by kind.
 
 Format options plist.
 
+**tide-user-preferences** `'(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)
+`
+
+User preference plist used on the configure request.
+
+Check
+https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
+for the full list of available options.
+
 **tide-completion-ignore-case** `nil`
 
 CASE will be ignored in completion if set to non-nil.
@@ -314,3 +323,4 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
+
