@@ -316,24 +316,20 @@ ones and overrule settings in the other lists."
         (setq rtn (plist-put rtn p v))))
     rtn))
 
-(defun tide-get-file-buffer (file)
+(defun tide-get-file-buffer (file &optional new-file)
   "Returns a buffer associated with a file. This will return the
   current buffer if it matches `file'. This way we can support
   temporary and indirect buffers."
-  (if (equal file (tide-buffer-file-name))
-      (current-buffer)
-    (find-file-noselect file)))
-
-(defun tide-get-or-create-file-buffer (file)
   (cond
    ((equal file (tide-buffer-file-name)) (current-buffer))
    ((file-exists-p file) (find-file-noselect file))
-   (t (let ((buffer (create-file-buffer file)))
-        (with-current-buffer buffer
-          (set-visited-file-name file)
-          (basic-save-buffer)
-          (display-buffer buffer t))
-        buffer))))
+   (new-file (let ((buffer (create-file-buffer file)))
+               (with-current-buffer buffer
+                 (set-visited-file-name file)
+                 (basic-save-buffer)
+                 (display-buffer buffer t))
+               buffer))
+   (t (error "Invalid file %S" file))))
 
 (defun tide-response-success-p (response)
   (and response (equal (plist-get response :success) t)))
@@ -1080,7 +1076,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (save-excursion
     (dolist (file-code-edit file-code-edits)
       (let ((file (plist-get file-code-edit :fileName)))
-        (with-current-buffer (tide-get-or-create-file-buffer file)
+        (with-current-buffer (tide-get-file-buffer file t)
           (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
           ;; Saving won't work if the current buffer is temporary or an indirect
           ;; buffer
