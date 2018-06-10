@@ -38,10 +38,24 @@ clean:
 	rm -rf *.elc
 	rm -rf $(WORKDIR)
 
-.PHONY: doc test
+.PHONY: doc test sandbox
 doc:
 	cd doc && mermaid -c config.json architecture.mmd -w 940 -p
 
 readme:
 	ruby -e 'puts IO.read("README.md").split("### Custom Variables")[0] + "### Custom Variables\n\n" + `emacs --batch --eval "$$ESCRIPT"`' | sponge README.md
+
+
+sandbox:
+	rm -rf sandbox
+	mkdir sandbox
+	emacs -Q --debug \
+	        --eval '(setq user-emacs-directory (file-truename "sandbox"))' \
+	        -l package \
+	        --eval "(add-to-list 'package-archives '(\"gnu\" . \"http://elpa.gnu.org/packages/\") t)" \
+	        --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)" \
+	        --eval "(package-refresh-contents)" \
+	        --eval "(package-initialize)" \
+	        --eval "(package-install 'tide)" \
+                --eval "(when (eq system-type 'darwin) (setq mac-option-key-is-meta nil mac-command-key-is-meta t mac-command-modifier 'meta mac-option-modifier 'none))"
 
