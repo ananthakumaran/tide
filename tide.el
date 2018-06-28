@@ -113,6 +113,11 @@ above."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-nav-item-filter 'types
+  "The filter for items returned by tide-nav"
+  :type '(choice (const none) (const types))
+  :group 'tide)
+
 (defface tide-file
   '((t (:inherit dired-header)))
   "Face for file names in references output."
@@ -854,10 +859,11 @@ Noise can be anything like braces, reserved keywords, etc."
                     (let ((response (tide-command:navto prefix)))
                       (tide-on-response-success response
                         (-when-let (navto-items (plist-get response :body))
-                          (setq navto-items
-                                (-filter
-                                 (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
-                                 navto-items))
+                          (if (eq tide-nav-item-filter 'types)
+                              (setq navto-items
+                                    (-filter
+                                     (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
+                                     navto-items)))
                           (setq last-completions navto-items)
                           (-map (lambda (navto-item) (plist-get navto-item :name))
                                 navto-items)))))
