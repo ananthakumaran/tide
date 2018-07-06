@@ -113,9 +113,9 @@ above."
   :type 'boolean
   :group 'tide)
 
-(defcustom tide-nav-item-filter 'types
-  "The filter for items returned by tide-nav"
-  :type '(choice (const none) (const types))
+(defcustom tide-navto-item-filter #'tide-navto-item-filter-default
+  "The filter for items returned by tide-nav. Defaults to class, interface, type, enum"
+  :type 'function
   :group 'tide)
 
 (defface tide-file
@@ -859,17 +859,18 @@ Noise can be anything like braces, reserved keywords, etc."
                     (let ((response (tide-command:navto prefix)))
                       (tide-on-response-success response
                         (-when-let (navto-items (plist-get response :body))
-                          (if (eq tide-nav-item-filter 'types)
-                              (setq navto-items
-                                    (-filter
-                                     (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
-                                     navto-items)))
+                          (setq navto-items (funcall tide-navto-item-filter navto-items))
                           (setq last-completions navto-items)
                           (-map (lambda (navto-item) (plist-get navto-item :name))
                                 navto-items)))))
                   t) nil t default))
       (let ((navto-item (-find (lambda (navto-item) (string-equal completion (plist-get navto-item :name))) last-completions)))
         (tide-jump-to-filespan navto-item)))))
+
+(defun tide-navto-item-filter-default (navto-items)
+  (-filter
+   (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
+   navto-items))
 
 (defun tide-command:navto (type)
   (tide-send-command-sync "navto" `(:file ,(tide-buffer-file-name) :searchValue ,type :maxResultCount 100)))
