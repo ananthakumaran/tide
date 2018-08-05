@@ -1866,11 +1866,11 @@ code-analysis."
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
-    (remove-hook 'after-save-hook 'tide-sync-buffer-contents)
-    (remove-hook 'after-save-hook 'tide-auto-compile-file)
-    (remove-hook 'after-change-functions 'tide-handle-change)
-    (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer)
-    (remove-hook 'hack-local-variables-hook 'tide-configure-buffer)
+    (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
+    (remove-hook 'after-save-hook 'tide-auto-compile-file t)
+    (remove-hook 'after-change-functions 'tide-handle-change t)
+    (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer t)
+    (remove-hook 'hack-local-variables-hook 'tide-configure-buffer t)
     (tide-cleanup-buffer)))
 
 
