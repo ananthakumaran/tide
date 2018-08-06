@@ -779,7 +779,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 (defun tide-recenter-in-same-buffer-p (filespan)
   (let* ((newpos (plist-get (plist-get filespan :start) :line))
          (line-diff (abs (- (line-number-at-pos) newpos))))
-    (> line-diff (count-screen-lines))))
+    (> line-diff (window-body-height))))
 
 (defun tide-jump-to-filespan (filespan &optional reuse-window no-marker)
   (let ((file (plist-get filespan :file))
