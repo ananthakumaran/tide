@@ -98,6 +98,15 @@ above."
   :type '(plist :value-type sexp)
   :group 'tide)
 
+(defcustom tide-user-preferences '(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)
+  "User preference plist used on the configure request.
+
+Check
+https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
+for the full list of available options."
+  :type '(plist :value-type sexp)
+  :group 'tide)
+
 (defcustom tide-completion-ignore-case nil
   "CASE will be ignored in completion if set to non-nil."
   :type 'boolean
@@ -312,13 +321,20 @@ ones and overrule settings in the other lists."
         (setq rtn (plist-put rtn p v))))
     rtn))
 
-(defun tide-get-file-buffer (file)
+(defun tide-get-file-buffer (file &optional new-file)
   "Returns a buffer associated with a file. This will return the
   current buffer if it matches `file'. This way we can support
   temporary and indirect buffers."
-  (if (equal file (tide-buffer-file-name))
-      (current-buffer)
-    (find-file-noselect file)))
+  (cond
+   ((equal file (tide-buffer-file-name)) (current-buffer))
+   ((file-exists-p file) (find-file-noselect file))
+   (new-file (let ((buffer (create-file-buffer file)))
+               (with-current-buffer buffer
+                 (set-visited-file-name file)
+                 (basic-save-buffer)
+                 (display-buffer buffer t))
+               buffer))
+   (t (error "Invalid file %S" file))))
 
 (defun tide-response-success-p (response)
   (and response (equal (plist-get response :success) t)))
@@ -696,7 +712,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
     (_ standard-indent)))
 
 (defun tide-command:configure ()
-  (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,(tide-buffer-file-name) :formatOptions ,(tide-file-format-options))))
+  (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,(tide-buffer-file-name) :formatOptions ,(tide-file-format-options) :preferences ,tide-user-preferences)))
 
 (defun tide-command:projectInfo (cb &optional need-file-name-list)
   (tide-send-command "projectInfo" `(:file ,(tide-buffer-file-name) :needFileNameList ,need-file-name-list) cb))
@@ -762,7 +778,8 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
       (widen)
       (goto-char (point-min))
       (forward-line (1- line)))
-    (forward-char (1- offset))))
+    (when (not (and (= offset 0) (= line 0)))
+      (forward-char (1- offset)))))
 
 (defun tide-location-to-point (location)
   (save-excursion
@@ -1066,7 +1083,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (save-excursion
     (dolist (file-code-edit file-code-edits)
       (let ((file (plist-get file-code-edit :fileName)))
-        (with-current-buffer (tide-get-file-buffer file)
+        (with-current-buffer (tide-get-file-buffer file t)
           (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
           ;; Saving won't work if the current buffer is temporary or an indirect
           ;; buffer
@@ -1711,7 +1728,7 @@ number."
         (when edits
           (tide-apply-code-edits edits))
         (tide-configure-buffer)
-        (message "Renamed '%s to '%s'." name (file-name-nondirectory new))))))
+        (message "Renamed '%s' to '%s'." name (file-name-nondirectory new))))))
 
 ;;; Format
 
