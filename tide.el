@@ -773,7 +773,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
       (widen)
       (goto-char (point-min))
       (forward-line (1- line)))
-    (when (not (and (= offset 0) (= line 0)))
+    (when (not (eql 1 (point)))
       (forward-char (1- offset)))))
 
 (defun tide-location-to-point (location)
