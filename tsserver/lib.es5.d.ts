@@ -537,7 +537,7 @@ interface TemplateStringsArray extends ReadonlyArray<string> {
 
 /**
  * The type of `import.meta`.
- *
+ * 
  * If you need to declare that a given property exists on `import.meta`,
  * this type may be augmented via interface merging.
  */
@@ -1146,14 +1146,14 @@ interface Array<T> {
       */
     toLocaleString(): string;
     /**
+      * Removes the last element from an array and returns it.
+      */
+    pop(): T | undefined;
+    /**
       * Appends new elements to an array, and returns the new length of the array.
       * @param items New elements of the Array.
       */
     push(...items: T[]): number;
-    /**
-      * Removes the last element from an array and returns it.
-      */
-    pop(): T | undefined;
     /**
       * Combines two or more arrays.
       * @param items Additional items to add to the end of array1.
