@@ -1,6 +1,8 @@
 # Tide
 
 [![Build Status](https://api.travis-ci.org/ananthakumaran/tide.svg?branch=master)](https://travis-ci.org/ananthakumaran/tide)
+[![Code Quality: Javascript](https://img.shields.io/lgtm/grade/javascript/g/ananthakumaran/tide.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/ananthakumaran/tide/context:javascript)
+[![Total Alerts](https://img.shields.io/lgtm/alerts/g/ananthakumaran/tide.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/ananthakumaran/tide/alerts)
 
 *TypeScript Interactive Development Environment for Emacs*
 
