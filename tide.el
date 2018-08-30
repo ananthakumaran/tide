@@ -1521,7 +1521,7 @@ This function is used for the basic completions sorting."
     (put-text-property start end 'face 'tide-match line-text)
     (put-text-property start end 'mouse-face 'highlight line-text)
     (put-text-property start end 'help-echo "mouse-1: Visit the reference." line-text)
-    (put-text-property start end 'tide-reference reference line-text)))
+    (put-text-property 0 (length line-text) 'tide-reference reference line-text)))
 
 (defun tide-insert-references (references)
   "Create a buffer with the given REFERENCES.
