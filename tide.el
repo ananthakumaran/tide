@@ -38,6 +38,7 @@
 (require 'imenu)
 (require 'thingatpt)
 (require 'tide-lv)
+(require 'tabulated-list)
 
 ;; Silence compiler warnings
 
@@ -392,6 +393,18 @@ ones and overrule settings in the other lists."
         (when (and (bound-and-true-p tide-mode)
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
+
+(defun tide-any-buffer (project-name fn)
+  "Callback FN for the first buffer within PROJECT-NAME with tide-mode enabled."
+  (let* ((buffer (-any (lambda (buffer)
+                         (with-current-buffer buffer
+                           (when (and (bound-and-true-p tide-mode)
+                                      (equal (tide-project-name) project-name))
+                             buffer)))
+                       (buffer-list))))
+    (when buffer
+      (with-current-buffer buffer
+        (funcall fn)))))
 
 (defun tide-line-number-at-pos (&optional pos)
   (let ((p (or pos (point))))
@@ -2340,6 +2353,89 @@ timeout."
     (delete-process server))
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
+
+(defun tide--list-servers-verify-setup (button)
+  "Invoke `tide-verify-setup' on a tsserver displayed in the list of server."
+  (tide-any-buffer (button-get button 'project-name) #'tide-verify-setup))
+
+;; This is modeled after list-process--refresh but we do not call delete-process
+;; on exited or signaled processe. That seems inappropriate for a function
+;; designed to *report* information.
+(defun tide--list-servers-refresh ()
+  "Recompute the list of processes for the buffer displayed by
+`tide-list-servers'."
+  (setq tabulated-list-entries nil)
+  (let* ((tsservers (hash-table-values tide-servers)))
+    (dolist (p (process-list))
+      (let* ((project-name (process-get p 'project-name)))
+        ;; Testing for the presence of project-name is a quick way to eliminate
+        ;; processes we don't care about: if it is absent, then the process is
+        ;; definitely not a tide process. If present, the the process could
+        ;; still be from another mode which happens to use the same property. So
+        ;; we also check against the list of servers.
+        (when (and project-name (memq p tsservers))
+          (let* ((buf (process-buffer p))
+                 (status (symbol-name (process-status p)))
+                 (project-name-label
+                  `(,project-name
+                    face link
+                    help-echo ,(format-message "Verify setup of `%s'"
+                                               project-name)
+                    follow-link t
+                    project-name ,project-name
+                    action tide--list-servers-verify-setup))
+                 (name (process-name p))
+                 (buf-label (if (buffer-live-p buf)
+                                `(,(buffer-name buf)
+                                  face link
+                                  help-echo ,(format-message
+                                              "Visit buffer `%s'"
+                                              (buffer-name buf))
+                                  follow-link t
+                                  process-buffer ,buf
+                                  action process-menu-visit-buffer)
+                              "--"))
+                 (cmd (mapconcat 'identity (process-command p) " ")))
+            (push (list p (vector project-name-label name status buf-label cmd))
+                  tabulated-list-entries)))))))
+
+(defun tide--server-list-kill-server ()
+  "Kill a tsserver instance."
+  (interactive)
+  (let* ((process (tabulated-list-get-id)))
+    (delete-process process)
+    (tide-each-buffer (process-get process 'project-name)
+                      (lambda () (tide-cleanup-buffer)))
+    (revert-buffer)))
+
+(defvar tide-server-list-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [?d] 'tide--server-list-kill-server)
+    map))
+
+(define-derived-mode tide-server-list-mode tabulated-list-mode "tide-server-list-mode"
+  "Major mode for listing tsserver processes."
+  (setq tabulated-list-format [("Project Name" 15 t)
+                               ("Process" 15 t)
+			       ("Status"   7 t)
+			       ("Buffer"  15 t)
+			       ("Command"  0 t)])
+  (setq tabulated-list-sort-key (cons "Project Name" nil))
+  (add-hook 'tabulated-list-revert-hook 'tide--list-servers-refresh nil t)
+  (tabulated-list-init-header))
+
+;; This is modeled after list-processes.
+(defun tide-list-servers (&optional buffer)
+  "Lists the tsserver processes known to tide."
+  (interactive)
+  (unless (bufferp buffer)
+    (setq buffer (get-buffer-create "*Tide Server List*")))
+  (with-current-buffer buffer
+    (tide-server-list-mode)
+    (tide--list-servers-refresh)
+    (tabulated-list-print))
+  (display-buffer buffer)
+  nil)
 
 (defun tide-command:status ()
   (tide-send-command-sync "status" '()))
