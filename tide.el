@@ -396,15 +396,14 @@ ones and overrule settings in the other lists."
 
 (defun tide-any-buffer (project-name fn)
   "Callback FN for the first buffer within PROJECT-NAME with tide-mode enabled."
-  (let* ((buffer (-any (lambda (buffer)
-                         (with-current-buffer buffer
-                           (when (and (bound-and-true-p tide-mode)
-                                      (equal (tide-project-name) project-name))
-                             buffer)))
-                       (buffer-list))))
-    (when buffer
-      (with-current-buffer buffer
-        (funcall fn)))))
+  (-when-let (buffer (-any (lambda (buffer)
+                             (with-current-buffer buffer
+                               (when (and (bound-and-true-p tide-mode)
+                                          (equal (tide-project-name) project-name))
+                                 buffer)))
+                           (buffer-list)))
+    (with-current-buffer buffer
+      (funcall fn))))
 
 (defun tide-line-number-at-pos (&optional pos)
   (let ((p (or pos (point))))
