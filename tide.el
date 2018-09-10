@@ -2384,18 +2384,8 @@ timeout."
                     project-name ,project-name
                     action tide--list-servers-verify-setup))
                  (name (process-name p))
-                 (buf-label (if (buffer-live-p buf)
-                                `(,(buffer-name buf)
-                                  face link
-                                  help-echo ,(format-message
-                                              "Visit buffer `%s'"
-                                              (buffer-name buf))
-                                  follow-link t
-                                  process-buffer ,buf
-                                  action process-menu-visit-buffer)
-                              "--"))
                  (cmd (mapconcat 'identity (process-command p) " ")))
-            (push (list p (vector project-name-label name status buf-label cmd))
+            (push (list p (vector project-name-label name status cmd))
                   tabulated-list-entries)))))))
 
 (defun tide--server-list-kill-server ()
@@ -2417,7 +2407,6 @@ timeout."
   (setq tabulated-list-format [("Project Name" 15 t)
                                ("Process" 15 t)
 			       ("Status"   7 t)
-			       ("Buffer"  15 t)
 			       ("Command"  0 t)])
   (setq tabulated-list-sort-key (cons "Project Name" nil))
   (add-hook 'tabulated-list-revert-hook 'tide--list-servers-refresh nil t)
