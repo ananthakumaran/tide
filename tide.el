@@ -647,6 +647,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
     (with-current-buffer (process-buffer process)
       (buffer-disable-undo))
     (process-put process 'project-name (tide-project-name))
+    (process-put process 'project-root default-directory)
     (puthash (tide-project-name) process tide-servers)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
 
@@ -2365,52 +2366,79 @@ timeout."
 `tide-list-servers'."
   (setq tabulated-list-entries nil)
   (let* ((tsservers (hash-table-values tide-servers)))
-    (dolist (p (process-list))
-      (let* ((project-name (process-get p 'project-name)))
-        ;; Testing for the presence of project-name is a quick way to eliminate
-        ;; processes we don't care about: if it is absent, then the process is
-        ;; definitely not a tide process. If present, the the process could
-        ;; still be from another mode which happens to use the same property. So
-        ;; we also check against the list of servers.
-        (when (and project-name (memq p tsservers))
-          (let* ((buf (process-buffer p))
-                 (status (symbol-name (process-status p)))
-                 (project-name-label
-                  `(,project-name
-                    face link
-                    help-echo ,(format-message "Verify setup of `%s'"
-                                               project-name)
-                    follow-link t
-                    project-name ,project-name
-                    action tide--list-servers-verify-setup))
-                 (name (process-name p))
-                 (cmd (mapconcat 'identity (process-command p) " ")))
-            (push (list p (vector project-name-label name status cmd))
-                  tabulated-list-entries)))))))
+    (dolist (p tsservers)
+      (let* ((project-name (process-get p 'project-name))
+             (pid (process-id p)))
+        (push (list p
+                    (vector
+                     `(,project-name
+                       face link
+                       help-echo ,(format-message "Verify setup of `%s'"
+                                                  project-name)
+                       follow-link t
+                       project-name ,project-name
+                       action tide--list-servers-verify-setup)
+                     (number-to-string (round
+                                        (alist-get 'pcpu (process-attributes pid))))
+                     (case tide--server-list-mode-last-column
+                       ('project-root
+                        (or (process-get p 'project-root) ""))
+                       ('command
+                        (mapconcat 'identity (process-command p) " "))
+                       (otherwise (error "unknown column %s"
+                                         tide--server-list-mode-last-column)))))
+              tabulated-list-entries)))))
 
 (defun tide--server-list-kill-server ()
   "Kill a tsserver instance."
   (interactive)
   (let* ((process (tabulated-list-get-id)))
     (delete-process process)
-    (tide-each-buffer (process-get process 'project-name)
-                      (lambda () (tide-cleanup-buffer)))
     (revert-buffer)))
+
+(defvar tide--server-list-last-column-choice-list
+  '(project-root command)
+  "The possible choices for the last column, as a circular list.")
+
+(defun tide--server-list-cycle-last-column ()
+  "Cycle through the possible values for the last column."
+  (interactive)
+  (setq tide--server-list-mode-last-column
+        (or (cadr (or (memq tide--server-list-mode-last-column
+                            tide--server-list-last-column-choice-list)
+                      (error "%s is not a possible choice of last column."
+                             tide--server-list-mode-last-column)))
+            (car tide--server-list-last-column-choice-list)))
+  (tide--setup-list-mode)
+  (revert-buffer))
 
 (defvar tide-server-list-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [?d] 'tide--server-list-kill-server)
+    (define-key map [?/] 'tide--server-list-cycle-last-column)
     map))
+
+(defun tide--setup-list-mode ()
+  (setq tabulated-list-format
+        (vector
+         '("Project Name" 20 t)
+         `("CPU" 5 ,(lambda (a b)
+                      (< (string-to-number (elt (cadr a) 1))
+                         (string-to-number (elt (cadr b) 1)))))
+         (list
+          (case tide--server-list-mode-last-column
+            ('project-root "Project Root")
+            ('command "Project Command")
+            (otherwise (error "unknown column %s" tide--server-list-mode-last-column)))
+          0 t)))
+  (setq tabulated-list-sort-key (cons "Project Name" nil))
+  (tabulated-list-init-header))
 
 (define-derived-mode tide-server-list-mode tabulated-list-mode "tide-server-list-mode"
   "Major mode for listing tsserver processes."
-  (setq tabulated-list-format [("Project Name" 15 t)
-                               ("Process" 15 t)
-			       ("Status"   7 t)
-			       ("Command"  0 t)])
-  (setq tabulated-list-sort-key (cons "Project Name" nil))
+  (setq-local tide--server-list-mode-last-column 'project-root)
   (add-hook 'tabulated-list-revert-hook 'tide--list-servers-refresh nil t)
-  (tabulated-list-init-header))
+  (tide--setup-list-mode))
 
 ;; This is modeled after list-processes.
 (defun tide-list-servers (&optional buffer)
