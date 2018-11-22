@@ -214,7 +214,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
 (defvar tide-project-configs (make-hash-table :test 'equal))
-(defvar tide-max-response-length-error-message "Reponse length from tsserver is greater than maximum allowed response.")
+(defvar tide-max-response-length-error-message "Response length from tsserver is greater than maximum allowed response.")
 
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
