@@ -1776,7 +1776,13 @@ code-analysis."
 (defun tide-apply-edits (edits)
   (save-excursion
     (-map (lambda (edit) (tide-apply-edit edit))
-          (nreverse edits))))
+          (-sort
+           (tide-compose-comparators
+            (lambda (a b)
+              (< (tide-plist-get b :start :line) (tide-plist-get a :start :line)))
+            (lambda (a b)
+              (< (tide-plist-get b :start :offset) (tide-plist-get a :start :offset))))
+           (nreverse edits)))))
 
 (defun tide-format-region (start end)
   (let ((response (tide-send-command-sync
