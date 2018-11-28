@@ -394,14 +394,13 @@ ones and overrule settings in the other lists."
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
 
-(defun tide-any-buffer (project-name fn)
+(defun tide-first-buffer (project-name fn)
   "Callback FN for the first buffer within PROJECT-NAME with tide-mode enabled."
-  (-when-let (buffer (-any (lambda (buffer)
+  (-when-let (buffer (-first (lambda (buffer)
                              (with-current-buffer buffer
-                               (when (and (bound-and-true-p tide-mode)
-                                          (equal (tide-project-name) project-name))
-                                 buffer)))
-                           (buffer-list)))
+                               (and (bound-and-true-p tide-mode)
+                                    (equal (tide-project-name) project-name))))
+                             (buffer-list)))
     (with-current-buffer buffer
       (funcall fn))))
 
@@ -2356,7 +2355,7 @@ timeout."
 
 (defun tide--list-servers-verify-setup (button)
   "Invoke `tide-verify-setup' on a tsserver displayed in the list of server."
-  (tide-any-buffer (button-get button 'project-name) #'tide-verify-setup))
+  (tide-first-buffer (button-get button 'project-name) #'tide-verify-setup))
 
 ;; This is modeled after list-process--refresh but we do not call delete-process
 ;; on exited or signaled processe. That seems inappropriate for a function
