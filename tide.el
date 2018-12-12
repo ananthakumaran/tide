@@ -4,7 +4,7 @@
 
 ;; Author: Anantha kumaran <ananthakumaran@gmail.com>
 ;; URL: http://github.com/ananthakumaran/tide
-;; Version: 3.1.3
+;; Version: 3.2.3
 ;; Keywords: typescript
 ;; Package-Requires: ((dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
