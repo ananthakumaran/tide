@@ -2367,7 +2367,8 @@ timeout."
   (let* ((tsservers (hash-table-values tide-servers)))
     (dolist (p tsservers)
       (let* ((project-name (process-get p 'project-name))
-             (pid (process-id p)))
+             (pid (process-id p))
+             (cpu (alist-get 'pcpu (process-attributes pid))))
         (push (list p
                     (vector
                      `(,project-name
@@ -2377,8 +2378,12 @@ timeout."
                        follow-link t
                        project-name ,project-name
                        action tide--list-servers-verify-setup)
-                     (number-to-string (round
-                                        (alist-get 'pcpu (process-attributes pid))))
+                     ;; Sometimes the CPU usage value is NaN (which Emacs represents
+                     ;; as 0.0e+NaN), for whatever reason. We cannot pass this value
+                     ;; to round so we put "--" for the column value.
+                     (if (equal cpu 0.0e+NaN)
+                         "--"
+                       (number-to-string (round cpu)))
                      (case tide--server-list-mode-last-column
                        ('project-root
                         (or (process-get p 'project-root) ""))
@@ -2422,8 +2427,17 @@ timeout."
         (vector
          '("Project Name" 20 t)
          `("CPU" 5 ,(lambda (a b)
-                      (< (string-to-number (elt (cadr a) 1))
-                         (string-to-number (elt (cadr b) 1)))))
+                      (let* ((cpu-a (elt (cadr a) 1))
+                             (cpu-b (elt (cadr b) 1)))
+                        ;; The CPU usage value in the column can be "--" if Emacs
+                        ;; produced a NaN value. We consider "--" to be less than numbers.
+                        (cond
+                         ((string= cpu-a "--")
+                          (not (string= cpu-b "--")))
+                         ((string= cpu-b "--") nil)
+                         (t
+                          (< (string-to-number cpu-a)
+                             (string-to-number cpu-b)))))))
          (list
           (case tide--server-list-mode-last-column
             ('project-root "Project Root")
