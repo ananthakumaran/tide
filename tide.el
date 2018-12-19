@@ -2368,13 +2368,25 @@ timeout."
     (dolist (p tsservers)
       (let* ((project-name (process-get p 'project-name))
              (pid (process-id p))
-             (cpu (alist-get 'pcpu (process-attributes pid))))
+             (cpu
+              ;; alist-get is missing from Emacs prior to version 25. This code should be
+              ;; simplified to just call alist-get once we no longer support versions that
+              ;; lack it.
+              (if (functionp 'alist-get)
+                  (alist-get 'pcpu (process-attributes pid))
+                (cdr (assq 'pcpu (process-attributes pid))))))
         (push (list p
                     (vector
                      `(,project-name
                        face link
-                       help-echo ,(format-message "Verify setup of `%s'"
-                                                  project-name)
+                       help-echo
+                       ;; format-message is missing from Emacs prior to 25. This code should
+                       ;; be simplfied to just call format-message once we no longer support
+                       ;; versions that lack it.
+                       ,(if (functionp 'format-message)
+                            (format-message "Verify setup of `%s'"
+                                            project-name)
+                          (concat "Verify setup of `" project-name "'"))
                        follow-link t
                        project-name ,project-name
                        action tide--list-servers-verify-setup)
