@@ -150,6 +150,18 @@
      (switch-to-buffer (current-buffer))
      ,@body))
 
+(defmacro wait-for (&rest body)
+  "Wait until BODY executes without error.  There's an arbitrary 5 second
+timeout.  If BODY does not execute without error before the timeout, that's
+a test failure."
+  (declare (debug t)
+           (indent 1))
+  `(with-timeout (5 (ert-fail "Timed out"))
+     ;; If an error occurs in BODY, ignore-error will return nil.
+     (while (not (ignore-errors ,@body t))
+       ;; We need to let emacs process tsserver output.
+       (accept-process-output nil 0.1))))
+
 (defun test-tide-add-tslint-disable-next-line (mock initial goto expected)
   (mode-with-temp-buffer
    initial
@@ -218,6 +230,63 @@
     (should (equal seen-type 'tide))
     (should (equal seen-message "Tide requires Emacs >= 24.4, you are using 1."))
     (should (equal seen-level :error))))
+
+(ert-deftest tide-list-servers/smoketest ()
+  "Test that tide-list-servers can be invoked."
+  (setup-with-temp-buffer
+   "const foo = 1;"
+   (tide-list-servers)
+   (switch-to-buffer "*Tide Server List*")
+   (should (string-match-p (concat "tide-.*\\s-+\\(--\\|[0-9]+\\)\\s-+" default-directory)
+                           (buffer-substring-no-properties (point-min) (point-max))))))
+
+;; All lines in the Tide Server List buffer match this pattern.
+(setq common-server-buffer-pattern "^tide-.*\\s-+\\(--\\|[0-9]+\\)\\s-+")
+
+;; All lines in the Tide Server List buffer match this pattern when the last
+;; column shows the project directory (which is the default when the buffer
+;; is created).
+(setq directory-server-buffer-pattern (concat  common-server-buffer-pattern default-directory "$"))
+
+(setq path-server-buffer-pattern (concat common-server-buffer-pattern "node " default-directory
+                                  "tsserver/tsserver.js$"))
+
+(ert-deftest tide-list-servers/cycle-last-column ()
+  "Test that we can cycle the last column of the server list."
+  (setup-with-temp-buffer
+   "const foo = 1;"
+   (tide-list-servers)
+   (switch-to-buffer "*Tide Server List*")
+   (should (string-match-p directory-server-buffer-pattern (buffer-string)))
+   (call-interactively (key-binding "/"))
+   (should (string-match-p path-server-buffer-pattern (buffer-string)))
+   (call-interactively (key-binding "/"))
+   (should (string-match-p directory-server-buffer-pattern (buffer-string)))))
+
+(ert-deftest tide-list-servers/kill-server ()
+  "Test that we can kill servers from the server list."
+  (setup-with-temp-buffer
+   "const foo = 1;"
+   (tide-list-servers)
+   (switch-to-buffer "*Tide Server List*")
+   (should (string-match-p directory-server-buffer-pattern (buffer-string)))
+   (should (= (hash-table-count tide-servers) 1))
+   (call-interactively (key-binding "d"))
+   (should (= (hash-table-count tide-servers) 0))
+   (should (string= "" (buffer-string)))))
+
+(ert-deftest tide-list-servers/verify-setup ()
+  "Test that hitting enter on the project name verifies the setup."
+  ;; We need a file-backed buffer for this. Otherwise, tsserver errors.
+  (let* ((buffer (find-file "test/trivial.ts")))
+    (tide-setup)
+    (tide-list-servers)
+    (switch-to-buffer "*Tide Server List*")
+    (should (string-match-p directory-server-buffer-pattern (buffer-string)))
+    (execute-kbd-macro (kbd "<return>"))
+    ;; The operation is asynchronous so we have to wait for it.
+    (wait-for
+     (should (member "*tide-project-info*" (mapcar (function buffer-name) (buffer-list)))))))
 
 (provide 'tide-tests)
 
