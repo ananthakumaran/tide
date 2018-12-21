@@ -202,6 +202,10 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide
   :safe #'booleanp)
 
+(defconst tide--minimal-emacs
+  "24.4"
+  "This is the oldest version of Emacs that tide supports.")
+
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
   "Declare NAME as buffer local variable."
   `(progn
@@ -1835,6 +1839,11 @@ code-analysis."
 (defun tide-setup ()
   "Setup `tide-mode' in current buffer."
   (interactive)
+
+  (when (version< emacs-version tide--minimal-emacs)
+    (display-warning 'tide (format "Tide requires Emacs >= %s, you are using %s."
+                                   tide--minimal-emacs emacs-version)
+                     :error))
 
   ;; Indirect buffers embedded in other major modes such as those in org-mode or
   ;; template languages have to be manually synchronized to tsserver. This might

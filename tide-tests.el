@@ -126,8 +126,8 @@
   (should-error (tide-load-tsconfig "test/notfound.json" '())))
 
 ;; Adapted from jdee-mode's test suite.
-(defmacro test-with-temp-buffer (content &rest body)
-  "Fill a temporary buffer with `CONTENT' and eval `BODY' in it."
+(defmacro mode-with-temp-buffer (content &rest body)
+  "Fill a temporary buffer with `CONTENT', turn on `tide-mode' and eval `BODY' in it."
   (declare (debug t)
            (indent 1))
   `(with-temp-buffer
@@ -138,8 +138,20 @@
      (switch-to-buffer (current-buffer))
      ,@body))
 
+(defmacro setup-with-temp-buffer (content &rest body)
+  "Fill a temporary buffer with `CONTENT', invoke `tide-setup' and eval `BODY' in it."
+  (declare (debug t)
+           (indent 1))
+  `(with-temp-buffer
+     (insert ,content)
+     (tide-setup)
+     (goto-char (point-min))
+     ;; We need this so that tests that simulate user actions operate on the right buffer.
+     (switch-to-buffer (current-buffer))
+     ,@body))
+
 (defun test-tide-add-tslint-disable-next-line (mock initial goto expected)
-  (test-with-temp-buffer
+  (mode-with-temp-buffer
    initial
    (search-forward goto nil t)
    (goto-char (match-beginning 0))
@@ -183,6 +195,29 @@
    "// tslint:disable-next-line:previous\nconst x = 1;\nconst y = 2;\n"
    "const x"
    "// tslint:disable-next-line:previous err1 err2\nconst x = 1;\nconst y = 2;\n"))
+
+(ert-deftest tide-setup ()
+  "Test that tide-setup can be invoked without errors."
+  (setup-with-temp-buffer
+   "const foo = 1;"))
+
+(ert-deftest tide-setup/warns-about-old-emacs ()
+  "Test that tide-setup warns about old emacs."
+  (let* ((emacs-version "1")
+         (display-warning)
+         (seen-type)
+         (seen-message)
+         (seen-level))
+    (fset 'display-warning
+          (lambda (type message level)
+            (setq seen-type type)
+            (setq seen-message message)
+            (setq seen-level level)))
+    (setup-with-temp-buffer
+     "const foo = 1;")
+    (should (equal seen-type 'tide))
+    (should (equal seen-message "Tide requires Emacs >= 24.4, you are using 1."))
+    (should (equal seen-level :error))))
 
 (provide 'tide-tests)
 
