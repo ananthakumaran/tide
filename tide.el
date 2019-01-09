@@ -38,6 +38,7 @@
 (require 'imenu)
 (require 'thingatpt)
 (require 'tide-lv)
+(require 'tabulated-list)
 
 ;; Silence compiler warnings
 
@@ -288,6 +289,10 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
               (,old ,cb))
           (funcall ,cb response))))))
 
+(defun tide--emacs-at-least (version)
+  "Return t if Emacs is at least at version VERSION.  Return nil, otherwise."
+  (not (version< emacs-version version)))
+
 ;;; Helpers
 
 (defun tide-safe-json-read-file (filename)
@@ -392,6 +397,16 @@ ones and overrule settings in the other lists."
         (when (and (bound-and-true-p tide-mode)
                    (equal (tide-project-name) project-name))
           (funcall fn))))))
+
+(defun tide-first-buffer (project-name fn)
+  "Callback FN for the first buffer within PROJECT-NAME with tide-mode enabled."
+  (-when-let (buffer (-first (lambda (buffer)
+                             (with-current-buffer buffer
+                               (and (bound-and-true-p tide-mode)
+                                    (equal (tide-project-name) project-name))))
+                             (buffer-list)))
+    (with-current-buffer buffer
+      (funcall fn))))
 
 (defun tide-line-number-at-pos (&optional pos)
   (let ((p (or pos (point))))
@@ -635,6 +650,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
     (with-current-buffer (process-buffer process)
       (buffer-disable-undo))
     (process-put process 'project-name (tide-project-name))
+    (process-put process 'project-root default-directory)
     (puthash (tide-project-name) process tide-servers)
     (message "(%s) tsserver server started successfully." (tide-project-name))))
 
@@ -2340,6 +2356,124 @@ timeout."
     (delete-process server))
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
+
+(defun tide--list-servers-verify-setup (button)
+  "Invoke `tide-verify-setup' on a tsserver displayed in the list of server."
+  (tide-first-buffer (button-get button 'project-name) #'tide-verify-setup))
+
+;; This is modeled after list-process--refresh but we do not call delete-process
+;; on exited or signaled processe. That seems inappropriate for a function
+;; designed to *report* information.
+(defun tide--list-servers-refresh ()
+  "Recompute the list of processes for the buffer displayed by
+`tide-list-servers'."
+  (setq tabulated-list-entries nil)
+  (let* ((tsservers (hash-table-values tide-servers)))
+    (dolist (p tsservers)
+      (let* ((project-name (process-get p 'project-name))
+             (pid (process-id p))
+             (cpu
+              (if (tide--emacs-at-least "25")
+                  (alist-get 'pcpu (process-attributes pid))
+                (cdr (assq 'pcpu (process-attributes pid))))))
+        (push (list p
+                    (vector
+                     `(,project-name
+                       face link
+                       help-echo
+                       ,(if (tide--emacs-at-least "25")
+                            (format-message "Verify setup of `%s'" project-name)
+                          (concat "Verify setup of `" project-name "'"))
+                       follow-link t
+                       project-name ,project-name
+                       action tide--list-servers-verify-setup)
+                     ;; Sometimes the CPU usage value is NaN (which Emacs represents
+                     ;; as 0.0e+NaN), for whatever reason. We cannot pass this value
+                     ;; to round so we put "--" for the column value.
+                     (if (isnan cpu)
+                         "--"
+                       (number-to-string (round cpu)))
+                     (case tide--server-list-mode-last-column
+                       ('project-root
+                        (or (process-get p 'project-root) ""))
+                       ('command
+                        (mapconcat 'identity (process-command p) " "))
+                       (otherwise (error "unknown column %s"
+                                         tide--server-list-mode-last-column)))))
+              tabulated-list-entries)))))
+
+(defun tide--server-list-kill-server ()
+  "Kill a tsserver instance."
+  (interactive)
+  (let* ((process (tabulated-list-get-id)))
+    (delete-process process)
+    (revert-buffer)))
+
+(defvar tide--server-list-last-column-choice-list
+  '(project-root command)
+  "The possible choices for the last column, as a circular list.")
+
+(defun tide--server-list-cycle-last-column ()
+  "Cycle through the possible values for the last column."
+  (interactive)
+  (setq tide--server-list-mode-last-column
+        (or (cadr (or (memq tide--server-list-mode-last-column
+                            tide--server-list-last-column-choice-list)
+                      (error "%s is not a possible choice of last column."
+                             tide--server-list-mode-last-column)))
+            (car tide--server-list-last-column-choice-list)))
+  (tide--setup-list-mode)
+  (revert-buffer))
+
+(defvar tide-server-list-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [?d] 'tide--server-list-kill-server)
+    (define-key map [?/] 'tide--server-list-cycle-last-column)
+    map))
+
+(defun tide--setup-list-mode ()
+  (setq tabulated-list-format
+        (vector
+         '("Project Name" 20 t)
+         `("CPU" 5 ,(lambda (a b)
+                      (let* ((cpu-a (elt (cadr a) 1))
+                             (cpu-b (elt (cadr b) 1)))
+                        ;; The CPU usage value in the column can be "--" if Emacs
+                        ;; produced a NaN value. We consider "--" to be less than numbers.
+                        (cond
+                         ((string= cpu-a "--")
+                          (not (string= cpu-b "--")))
+                         ((string= cpu-b "--") nil)
+                         (t
+                          (< (string-to-number cpu-a)
+                             (string-to-number cpu-b)))))))
+         (list
+          (case tide--server-list-mode-last-column
+            ('project-root "Project Root")
+            ('command "Project Command")
+            (otherwise (error "unknown column %s" tide--server-list-mode-last-column)))
+          0 t)))
+  (setq tabulated-list-sort-key (cons "Project Name" nil))
+  (tabulated-list-init-header))
+
+(define-derived-mode tide-server-list-mode tabulated-list-mode "tide-server-list-mode"
+  "Major mode for listing tsserver processes."
+  (setq-local tide--server-list-mode-last-column 'project-root)
+  (add-hook 'tabulated-list-revert-hook 'tide--list-servers-refresh nil t)
+  (tide--setup-list-mode))
+
+;; This is modeled after list-processes.
+(defun tide-list-servers (&optional buffer)
+  "Lists the tsserver processes known to tide."
+  (interactive)
+  (unless (bufferp buffer)
+    (setq buffer (get-buffer-create "*Tide Server List*")))
+  (with-current-buffer buffer
+    (tide-server-list-mode)
+    (tide--list-servers-refresh)
+    (tabulated-list-print))
+  (display-buffer buffer)
+  nil)
 
 (defun tide-command:status ()
   (tide-send-command-sync "status" '()))

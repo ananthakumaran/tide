@@ -177,6 +177,9 @@ point.
 
 <kbd>M-x tide-organize-imports</kbd> Organize imports in the file.
 
+<kbd>M-x tide-list-servers</kbd> List the `tsserver` processes launched by
+tide.
+
 ### Features
 
 * ElDoc
@@ -323,4 +326,3 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
-
