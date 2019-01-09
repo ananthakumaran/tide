@@ -289,6 +289,10 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
               (,old ,cb))
           (funcall ,cb response))))))
 
+(defun tide--emacs-at-least (version)
+  "Return t if Emacs is at least at version VERSION.  Return nil, otherwise."
+  (not (version< emacs-version version)))
+
 ;;; Helpers
 
 (defun tide-safe-json-read-file (filename)
@@ -2369,10 +2373,7 @@ timeout."
       (let* ((project-name (process-get p 'project-name))
              (pid (process-id p))
              (cpu
-              ;; alist-get is missing from Emacs prior to version 25. This code should be
-              ;; simplified to just call alist-get once we no longer support versions that
-              ;; lack it.
-              (if (functionp 'alist-get)
+              (if (tide--emacs-at-least "25")
                   (alist-get 'pcpu (process-attributes pid))
                 (cdr (assq 'pcpu (process-attributes pid))))))
         (push (list p
@@ -2380,12 +2381,8 @@ timeout."
                      `(,project-name
                        face link
                        help-echo
-                       ;; format-message is missing from Emacs prior to 25. This code should
-                       ;; be simplfied to just call format-message once we no longer support
-                       ;; versions that lack it.
-                       ,(if (functionp 'format-message)
-                            (format-message "Verify setup of `%s'"
-                                            project-name)
+                       ,(if (tide--emacs-at-least "25")
+                            (format-message "Verify setup of `%s'" project-name)
                           (concat "Verify setup of `" project-name "'"))
                        follow-link t
                        project-name ,project-name
