@@ -1377,7 +1377,7 @@ This function is used for the basic completions sorting."
        name))
    (let ((filtered
           (-filter (lambda (completion)
-                     (and (string-prefix-p prefix (plist-get completion :name))
+                     (and (string-prefix-p prefix (plist-get completion :name) tide-completion-ignore-case)
                           (or (not tide-filter-out-warning-completions)
                               (not (equal (plist-get completion :kind) "warning")))))
                    completions)))
