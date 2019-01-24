@@ -799,7 +799,8 @@ Currently, two kinds of cleanups are done:
       (sit-for 5)
       (message nil))))
 
-(defun tide-start-server-if-required ()
+(defun tide-start-server-if-nonexistent ()
+  "Start a tsserver instance if there is not one already running."
   (unless (tide-current-server)
     (tide-start-server)))
 
@@ -2052,7 +2053,7 @@ code-analysis."
   (unless (stringp buffer-file-name)
     (setq tide-require-manual-setup t))
 
-  (tide-start-server-if-required)
+  (tide-start-server-if-nonexistent)
   (tide-mode 1)
   (set (make-local-variable 'eldoc-documentation-function)
        'tide-eldoc-function)
