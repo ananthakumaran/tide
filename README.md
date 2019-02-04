@@ -151,6 +151,8 @@ and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 project. Errors can be navigated using <kbd>n</kbd> and
 <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 
+<kbd>M-x tide-error-at-point</kbd> Show the details of the error at point.
+
 <kbd>M-x tide-rename-symbol</kbd> Rename all occurrences of the symbol
 at point.
 
