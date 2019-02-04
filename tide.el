@@ -2036,6 +2036,7 @@ code-analysis."
         (mapconcat 'tide-format-related-information related "\n\n"))))))
 
 (defun tide-error-at-point ()
+  "Show the details of the error at point."
   (interactive)
   (-if-let (errors (flycheck-overlay-errors-at (point)))
       (tide-display-help-buffer "error"
