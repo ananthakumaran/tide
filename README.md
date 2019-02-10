@@ -210,7 +210,7 @@ file which can be captured by setting
 ```
 
 
-[format_options]: https://github.com/Microsoft/TypeScript/blob/87e9506/src/services/services.ts#L1244-L1272
+[format_options]: https://github.com/Microsoft/TypeScript/blob/v3.3.1/src/server/protocol.ts#L2858-L2890
 
 ### FAQ?
 
