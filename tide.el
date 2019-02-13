@@ -455,14 +455,23 @@ LINE is one based, OFFSET is one based and column is zero based"
       (forward-char (1- (plist-get span :offset)))
       (point))))
 
-(defun tide-doc-buffer (string)
-  (with-current-buffer (get-buffer-create "*tide-documentation*")
+(defun tide-display-help-buffer (feature body)
+  (let ((buffer (tide-make-help-buffer feature body)))
+    (display-buffer buffer t)
+    (if help-window-select
+        (progn
+          (pop-to-buffer buffer)
+          (message "Type \"q\" to restore previous buffer"))
+      (message (concat "Type \"q\" in the " feature " buffer to close it")))))
+
+(defun tide-make-help-buffer (feature body)
+  (with-current-buffer (get-buffer-create (concat "*tide-" feature "*"))
     (setq buffer-read-only t)
     (let ((inhibit-read-only t))
       (erase-buffer)
-      (when string
+      (when body
         (save-excursion
-          (tide-insert string))))
+          (tide-insert body))))
     (local-set-key (kbd "q") #'quit-window)
     (current-buffer)))
 
@@ -1017,11 +1026,10 @@ Noise can be anything like braces, reserved keywords, etc."
       (when (or (or (not (s-blank? documentation))
                     (not (s-blank? jsdoc)))
                 tide-always-show-documentation)
-        (tide-doc-buffer
-         (tide-join
-          (-concat (list display-string "\n\n")
-                   (if (not (s-blank? documentation)) (list documentation "\n\n") '())
-                   (list jsdoc))))))))
+        (tide-join
+         (-concat (list display-string "\n\n")
+                  (if (not (s-blank? documentation)) (list documentation "\n\n") '())
+                  (list jsdoc)))))))
 
 (defun tide-command:quickinfo-old (cb)
   (tide-send-command "quickinfo" `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
@@ -1060,14 +1068,8 @@ Noise can be anything like braces, reserved keywords, etc."
   (interactive)
   (tide-command:quickinfo
    (tide-on-response-success-callback response
-     (-if-let (buffer (tide-construct-documentation (plist-get response :body)))
-         (progn
-           (display-buffer buffer t)
-           (if help-window-select
-               (progn
-                 (pop-to-buffer buffer)
-                 (message "Type \"q\" to restore previous buffer"))
-             (message "Type \"q\" in the documentation buffer to close it")))
+     (-if-let (body (tide-construct-documentation (plist-get response :body)))
+         (tide-display-help-buffer "documentation" body)
        (message "No documentation available.")))))
 
 ;;; Buffer Sync
@@ -1428,7 +1430,7 @@ This function is used for the basic completions sorting."
 (defun tide-completion-doc-buffer (name)
   (-when-let* ((response (tide-completion-entry-details name))
                (detail (car (plist-get response :body))))
-    (tide-construct-documentation detail)))
+    (tide-make-help-buffer "documentation" (tide-construct-documentation detail))))
 
 (defun tide-post-completion (name)
   (let ((completion (get-text-property 0 'completion name))
@@ -1969,8 +1971,12 @@ code-analysis."
      (let* ((start (plist-get diagnostic :start))
             (line (plist-get start :line))
             (column (tide-column line (plist-get start :offset)))
-            (level (if (string= (plist-get diagnostic :category) "suggestion") 'info 'error)))
-       (flycheck-error-new-at line column level (plist-get diagnostic :text)
+            (level (if (string= (plist-get diagnostic :category) "suggestion") 'info 'error))
+            (text (plist-get diagnostic :text)))
+       (when (plist-get diagnostic :relatedInformation)
+         (setq text (concat text (propertize " ⮐" 'face 'font-lock-warning-face))))
+       (put-text-property 0 1 'diagnostic diagnostic text)
+       (flycheck-error-new-at line column level text
                               :checker checker
                               :id (plist-get diagnostic :code))))
    (let ((diagnostic (car (tide-plist-get response :body))))
@@ -1991,6 +1997,51 @@ code-analysis."
      (if (tide-response-success-p response)
          (tide-flycheck-send-response callback checker response)
        (funcall callback 'errored (plist-get response :message))))))
+
+(defun tide-make-clickable-filespan (filespan)
+  (propertize
+   (concat
+    (file-name-nondirectory (plist-get filespan :file))
+    ":"
+    (number-to-string (tide-plist-get filespan :start :line)))
+   'face 'link
+   'help-echo "mouse-2: go to this location"
+   'keymap (let ((map (make-sparse-keymap)))
+             (define-key map [mouse-2] 'tide-goto-error)
+             (define-key map [mouse-1] 'tide-goto-error)
+             (define-key map (kbd "C-m") 'tide-goto-error)
+             (define-key map [follow-link] 'mouse-face)
+             map)
+   'tide-error filespan))
+
+(defun tide-format-related-information (related)
+  (concat
+   (tide-make-clickable-filespan (plist-get related :span))
+   " "
+   (plist-get related :message)
+   " [" (number-to-string (plist-get related :code)) "]"))
+
+(defun tide-explain-error (err)
+  (let* ((diagnostic (get-text-property 0 'diagnostic (flycheck-error-message err)))
+         (related (plist-get diagnostic :relatedInformation)))
+    (concat
+     (propertize "Code: " 'face 'bold) (number-to-string (plist-get diagnostic :code)) " "
+     (propertize "Category: " 'face 'bold) (plist-get diagnostic :category)
+     "\n\n"
+     (plist-get diagnostic :text)
+     "\n\n"
+     (when related
+       (concat
+        (propertize "Related Information: \n\n" 'face 'bold)
+        (mapconcat 'tide-format-related-information related "\n\n"))))))
+
+(defun tide-error-at-point ()
+  "Show the details of the error at point."
+  (interactive)
+  (-if-let (errors (flycheck-overlay-errors-at (point)))
+      (tide-display-help-buffer "error"
+        (mapconcat #'tide-explain-error errors "\n\n--------\n\n"))
+    (message "No errors available.")))
 
 (defun tide-flycheck-verify (_checker)
   (list
