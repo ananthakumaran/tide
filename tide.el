@@ -2441,7 +2441,8 @@ timeout."
                      ;; Sometimes the CPU usage value is NaN (which Emacs represents
                      ;; as 0.0e+NaN), for whatever reason. We cannot pass this value
                      ;; to round so we put "--" for the column value.
-                     (if (isnan cpu)
+                     ;; Other times, it is nil, so do the same then.
+                     (if (or (not cpu) (isnan cpu))
                          "--"
                        (number-to-string (round cpu)))
                      (case tide--server-list-mode-last-column
