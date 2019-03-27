@@ -147,8 +147,7 @@
        ;; We need this so that tests that simulate user actions operate on the right buffer.
        (switch-to-buffer (current-buffer))
        (save-current-buffer ,@body)
-       (-when-let (,server (tide-current-server))
-         (delete-process ,server)))))
+       (tide-kill-server))))
 
 (defmacro wait-for (&rest body)
   "Wait until BODY executes without error.  There's an arbitrary 5 second
@@ -161,6 +160,39 @@ a test failure."
      (while (not (ignore-errors ,@body t))
        ;; We need to let emacs process tsserver output.
        (accept-process-output nil 0.1))))
+
+(cl-defstruct spy
+  "A spy is used to keep track of calls on an actual function."
+  called
+  (call-count 0))
+
+(defun reset-spy (spy)
+  "Reset `SPY' to the same default state a new spy gets."
+  (setf (spy-called spy) nil
+        (spy-call-count spy) 0))
+
+
+(defmacro with-spy (name function-symbol &rest body)
+  "Execute `BODY' with `NAME' bound to a spy that spies on `FUNCTION-SYMBOL'."
+  (declare (debug t)
+           (indent 2))
+  ;; Avoid polluting the scope of the code using this macro.
+  (let ((orig (make-symbol "orig"))
+        (spy (make-symbol "spy"))
+        (fn-sym (make-symbol "fn-sym")))
+    `(let* (,orig
+            ;; Internal reference to the spy so we don't have to evaluate
+            ;; multiple times.
+            (,spy (make-spy))
+            (,name ,spy) ;; We bind the spy to the name specified by the user.
+            (,fn-sym ',function-symbol))
+       (cl-letf (((symbol-function ',orig) (symbol-function ,fn-sym))
+                 ((symbol-function ,fn-sym)
+                  (lambda (&rest args)
+                    (apply ',orig args)
+                    (setf (spy-called ,spy) t)
+                    (cl-incf (spy-call-count ,spy)))))
+         ,@body))))
 
 (defmacro with-open-file (file-path &rest body)
   "Open the file `FILE-PATH' and execute `BODY' in the buffer created
@@ -245,6 +277,64 @@ of `BODY'."
     (should (equal seen-type 'tide))
     (should (equal seen-message "Tide requires Emacs >= 24.4, you are using 1."))
     (should (equal seen-level :error))))
+
+(ert-deftest tide-setup/immediate-server-start ()
+  "Test that tide-setup with immediate start method starts a
+server and configures the buffer."
+  ;; 'immediate is the default but the default could change some day
+  (let ((tide-tsserver-start-method 'immediate))
+    (with-spy configure-spy tide-command:configure
+      (with-open-file "test/trivial.ts"
+        (should (not (eq (tide-current-server) nil)))
+        (should (spy-called configure-spy))
+        (reset-spy configure-spy)
+        ;; Opening a second file in the same project follows a different code path.
+        (with-open-file "test/trivial2.ts"
+          (should (not (eq (tide-current-server) nil)))
+          (should (spy-called configure-spy)))))))
+
+(ert-deftest tide-setup/manual-server-start ()
+  "Test that tide-setup with manual start method does not start a server."
+  (let ((tide-tsserver-start-method 'manual))
+    (with-spy configure-spy tide-command:configure
+      (with-open-file "test/trivial.ts"
+        (should (eq (tide-current-server) nil))
+        (should (not (spy-called configure-spy)))
+        ;; We test with a 2nd file for parallelism with the other similar tests.
+        (with-open-file "test/trivial2.ts"
+          (should (eq (tide-current-server) nil))
+          (should (not (spy-called configure-spy))))))))
+
+(ert-deftest tide-setup/manual-server-start-with-start-between-files ()
+  "Test that when a server is started after an initial buffer was
+opened in manual mode, a 2nd buffer opened in the same project is
+automatically configured."
+  (let ((tide-tsserver-start-method 'manual))
+    (with-spy configure-spy tide-command:configure
+      (with-open-file "test/trivial.ts"
+        (should (eq (tide-current-server) nil))
+        (should (not (spy-called configure-spy)))
+        (tide-restart-server)
+        (should (spy-called configure-spy))
+        (reset-spy configure-spy)
+        (with-open-file "test/trivial2.ts"
+          (should (not (eq (tide-current-server) nil)))
+          (should (spy-called configure-spy)))))))
+
+(ert-deftest tide-setup/manual-server-start-late-start ()
+  "Test that when a server is started after multiple buffers were
+opened in the same project in manual mode, all buffers are configured."
+  (let ((tide-tsserver-start-method 'manual))
+    (with-spy configure-spy tide-command:configure
+      (with-open-file "test/trivial.ts"
+        (should (eq (tide-current-server) nil))
+        (should (not (spy-called configure-spy)))
+        (with-open-file "test/trivial2.ts"
+          (should (eq (tide-current-server) nil))
+          (should (not (spy-called configure-spy)))
+          (tide-restart-server)
+          (should (not (eq (tide-current-server) nil)))
+          (should (eq (spy-call-count configure-spy) 2)))))))
 
 (ert-deftest tide-list-servers/smoketest ()
   "Test that tide-list-servers can be invoked."
