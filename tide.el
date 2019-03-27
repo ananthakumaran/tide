@@ -2626,11 +2626,16 @@ identifier at point, if necessary."
 
 ;;; Utility commands
 
+(defun tide-kill-server ()
+  "Kill the server in the current buffer."
+  (interactive)
+  (-when-let (server (tide-current-server))
+    (delete-process server)))
+
 (defun tide-restart-server ()
   "Restarts tsserver."
   (interactive)
-  (-when-let (server (tide-current-server))
-    (delete-process server))
+  (tide-kill-server)
   (tide-start-server))
 
 (defvar-local tide--server-list-mode-last-column nil)
