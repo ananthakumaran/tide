@@ -162,6 +162,21 @@ a test failure."
        ;; We need to let emacs process tsserver output.
        (accept-process-output nil 0.1))))
 
+(defmacro with-open-file (file-path &rest body)
+  "Open the file `FILE-PATH' and execute `BODY' in the buffer created
+for the file. The tide server and buffer are killed after the execution
+of `BODY'."
+  (declare (debug t)
+           (indent 1))
+  (let ((buffer-sym (make-symbol "buffer")))
+    `(let* ((,buffer-sym (find-file ,file-path)))
+       (unwind-protect
+           (progn
+             (tide-setup)
+             ,@body)
+         (tide-kill-server)
+         (kill-buffer ,buffer-sym)))))
+
 (defun test-tide-add-tslint-disable-next-line (mock initial goto expected)
   (mode-with-temp-buffer
    initial
@@ -275,21 +290,21 @@ a test failure."
    (should (= (hash-table-count tide-servers) 0))
    (should (string= "" (buffer-string)))))
 
+;; All lines in the Tide Server List buffer match this pattern.
+(setq test-common-server-buffer-pattern "^test-.*\\s-+\\(--\\|[0-9]+\\)\\s-+")
+
 (ert-deftest tide-list-servers/verify-setup ()
   "Test that hitting enter on the project name verifies the setup."
   ;; We need a file-backed buffer for this. Otherwise, tsserver errors.
-  (let* ((buffer (find-file "test/trivial.ts"))
-         ;; We need to make our own pattern because we're in a different directory
-         ;; than all the previous tests that test `tide-list-servers'.
-         (pattern (concat "^test-.*\\s-+\\(--\\|[0-9]+\\)\\s-+" default-directory "$")))
-    (tide-setup)
-    (tide-list-servers)
-    (switch-to-buffer "*Tide Server List*")
-    (should (string-match-p pattern (buffer-string)))
-    (execute-kbd-macro (kbd "<return>"))
-    ;; The operation is asynchronous so we have to wait for it.
-    (wait-for
-     (should (member "*tide-project-info*" (mapcar (function buffer-name) (buffer-list)))))))
+  (with-open-file "test/trivial.ts"
+    (let* ((buffer-pattern (concat test-common-server-buffer-pattern default-directory "$")))
+      (tide-list-servers)
+      (switch-to-buffer "*Tide Server List*")
+      (should (string-match-p buffer-pattern (buffer-string)))
+      (execute-kbd-macro (kbd "<return>"))
+      ;; The operation is asynchronous so we have to wait for it.
+      (wait-for
+       (should (member "*tide-project-info*" (mapcar (function buffer-name) (buffer-list))))))))
 
 (ert-deftest test-tide-hl-identifier/spaces ()
   "Test that `tide-hl-identifier' highlights the identifiers properly in a
