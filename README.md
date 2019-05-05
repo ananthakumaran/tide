@@ -272,6 +272,13 @@ Check
 https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
 for the full list of available options.
 
+**tide-disable-suggestions** `nil`
+
+Disable suggestions.
+
+If set to non-nil, suggestions will not be shown in flycheck
+errors and tide-project-errors buffer.
+
 **tide-completion-ignore-case** `nil`
 
 CASE will be ignored in completion if set to non-nil.
@@ -283,6 +290,10 @@ Completion dropdown will contain detailed method information if set to non-nil.
 **tide-completion-enable-autoimport-suggestions** `t`
 
 Whether to include external module exports in completions.
+
+**tide-navto-item-filter** `#'tide-navto-item-filter-default`
+
+The filter for items returned by tide-nav. Defaults to class, interface, type, enum
 
 **tide-jump-to-definition-reuse-window** `t`
 
@@ -328,3 +339,4 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 **tide-hl-identifier-idle-time** `0.5`
 
 How long to wait after user input before highlighting the current identifier.
+

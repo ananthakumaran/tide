@@ -108,6 +108,14 @@ for the full list of available options."
   :type '(plist :value-type sexp)
   :group 'tide)
 
+(defcustom tide-disable-suggestions nil
+  "Disable suggestions.
+
+If set to non-nil, suggestions will not be shown in flycheck
+errors and tide-project-errors buffer."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-completion-ignore-case nil
   "CASE will be ignored in completion if set to non-nil."
   :type 'boolean
@@ -1953,17 +1961,19 @@ code-analysis."
            (setq err response))
          (resolve)))
 
-      (tide-send-command
-       "suggestionDiagnosticsSync"
-       `(:file ,(tide-buffer-file-name))
-       (lambda (response)
-         (cond
-          ((tide-response-success-p response)
-           (setq result (plist-put result :suggestionDiag (plist-get response :body))))
-          ((tide-command-unknown-p response)
-           (setq result (plist-put result :suggestionDiag '())))
-          (t (setq err response)))
-         (resolve))))))
+      (if tide-disable-suggestions
+          (setq result (plist-put result :suggestionDiag '()))
+        (tide-send-command
+         "suggestionDiagnosticsSync"
+         `(:file ,(tide-buffer-file-name))
+         (lambda (response)
+           (cond
+            ((tide-response-success-p response)
+             (setq result (plist-put result :suggestionDiag (plist-get response :body))))
+            ((tide-command-unknown-p response)
+             (setq result (plist-put result :suggestionDiag '())))
+            (t (setq err response)))
+           (resolve)))))))
 
 (defun tide-parse-error (response checker)
   (-map
@@ -2117,7 +2127,9 @@ code-analysis."
                                    file-names))
            (syntax-remaining-files (cl-copy-list project-files))
            (semantic-remaining-files (cl-copy-list project-files))
-           (suggestion-remaining-files (cl-copy-list project-files))
+           (suggestion-remaining-files (if tide-disable-suggestions
+                                           '()
+                                         (cl-copy-list project-files)))
            (syntax-errors 0)
            (semantic-errors 0)
            (suggestion-errors 0)
@@ -2139,9 +2151,10 @@ code-analysis."
                   (setq semantic-remaining-files (remove file-name semantic-remaining-files))
                   (cl-incf semantic-errors (length diagnostics))))
                ("suggestionDiag"
-                (progn
-                  (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
-                  (cl-incf suggestion-errors (length diagnostics)))))
+                (unless tide-disable-suggestions
+                  (progn
+                    (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
+                    (cl-incf suggestion-errors (length diagnostics))))))
 
              (when diagnostics
                (-each diagnostics
