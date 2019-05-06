@@ -2138,13 +2138,12 @@ code-analysis."
        (lambda (response)
          (save-excursion
            (goto-char (point-max))
-           (let* ((inhibit-read-only t)
+           (let ((inhibit-read-only t)
 		  (file-name (tide-plist-get response :body :file))
 		  (diagnostics (tide-plist-get response :body :diagnostics))
-		  (eventType (plist-get response :event))
-		  (shouldIgnore (and (string-equal eventType "suggestionDiag") tide-disable-suggestions)))
-	     (unless shouldIgnore
-	       (pcase eventType
+		  (event-type (plist-get response :event)))
+	     (unless (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
+	       (pcase event-type
 		 ("syntaxDiag"
 		  (progn
 		    (setq syntax-remaining-files (remove file-name syntax-remaining-files))
