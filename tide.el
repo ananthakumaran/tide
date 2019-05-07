@@ -108,6 +108,14 @@ for the full list of available options."
   :type '(plist :value-type sexp)
   :group 'tide)
 
+(defcustom tide-disable-suggestions nil
+  "Disable suggestions.
+
+If set to non-nil, suggestions will not be shown in flycheck
+errors and tide-project-errors buffer."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-completion-ignore-case nil
   "CASE will be ignored in completion if set to non-nil."
   :type 'boolean
@@ -1953,17 +1961,19 @@ code-analysis."
            (setq err response))
          (resolve)))
 
-      (tide-send-command
-       "suggestionDiagnosticsSync"
-       `(:file ,(tide-buffer-file-name))
-       (lambda (response)
-         (cond
-          ((tide-response-success-p response)
-           (setq result (plist-put result :suggestionDiag (plist-get response :body))))
-          ((tide-command-unknown-p response)
-           (setq result (plist-put result :suggestionDiag '())))
-          (t (setq err response)))
-         (resolve))))))
+      (if tide-disable-suggestions
+          (setq result (plist-put result :suggestionDiag '()))
+        (tide-send-command
+         "suggestionDiagnosticsSync"
+         `(:file ,(tide-buffer-file-name))
+         (lambda (response)
+           (cond
+            ((tide-response-success-p response)
+             (setq result (plist-put result :suggestionDiag (plist-get response :body))))
+            ((tide-command-unknown-p response)
+             (setq result (plist-put result :suggestionDiag '())))
+            (t (setq err response)))
+           (resolve)))))))
 
 (defun tide-parse-error (response checker)
   (-map
@@ -2112,12 +2122,14 @@ code-analysis."
       (erase-buffer))
     (display-buffer (current-buffer) t)
     (let* ((project-files (-reject (lambda (file-name)
-                                     (or (string-match-p "node_modules/typescript/" file-name)
+                                     (or (string-match-p "node_modules" file-name)
                                          (string-match-p "tsconfig.json$" file-name)))
                                    file-names))
            (syntax-remaining-files (cl-copy-list project-files))
            (semantic-remaining-files (cl-copy-list project-files))
-           (suggestion-remaining-files (cl-copy-list project-files))
+           (suggestion-remaining-files (if tide-disable-suggestions
+                                           '()
+                                         (cl-copy-list project-files)))
            (syntax-errors 0)
            (semantic-errors 0)
            (suggestion-errors 0)
@@ -2127,39 +2139,41 @@ code-analysis."
          (save-excursion
            (goto-char (point-max))
            (let ((inhibit-read-only t)
-                 (file-name (tide-plist-get response :body :file))
-                 (diagnostics (tide-plist-get response :body :diagnostics)))
-             (pcase (plist-get response :event)
-               ("syntaxDiag"
-                (progn
-                  (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-                  (cl-incf syntax-errors (length diagnostics))))
-               ("semanticDiag"
-                (progn
-                  (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-                  (cl-incf semantic-errors (length diagnostics))))
-               ("suggestionDiag"
-                (progn
-                  (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
-                  (cl-incf suggestion-errors (length diagnostics)))))
+		  (file-name (tide-plist-get response :body :file))
+		  (diagnostics (tide-plist-get response :body :diagnostics))
+		  (event-type (plist-get response :event)))
+	     (unless (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
+	       (pcase event-type
+		 ("syntaxDiag"
+		  (progn
+		    (setq syntax-remaining-files (remove file-name syntax-remaining-files))
+		    (cl-incf syntax-errors (length diagnostics))))
+		 ("semanticDiag"
+		  (progn
+		    (setq semantic-remaining-files (remove file-name semantic-remaining-files))
+		    (cl-incf semantic-errors (length diagnostics))))
+		 ("suggestionDiag"
+                  (progn
+                    (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
+                    (cl-incf suggestion-errors (length diagnostics)))))
 
-             (when diagnostics
-               (-each diagnostics
-                 (lambda (diagnostic)
-                   (let ((line-number (tide-plist-get diagnostic :start :line)))
-                     (when (not (equal last-file-name file-name))
-                       (setq last-file-name file-name)
-                       (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
-                       (insert "\n"))
+	       (when diagnostics
+		 (-each diagnostics
+		   (lambda (diagnostic)
+		     (let ((line-number (tide-plist-get diagnostic :start :line)))
+		       (when (not (equal last-file-name file-name))
+			 (setq last-file-name file-name)
+			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
+			 (insert "\n"))
 
-                     (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
-                     (insert ": ")
-                     (insert (plist-get diagnostic :text))
-                     (insert "\n")))))
-             (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
-               (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n" syntax-errors semantic-errors suggestion-errors))
-               (goto-char (point-min))
-               (tide-clear-event-listener))))))))
+		       (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
+		       (insert ": ")
+		       (insert (plist-get diagnostic :text))
+		       (insert "\n")))))
+	       (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
+		 (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n" syntax-errors semantic-errors suggestion-errors))
+		 (goto-char (point-min))
+		 (tide-clear-event-listener)))))))))
   (tide-command:geterrForProject))
 
 (defun tide-next-error-function (n &optional reset)
