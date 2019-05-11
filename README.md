@@ -229,15 +229,15 @@ locally and checkout the old version though.
 
 ### Custom Variables
 
-**tide-sync-request-timeout** `2`
+##### tide-sync-request-timeout `2`
 
 The number of seconds to wait for a sync response.
 
-**tide-tsserver-process-environment** `'nil`
+##### tide-tsserver-process-environment `'nil`
 
 List of extra environment variables to use when starting tsserver.
 
-**tide-tsserver-executable** `nil`
+##### tide-tsserver-executable `nil`
 
 Name of tsserver executable to run instead of the bundled tsserver.
 
@@ -247,24 +247,23 @@ paths are resolved against the project root directory.
 Note that this option only works with TypeScript version 2.0 and
 above.
 
-**tide-node-executable** `"node"`
+##### tide-node-executable `"node"`
 
 Name or path of the node executable binary file.
 
-**tide-post-code-edit-hook** `nil`
+##### tide-post-code-edit-hook `nil`
 
 Hook run after code edits are applied in a buffer.
 
-**tide-sort-completions-by-kind** `nil`
+##### tide-sort-completions-by-kind `nil`
 
 Whether completions should be sorted by kind.
 
-**tide-format-options** `'nil`
+##### tide-format-options `'nil`
 
 Format options plist.
 
-**tide-user-preferences** `'(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)
-`
+##### tide-user-preferences `'(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)`
 
 User preference plist used on the configure request.
 
@@ -272,71 +271,70 @@ Check
 https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
 for the full list of available options.
 
-**tide-disable-suggestions** `nil`
+##### tide-disable-suggestions `nil`
 
 Disable suggestions.
 
 If set to non-nil, suggestions will not be shown in flycheck
 errors and tide-project-errors buffer.
 
-**tide-completion-ignore-case** `nil`
+##### tide-completion-ignore-case `nil`
 
 CASE will be ignored in completion if set to non-nil.
 
-**tide-completion-detailed** `nil`
+##### tide-completion-detailed `nil`
 
 Completion dropdown will contain detailed method information if set to non-nil.
 
-**tide-completion-enable-autoimport-suggestions** `t`
+##### tide-completion-enable-autoimport-suggestions `t`
 
 Whether to include external module exports in completions.
 
-**tide-navto-item-filter** `#'tide-navto-item-filter-default`
+##### tide-navto-item-filter `#'tide-navto-item-filter-default`
 
 The filter for items returned by tide-nav. Defaults to class, interface, type, enum
 
-**tide-jump-to-definition-reuse-window** `t`
+##### tide-jump-to-definition-reuse-window `t`
 
 Reuse existing window when jumping to definition.
 
-**tide-imenu-flatten** `nil`
+##### tide-imenu-flatten `nil`
 
 Imenu index will be flattened if set to non-nil.
 
-**tide-allow-popup-select** `'(code-fix refactor)
-`
+##### tide-allow-popup-select `'(code-fix refactor)`
 
 The list of commands where popup selection is allowed.
 
-**tide-always-show-documentation** `nil`
+##### tide-always-show-documentation `nil`
 
 Show the documentation window even if only type information is available.
 
-**tide-server-max-response-length** `102400`
+##### tide-server-max-response-length `102400`
 
 Maximum allowed response length from tsserver. Any response greater than this would be ignored.
 
-**tide-tsserver-locator-function** `#'tide-tsserver-locater-npmlocal-projectile-npmglobal`
+##### tide-tsserver-locator-function `#'tide-tsserver-locater-npmlocal-projectile-npmglobal`
 
 Function used by tide to locate tsserver.
 
-**tide-default-mode** `"TS"`
+##### tide-default-mode `"TS"`
 
 The default mode to open buffers not backed by files (e.g. Org
   source blocks) in.
 
-**tide-recenter-after-jump** `t`
+##### tide-recenter-after-jump `t`
 
 Recenter buffer after jumping to definition
 
-**tide-filter-out-warning-completions** `nil`
+##### tide-filter-out-warning-completions `nil`
 
 Completions whose `:kind` property is "warning" will be filtered out if set to non-nil.
 This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
 completions whose `:kind` property is "warning" for Javascript code. You can fix this behavior by setting
 this variable to non-nil value for Javascript buffers using `setq-local` macro.
 
-**tide-hl-identifier-idle-time** `0.5`
+##### tide-hl-identifier-idle-time `0.5`
 
 How long to wait after user input before highlighting the current identifier.
 

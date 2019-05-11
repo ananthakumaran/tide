@@ -5,6 +5,7 @@ export HOME := $(WORKDIR)
 define ESCRIPT
 (with-temp-buffer
   (require 'pp)
+  (require 'subr-x)
   (insert-file-contents "tide.el")
   (while
       (ignore-errors
@@ -14,7 +15,7 @@ define ESCRIPT
               (unless (cadr (cddr sexp))
                 (princ (format "Documentation missing for defcustom %S\n" (cadr sexp)))
                 (kill-emacs 1))
-              (princ (format "**%s** `%s`\n\n%s\n\n" (cadr sexp) (pp-to-string (car (cddr sexp))) (replace-regexp-in-string "`\\([^ ]*\\)'" "`\\1`" (cadr (cddr sexp))))))
+              (princ (format "##### %s `%s`\n\n%s\n\n" (cadr sexp) (string-trim (pp-to-string (car (cddr sexp)))) (replace-regexp-in-string "`\\([^ ]*\\)'" "`\\1`" (cadr (cddr sexp))))))
             t)))))
 endef
 export ESCRIPT
