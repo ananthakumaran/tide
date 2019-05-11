@@ -1369,7 +1369,12 @@ This function is used for the basic completions sorting."
                     (and "import(" (or ?\" ?') (0+ (not (any ?\" ?'))))
                     (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))))
       (cons (company-grab (rx (or ?/ ?\" ?') (group (0+ (not (any ?\" ?'))))) 1) t)
-    (company-grab-symbol-cons "\\." 1)))
+    (let ((comp (company-grab-symbol-cons "\\." 1)))
+      (if (and (tide-in-string-p)
+               (stringp comp)
+               (string-empty-p comp))
+          nil
+        comp))))
 
 (defun tide-member-completion-p (prefix)
   (save-excursion
@@ -1469,7 +1474,7 @@ This function is used for the basic completions sorting."
              (-any-p #'derived-mode-p tide-supported-modes)
              (tide-current-server)
              (not (nth 4 (syntax-ppss)))
-             (or (tide-completion-prefix) 'stop)))
+             (tide-completion-prefix)))
     (candidates (cons :async
                       (lambda (cb)
                         (tide-command:completions arg cb))))
