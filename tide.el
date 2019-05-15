@@ -1361,7 +1361,7 @@ This function is used for the basic completions sorting."
       ;; Rank declarations lower than variables
       (string-equal modifier-b "declare"))))
 
-(defcustom tide-allow-other-backend-for-string t
+(defcustom tide-allow-other-backend-for-string nil
   "Whether allow other backends provide completion for string."
   :type 'boolean
   :group 'tide)
