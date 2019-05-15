@@ -1361,6 +1361,11 @@ This function is used for the basic completions sorting."
       ;; Rank declarations lower than variables
       (string-equal modifier-b "declare"))))
 
+(defcustom tide-allow-other-backend-for-string t
+  "Whether allow other backends provide completion for string."
+  :type 'boolean
+  :group 'tide)
+
 (defun tide-completion-prefix ()
   (if (and (tide-in-string-p)
            (looking-back
@@ -1370,11 +1375,12 @@ This function is used for the basic completions sorting."
                     (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))))
       (cons (company-grab (rx (or ?/ ?\" ?') (group (0+ (not (any ?\" ?'))))) 1) t)
     (let ((comp (company-grab-symbol-cons "\\." 1)))
-      (if (and (tide-in-string-p)
+      (if (and tide-allow-other-backend-for-string
+               (tide-in-string-p)
                (stringp comp)
                (string-empty-p comp))
           nil
-        comp))))
+        (or comp 'stop)))))
 
 (defun tide-member-completion-p (prefix)
   (save-excursion
