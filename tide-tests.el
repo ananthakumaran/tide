@@ -15,7 +15,7 @@
 (add-to-list 'package-archives '("melpa" . "https://stable.melpa.org/packages/"))
 
 ;; tide depends on typescript-mode
-(dolist (p '(dash s flycheck typescript-mode))
+(dolist (p '(dash s f flycheck typescript-mode))
   (when (not (package-installed-p p))
     (package-refresh-contents)
     (package-install p)))
@@ -113,13 +113,22 @@
 
 (ert-deftest load-tsconfig ()
   (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "./base.json" :compileOnSave t)
-                 (tide-load-tsconfig "test/tsconfig.json" '())))
+                            (tide-load-tsconfig "test/tsconfig.json" '())))
 
   (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "./base" :compileOnSave t)
                             (tide-load-tsconfig "test/tsconfig-no-extension.json" '())))
 
+  (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "tide-test-folder/base.json" :compileOnSave t)
+                            (tide-load-tsconfig "test/tsconfig-extends-node-module.json" '())))
+
+  (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "tide-test-folder/base" :compileOnSave t)
+                            (tide-load-tsconfig "test/tsconfig-extends-no-extension-node-module.json" '())))
+
+  (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "tide-test-folder" :compileOnSave t)
+                            (tide-load-tsconfig "test/tsconfig-extends-no-filename-node-module.json" '())))
+
   (should (tide-plist-equal '(:compileOnSave t :compilerOptions (:target "ES6" :sourceMap t))
-                 (tide-load-tsconfig "test/base.json" '())))
+                            (tide-load-tsconfig "test/base.json" '())))
 
   (should-error (tide-load-tsconfig "test/loop.json" '()))
 
