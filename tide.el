@@ -79,6 +79,14 @@ above."
   :type '(choice (const nil) string)
   :group 'tide)
 
+(defcustom tide-tscompiler-executable nil
+  "Name of tsc executable.
+
+This may either be an absolute path or a relative path. Relative
+paths are resolved against the project root directory."
+  :type '(choice (const nil) string)
+  :group 'tide)
+
 (defcustom tide-node-executable "node"
   "Name or path of the node executable binary file."
   :type '(choice (const nil) string)
@@ -309,6 +317,12 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
         (json-read-file filename))
     (error '())))
 
+(defun tide-safe-json-read-string (string)
+  (condition-case nil
+      (let ((json-object-type 'plist))
+        (json-read-from-string string))
+    (error '())))
+
 (defun tide-plist-get (list &rest args)
   (cl-reduce
    (lambda (object key)
@@ -516,6 +530,12 @@ LINE is one based, OFFSET is one based and column is zero based"
              (tide-completing-read-select-item prompt (hash-table-keys collection)))))
       (gethash selected-text collection))))
 
+
+(defun tide-command-to-string (program args)
+  (with-temp-buffer
+    (apply #'process-file (-concat (list program nil t nil) args))
+    (buffer-string)))
+
 ;;; Events
 
 (defvar tide-event-listeners (make-hash-table :test 'equal))
@@ -620,6 +640,30 @@ LINE is one based, OFFSET is one based and column is zero based"
              (functionp 'projectile-project-root)
              (projectile-project-p))
     (concat (projectile-project-root) "node_modules/typescript/lib")))
+
+(defconst tide--tscompiler "tsc.js"
+  "File-name of the typescript compiler.")
+
+(defun tide--locate-tscompiler (path)
+  "Locate the typescript compiler in PATH.
+Return a string representing the existing full path or nil."
+  (let ((exe (expand-file-name tide--tscompiler path)))
+    (when (file-exists-p exe) exe)))
+
+(defun tide-tscompiler-locater-npmlocal-projectile-npmglobal ()
+  "Locate tsserver through project-local or global system settings."
+  (or
+   (tide--locate-tscompiler (tide--npm-local))
+   (tide--locate-tscompiler (tide--project-package))
+   (tide--locate-tscompiler (tide--npm-global))
+   (tide--locate-tscompiler (tide--npm-global-usrlocal))))
+
+(defun tide-locate-tscompiler-executable ()
+  "Locate the typescript compiler executable.
+If TIDE-TSCOMPILER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation."
+  (or
+   (and tide-tscompiler-executable (expand-file-name tide-tscompiler-executable))
+   (tide-tscompiler-locater-npmlocal-projectile-npmglobal)))
 
 (defconst tide--tsserver "tsserver.js"
   "File-name of the file that node executes to start the typescript server.")
@@ -2371,46 +2415,22 @@ timeout."
 (defun tide-auto-compile-file ()
   "Compiles the current file if compileOnSave is set"
   (interactive)
-  (tide-project-config
-   (lambda (config)
-     (when (and config (eq (plist-get config :compileOnSave) t))
-       (tide-command:compileOnSaveEmitFile)))))
+  (-when-let (config (tide-project-config))
+    ;; tsc converts compileOnSave to compilerOnSave
+    (when (or (eq (plist-get config :compilerOnSave) t))
+      (tide-command:compileOnSaveEmitFile))))
 
-(defun tide-load-tsconfig (path loaded-paths)
-  (when (member path loaded-paths)
-    (error "tsconfig file has cyclic dependency, config file at %S is already loaded." path))
-  (when (not (file-exists-p path))
-    (error "tsconfig file not found at %S." path))
-  (let ((config (tide-safe-json-read-file path)))
-    (-if-let (extends (plist-get config :extends))
-        (tide--load-tsconfig-extension config (expand-file-name extends (file-name-directory path)) (cons path loaded-paths))
-      config)))
-
-(defun tide--load-tsconfig-extension (config path loaded-paths)
-  ;; This replicates the logic from TypeScript in src/compiler/commandLineParser.ts
-  ;; function getExtendsConfigPath. If the file in "extends" does not exist, then TS
-  ;; slaps an extension on it, and tries to load that file.
-  (when (not (or (file-exists-p path)
-                 (string= (file-name-extension path) "json")))
-    (setq path (concat path ".json")))
-  ;; We don't recheck the path's existence: tide-load-tsconfig will fail if the path  does not exist.
-  (let ((extension (tide-load-tsconfig path loaded-paths)))
-    (tide-combine-plists
-     extension
-     config
-     `(:compilerOptions ,(tide-combine-plists (plist-get extension :compilerOptions) (plist-get config :compilerOptions))))))
-
-(defun tide-project-config (cb)
+(defun tide-project-config ()
   (let ((config (gethash (tide-project-name) tide-project-configs :not-loaded)))
     (if (eq config :not-loaded)
-        (tide-command:projectInfo
-         (lambda (response)
-           (tide-on-response-success response
-             (let* ((config-file-name (tide-plist-get response :body :configFileName))
-                    (config (and config-file-name (file-exists-p config-file-name) (tide-load-tsconfig config-file-name '()))))
-               (puthash (tide-project-name) config tide-project-configs)
-               (funcall cb config)))))
-      (funcall cb config))))
+      (let* ((default-directory (tide-project-root))
+             (tscjs (tide-locate-tscompiler-executable)))
+        (if tscjs
+            (let ((config (tide-safe-json-read-string
+                           (tide-command-to-string tide-node-executable (list tscjs "--showConfig")))))
+              (puthash (tide-project-name) config tide-project-configs))
+          (puthash (tide-project-name) '() tide-project-configs)))
+      config)))
 
 ;;; Utility commands
 

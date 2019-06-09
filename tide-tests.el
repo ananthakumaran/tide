@@ -111,20 +111,6 @@
   (should (tide-plist-equal '(:a 1 :b (:nest 1 :nest2 2)) '(:a 1 :b (:nest2 2 :nest 1))))
   (should-not (tide-plist-equal '(:a 1 :b (:nest 1)) '(:a 1 :b (:nest 2)))))
 
-(ert-deftest load-tsconfig ()
-  (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "./base.json" :compileOnSave t)
-                 (tide-load-tsconfig "test/tsconfig.json" '())))
-
-  (should (tide-plist-equal '(:compilerOptions (:target "ES7" :sourceMap t) :extends "./base" :compileOnSave t)
-                            (tide-load-tsconfig "test/tsconfig-no-extension.json" '())))
-
-  (should (tide-plist-equal '(:compileOnSave t :compilerOptions (:target "ES6" :sourceMap t))
-                 (tide-load-tsconfig "test/base.json" '())))
-
-  (should-error (tide-load-tsconfig "test/loop.json" '()))
-
-  (should-error (tide-load-tsconfig "test/notfound.json" '())))
-
 ;; Adapted from jdee-mode's test suite.
 (defmacro mode-with-temp-buffer (content &rest body)
   "Fill a temporary buffer with `CONTENT', turn on `tide-mode' and eval `BODY' in it."
