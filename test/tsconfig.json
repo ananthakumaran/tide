@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
     "target": "ES7"
-  },
-  "extends": "./base.json"
+  }
 }
