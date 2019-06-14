@@ -247,6 +247,13 @@ paths are resolved against the project root directory.
 Note that this option only works with TypeScript version 2.0 and
 above.
 
+##### tide-tscompiler-executable `nil`
+
+Name of tsc executable.
+
+This may either be an absolute path or a relative path. Relative
+paths are resolved against the project root directory.
+
 ##### tide-node-executable `"node"`
 
 Name or path of the node executable binary file.
