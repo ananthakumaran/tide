@@ -2111,6 +2111,10 @@ code-analysis."
 (defun tide-flycheck-predicate ()
   (and (bound-and-true-p tide-mode) (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
 
+(defun tide-file-extension-p (ext)
+  (and buffer-file-name
+       (string-equal ext (file-name-extension buffer-file-name))))
+
 (flycheck-define-generic-checker 'typescript-tide
   "A TypeScript syntax checker using tsserver."
   :start #'tide-flycheck-start
@@ -2135,7 +2139,10 @@ code-analysis."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
   :modes '(web-mode js2-jsx-mode rjsx-mode)
-  :predicate #'tide-flycheck-predicate)
+  :predicate (lambda ()
+               (and
+                (tide-file-extension-p "jsx")
+                (tide-flycheck-predicate))))
 
 (add-to-list 'flycheck-checkers 'jsx-tide t)
 
@@ -2144,7 +2151,10 @@ code-analysis."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
   :modes '(web-mode)
-  :predicate #'tide-flycheck-predicate)
+  :predicate (lambda ()
+               (and
+                (tide-file-extension-p "tsx")
+                (tide-flycheck-predicate))))
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
 (flycheck-add-next-checker 'tsx-tide '(warning . typescript-tslint) 'append)
