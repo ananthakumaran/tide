@@ -2354,8 +2354,17 @@ highlights from previously highlighted identifier."
   (-when-let* ((item (-first (lambda (item)
                                (equal (tide-buffer-file-name) (plist-get item :file)))
                              (plist-get response :body)))
-               (references (plist-get item :highlightSpans)))
-    (-each references
+               (references (plist-get item :highlightSpans))
+               (nearby-references
+                (if (and
+                     (> (length references) 20)
+                     (> (plist-get (plist-get (-last-item references) :start) :line) 10000))
+                    (let ((start-line (- (line-number-at-pos) 100)))
+                      (-take 20 (-drop-while
+                                 (lambda (r) (> start-line (plist-get (plist-get r :start) :line)))
+                                 references)))
+                  references)))
+    (-each nearby-references
       (lambda (reference)
         (let* ((kind (plist-get reference :kind))
                (id-start (plist-get reference :start))
