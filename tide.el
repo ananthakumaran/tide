@@ -2355,15 +2355,37 @@ highlights from previously highlighted identifier."
                                (equal (tide-buffer-file-name) (plist-get item :file)))
                              (plist-get response :body)))
                (references (plist-get item :highlightSpans)))
-    (-each references
-      (lambda (reference)
-        (let* ((kind (plist-get reference :kind))
-               (id-start (plist-get reference :start))
-               (id-end (plist-get reference :end)))
-          (when (member kind '("reference" "writtenReference"))
-            (let ((x (make-overlay (tide-location-to-point id-start) (tide-location-to-point id-end))))
-              (overlay-put x 'tide-overlay 'sameid)
-              (overlay-put x 'face 'tide-hl-identifier-face))))))))
+    ;; `overlay-recenter' provide a modest speed improvement when creating lots
+    ;; of overlays from a list. See the documentation on this function for
+    ;; details.
+    (overlay-recenter (point-max))
+    ;; The point computations in this loop *could* be replaced with
+    ;; `tide-location-to-point' but `tide-location-to-point' is extremely slow
+    ;; when it comes to processing large lists of locations because it returns
+    ;; to `point-min' with each call.
+    (save-excursion
+      (save-restriction
+        (widen)
+        (goto-char (point-min))
+        (loop for reference in references
+              with current-line = 1
+              do
+              (when (member (plist-get reference :kind) '("reference" "writtenReference"))
+                (let* ((start (plist-get reference :start))
+                       (end (plist-get reference :end))
+                       (start-line (plist-get start :line))
+                       (overlay (make-overlay
+                           (progn (forward-line (- start-line current-line))
+                                  (move-to-column (1- (plist-get start :offset)))
+                                  (point))
+                           (progn (unless (= start-line (plist-get end :line))
+                                    ;; Identifiers shouldn't span lines.
+                                    (error "identifier unexpectedly spans lines"))
+                                  (move-to-column (1- (plist-get end :offset)))
+                                  (point)))))
+                  (setq current-line start-line)
+                  (overlay-put overlay 'tide-overlay 'sameid)
+                  (overlay-put overlay 'face 'tide-hl-identifier-face))))))))
 
 (defun tide--hl-identifiers-function ()
   "Function run after an idle timeout, highlighting the
