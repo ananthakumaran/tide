@@ -128,13 +128,16 @@
   "Fill a temporary buffer with `CONTENT', invoke `tide-setup' and eval `BODY' in it."
   (declare (debug t)
            (indent 1))
-  `(with-temp-buffer
-     (insert ,content)
-     (tide-setup)
-     (goto-char (point-min))
-     ;; We need this so that tests that simulate user actions operate on the right buffer.
-     (switch-to-buffer (current-buffer))
-     ,@body))
+  (let ((server (make-symbol "server")))
+    `(with-temp-buffer
+       (insert ,content)
+       (tide-setup)
+       (goto-char (point-min))
+       ;; We need this so that tests that simulate user actions operate on the right buffer.
+       (switch-to-buffer (current-buffer))
+       (save-current-buffer ,@body)
+       (-when-let (,server (tide-current-server))
+         (delete-process ,server)))))
 
 (defmacro wait-for (&rest body)
   "Wait until BODY executes without error.  There's an arbitrary 5 second
@@ -264,11 +267,14 @@ a test failure."
 (ert-deftest tide-list-servers/verify-setup ()
   "Test that hitting enter on the project name verifies the setup."
   ;; We need a file-backed buffer for this. Otherwise, tsserver errors.
-  (let* ((buffer (find-file "test/trivial.ts")))
+  (let* ((buffer (find-file "test/trivial.ts"))
+         ;; We need to make our own pattern because we're in a different directory
+         ;; than all the previous tests that test `tide-list-servers'.
+         (pattern (concat "^test-.*\\s-+\\(--\\|[0-9]+\\)\\s-+" default-directory "$")))
     (tide-setup)
     (tide-list-servers)
     (switch-to-buffer "*Tide Server List*")
-    (should (string-match-p directory-server-buffer-pattern (buffer-string)))
+    (should (string-match-p pattern (buffer-string)))
     (execute-kbd-macro (kbd "<return>"))
     ;; The operation is asynchronous so we have to wait for it.
     (wait-for
