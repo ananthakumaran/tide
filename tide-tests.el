@@ -280,6 +280,23 @@ a test failure."
     (wait-for
      (should (member "*tide-project-info*" (mapcar (function buffer-name) (buffer-list)))))))
 
+(ert-deftest test-tide-hl-identifier ()
+  "Test that `tide-hl-identifier' highlights the identifiers properly."
+  (let* ((buffer (find-file "test/highlight.ts")))
+    (tide-setup)
+    (re-search-forward "Fnord")
+    (tide-hl-identifier)
+    ;; `tide-hl-identifier' is asynchronous so we need to wait until
+    ;; it is done.
+    (wait-for
+     (should (= (length (overlays-in (point-min) (point-max))) 5)))
+    (dolist (overlay (overlays-in (point-min) (point-max)))
+      (should (string= (buffer-substring (overlay-start overlay)
+                                         (overlay-end overlay))
+                       "Fnord")))
+    (delete-process (tide-current-server))
+    (kill-buffer buffer)))
+
 (provide 'tide-tests)
 
 ;;; tide-tests.el ends here
