@@ -2367,7 +2367,7 @@ highlights from previously highlighted identifier."
       (save-restriction
         (widen)
         (goto-char (point-min))
-        (loop for reference in references
+        (cl-loop for reference in references
               with current-line = 1
               do
               (when (member (plist-get reference :kind) '("reference" "writtenReference"))
@@ -2511,7 +2511,7 @@ timeout."
                      (if (or (not cpu) (isnan cpu))
                          "--"
                        (number-to-string (round cpu)))
-                     (case tide--server-list-mode-last-column
+                     (cl-case tide--server-list-mode-last-column
                        ('project-root
                         (or (process-get p 'project-root) ""))
                        ('command
@@ -2566,7 +2566,7 @@ timeout."
                           (< (string-to-number cpu-a)
                              (string-to-number cpu-b)))))))
          (list
-          (case tide--server-list-mode-last-column
+          (cl-case tide--server-list-mode-last-column
             ('project-root "Project Root")
             ('command "Project Command")
             (otherwise (error "unknown column %s" tide--server-list-mode-last-column)))

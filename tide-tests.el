@@ -22,7 +22,6 @@
 
 (require 'tide)
 (require 'dash)
-(require 'cl)
 
 (defun tide-plist-equal (a b)
   (and (listp a) (listp b)
