@@ -290,7 +290,7 @@ Whether completions should be sorted by kind.
 
 Format options plist.
 
-##### tide-user-preferences `'(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)`
+##### tide-user-preferences `'(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t :generateReturnInDocTemplate t)`
 
 User preference plist used on the configure request.
 
@@ -304,6 +304,10 @@ Disable suggestions.
 If set to non-nil, suggestions will not be shown in flycheck
 errors and tide-project-errors buffer.
 
+##### tide-completion-setup-company-backend `t`
+
+Add `company-tide` to `company-backends`.
+
 ##### tide-completion-ignore-case `nil`
 
 CASE will be ignored in completion if set to non-nil.
@@ -311,6 +315,14 @@ CASE will be ignored in completion if set to non-nil.
 ##### tide-completion-show-source `nil`
 
 Completion dropdown will contain completion source if set to non-nil.
+
+##### tide-completion-fuzzy `nil`
+
+Allow fuzzy completion.
+
+By default only candidates with exact prefix match are shown. If
+set to non-nil, candidates with match anywhere inside the name
+are shown.
 
 ##### tide-completion-detailed `nil`
 
