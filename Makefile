@@ -24,7 +24,7 @@ setup:
 	cd .. && git clone git@github.com:Microsoft/TypeScript.git
 
 update-tsserver:
-	cd ../TypeScript && gulp clean && gulp local
+	cd ../TypeScript && npm install && gulp clean && gulp local
 	cd ../TypeScript/built/local && cp lib.*.d.ts tsserver.js typingsInstaller.js ../../../tide/tsserver
 	cd ../TypeScript && git reset --hard HEAD
 
