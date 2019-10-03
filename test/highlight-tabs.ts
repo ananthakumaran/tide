@@ -1,11 +1,14 @@
 type Fnord = number;
 
 function foo(a: Fnord, b: Fnord): Fnord {
-    return a + b;
+	while (a + b) {
+		a = a - b;
+	}
+	return a + b;
 }
 
 const moo: Fnord = 1;
 
 foo();
 
-export {}
+export {};

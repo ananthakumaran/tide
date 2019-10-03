@@ -2376,12 +2376,13 @@ highlights from previously highlighted identifier."
                        (start-line (plist-get start :line))
                        (overlay (make-overlay
                            (progn (forward-line (- start-line current-line))
-                                  (move-to-column (1- (plist-get start :offset)))
+                                  (forward-char (1- (plist-get start :offset)))
                                   (point))
                            (progn (unless (= start-line (plist-get end :line))
                                     ;; Identifiers shouldn't span lines.
                                     (error "identifier unexpectedly spans lines"))
-                                  (move-to-column (1- (plist-get end :offset)))
+                                  (forward-char (- (plist-get end :offset)
+                                                   (plist-get start :offset)))
                                   (point)))))
                   (setq current-line start-line)
                   (overlay-put overlay 'tide-overlay 'sameid)
