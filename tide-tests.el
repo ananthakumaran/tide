@@ -279,8 +279,9 @@ a test failure."
     (wait-for
      (should (member "*tide-project-info*" (mapcar (function buffer-name) (buffer-list)))))))
 
-(ert-deftest test-tide-hl-identifier ()
-  "Test that `tide-hl-identifier' highlights the identifiers properly."
+(ert-deftest test-tide-hl-identifier/spaces ()
+  "Test that `tide-hl-identifier' highlights the identifiers properly in a
+file that uses spaces for indentation."
   (let* ((buffer (find-file "test/highlight.ts")))
     (tide-setup)
     (re-search-forward "Fnord")
@@ -293,6 +294,25 @@ a test failure."
       (should (string= (buffer-substring (overlay-start overlay)
                                          (overlay-end overlay))
                        "Fnord")))
+    (delete-process (tide-current-server))
+    (kill-buffer buffer)))
+
+(ert-deftest test-tide-hl-identifier/tabs ()
+  "Test that `tide-hl-identifier' highlights the identifiers properly in a
+file that uses tabs for indentation."
+  (let* ((buffer (find-file "test/highlight-tabs.ts")))
+    (tide-setup)
+    (goto-char (point-max))
+    (re-search-backward "a: ")
+    (tide-hl-identifier)
+    ;; `tide-hl-identifier' is asynchronous so we need to wait until
+    ;; it is done.
+    (wait-for
+     (should (= (length (overlays-in (point-min) (point-max))) 5)))
+    (dolist (overlay (overlays-in (point-min) (point-max)))
+      (should (string= (buffer-substring (overlay-start overlay)
+                                         (overlay-end overlay))
+                       "a")))
     (delete-process (tide-current-server))
     (kill-buffer buffer)))
 
