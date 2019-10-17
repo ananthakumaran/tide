@@ -461,10 +461,7 @@ LINE is one based, OFFSET is one based and column is zero based"
       (widen)
       (goto-char (point-min))
       (forward-line (1- line))
-      (beginning-of-line)
-      (while (> offset 1)
-        (forward-char)
-        (cl-decf offset))
+      (forward-char (1- offset))
       (1+ (current-column)))))
 
 (defun tide-span-to-position (span)
