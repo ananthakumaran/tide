@@ -382,12 +382,12 @@ ones and overrule settings in the other lists."
 (defmacro tide-on-response-success (response &optional options &rest body)
   "BODY must be a single expression if OPTIONS is not passed."
   (declare (indent 2))
-  (when (not body)
+  (unless body
     (setq body `(,options))
     (setq options '()))
   (tide-plist-map
    (lambda (key _value)
-     (when (not (member key '(:ignore-empty :min-version)))
+     (unless (member key '(:ignore-empty :min-version))
        (error "Invalid options %S" options)))
    options)
   (let ((ignore-empty-response (plist-get options :ignore-empty))
@@ -572,7 +572,7 @@ LINE is one based, OFFSET is one based and column is zero based"
     ('event (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
-  (when (not (tide-current-server))
+  (unless (tide-current-server)
     (error "Server does not exist. Run M-x tide-restart-server to start it again"))
 
   (tide-sync-buffer-contents)
@@ -730,7 +730,7 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
   (remhash project-name tide-project-configs))
 
 (defun tide-start-server-if-required ()
-  (when (not (tide-current-server))
+  (unless (tide-current-server)
     (tide-start-server)))
 
 (defun tide-decode-response-legth ()
@@ -856,7 +856,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
       (widen)
       (goto-char (point-min))
       (forward-line (1- line)))
-    (when (not (and (= offset 0) (= line 0)))
+    (unless (and (= offset 0) (= line 0))
       (forward-char (1- offset)))))
 
 (defun tide-location-to-point (location)
@@ -932,8 +932,8 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   "Returns the symbol found at point, if not deemed 'noise'.
 Noise can be anything like braces, reserved keywords, etc."
 
-  (when (not (or (tide-in-string-p)
-                 (member (face-at-point) '(font-lock-keyword-face))))
+  (unless (or (tide-in-string-p)
+              (member (face-at-point) '(font-lock-keyword-face)))
     ;; we could have used symbol-at-point here, but that leaves us unable to
     ;; differentiate between a symbol named nil and no symbol at all.
     ;; thing-at-point returns a string OR nil, which means we don't get this problem.
@@ -1091,7 +1091,7 @@ Noise can be anything like braces, reserved keywords, etc."
 
 
 (defun tide-eldoc-function ()
-  (when (not (member last-command '(next-error previous-error)))
+  (unless (member last-command '(next-error previous-error))
     (if (tide-method-call-p)
         (tide-command:signatureHelp #'tide-eldoc-maybe-show)
       (when (looking-at "\\s_\\|\\sw")
@@ -1143,7 +1143,7 @@ Noise can be anything like braces, reserved keywords, etc."
     (tide-configure-buffer))
   (when tide-buffer-dirty
     (setq tide-buffer-dirty nil)
-    (when (not tide-buffer-tmp-file)
+    (unless tide-buffer-tmp-file
       (setq tide-buffer-tmp-file (make-temp-file "tide")))
     (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
     (tide-send-command "reload" `(:file ,(tide-buffer-file-name) :tmpfile ,tide-buffer-tmp-file))))
@@ -1616,7 +1616,7 @@ number."
                (line-text (plist-get reference :lineText)))
 
           ;; file
-          (when (not (equal last-file-name file-name))
+          (unless (equal last-file-name file-name)
             (setq last-file-name file-name)
             (insert (propertize file-name 'face 'tide-file))
             (insert "\n"))
@@ -1780,7 +1780,7 @@ number."
   (let* ((name (buffer-name))
          (old (tide-buffer-file-name))
          (basename (file-name-nondirectory old)))
-    (when (not (and old (file-exists-p old)))
+    (unless (and old (file-exists-p old))
       (error "Buffer '%s' is not visiting a file." name))
     (let ((new (read-file-name "New name: " (file-name-directory old) basename nil basename)))
       (when (get-file-buffer new)
@@ -1975,7 +1975,7 @@ code-analysis."
          (err nil))
     (cl-flet
         ((resolve ()
-                  (when (not resolved)
+                  (unless resolved
                     (if err
                         (progn
                           (setq resolved t)
@@ -2212,7 +2212,7 @@ code-analysis."
 		 (-each diagnostics
 		   (lambda (diagnostic)
 		     (let ((line-number (tide-plist-get diagnostic :start :line)))
-		       (when (not (equal last-file-name file-name))
+		       (unless (equal last-file-name file-name)
 			 (setq last-file-name file-name)
 			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
 			 (insert "\n"))
