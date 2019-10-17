@@ -1755,21 +1755,22 @@ number."
         (let* ((old-symbol (tide-plist-get response :body :info :displayName))
                (new-symbol (tide-read-new-symbol old-symbol))
                (locs (tide-plist-get response :body :locs))
-               (count 0))
-          (cl-flet ((current-file-p (loc)
-                                    (file-equal-p (expand-file-name (tide-buffer-file-name))
-                                                  (plist-get loc :file))))
+               (count 0)
+               (current-file-p
+                (lambda (loc)
+                  (file-equal-p (expand-file-name (tide-buffer-file-name))
+                                (plist-get loc :file)))))
 
-            ;; Saving current file will trigger a compilation
-            ;; check. So make sure all the other files are saved
-            ;; before saving current file.
+          ;; Saving current file will trigger a compilation
+          ;; check. So make sure all the other files are saved
+          ;; before saving current file.
 
-            (-each (nconc (-reject #'current-file-p locs)
-                          (-select #'current-file-p locs))
-              (lambda (loc)
-                (cl-incf count (tide-rename-symbol-at-location loc new-symbol))))
+          (-each (nconc (-reject current-file-p locs)
+                        (-select current-file-p locs))
+            (lambda (loc)
+              (cl-incf count (tide-rename-symbol-at-location loc new-symbol))))
 
-            (message "Renamed %d occurrences." count)))))))
+          (message "Renamed %d occurrences." count))))))
 
 (defun tide-command:getEditsForFileRename (old new)
   (tide-send-command-sync "getEditsForFileRename" `(:oldFilePath ,old :newFilePath ,new :file ,old)))
@@ -1975,16 +1976,16 @@ code-analysis."
          (err nil))
     (cl-flet
         ((resolve ()
-                  (unless resolved
-                    (if err
-                        (progn
-                          (setq resolved t)
-                          (funcall cb err))
-                      (when (and (plist-member result :syntaxDiag)
-                                 (plist-member result :semanticDiag)
-                                 (plist-member result :suggestionDiag))
-                        (setq resolved t)
-                        (funcall cb `(:body (,result) :success t)))))))
+           (unless resolved
+             (if err
+                 (progn
+                   (setq resolved t)
+                   (funcall cb err))
+               (when (and (plist-member result :syntaxDiag)
+                          (plist-member result :semanticDiag)
+                          (plist-member result :suggestionDiag))
+                 (setq resolved t)
+                 (funcall cb `(:body (,result) :success t)))))))
       (tide-send-command
        "syntacticDiagnosticsSync"
        `(:file ,(tide-buffer-file-name))
