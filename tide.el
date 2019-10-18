@@ -2195,17 +2195,14 @@ code-analysis."
 	     (unless (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
 	       (pcase event-type
 		 ("syntaxDiag"
-		  (progn
-		    (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-		    (cl-incf syntax-errors (length diagnostics))))
+		  (setq syntax-remaining-files (remove file-name syntax-remaining-files))
+		  (cl-incf syntax-errors (length diagnostics)))
 		 ("semanticDiag"
-		  (progn
-		    (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-		    (cl-incf semantic-errors (length diagnostics))))
+		  (setq semantic-remaining-files (remove file-name semantic-remaining-files))
+		  (cl-incf semantic-errors (length diagnostics)))
 		 ("suggestionDiag"
-                  (progn
-                    (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
-                    (cl-incf suggestion-errors (length diagnostics)))))
+                  (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
+                  (cl-incf suggestion-errors (length diagnostics))))
 
 	       (when diagnostics
 		 (-each diagnostics
