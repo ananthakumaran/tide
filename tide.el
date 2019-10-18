@@ -1571,7 +1571,7 @@ This function is used for the basic completions sorting."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'tide-find-next-reference)
     (define-key map (kbd "p") #'tide-find-previous-reference)
-    (define-key map (kbd "C-m") #'tide-goto-reference)
+    (define-key map (kbd "RET") #'tide-goto-reference)
     (define-key map [mouse-1] #'tide-goto-reference)
     map))
 
@@ -2059,7 +2059,7 @@ code-analysis."
    'keymap (let ((map (make-sparse-keymap)))
              (define-key map [mouse-2] 'tide-goto-error)
              (define-key map [mouse-1] 'tide-goto-error)
-             (define-key map (kbd "C-m") 'tide-goto-error)
+             (define-key map (kbd "RET") 'tide-goto-error)
              (define-key map [follow-link] 'mouse-face)
              map)
    'tide-error filespan))
@@ -2265,7 +2265,7 @@ code-analysis."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'tide-find-next-error)
     (define-key map (kbd "p") #'tide-find-previous-error)
-    (define-key map (kbd "C-m") #'tide-goto-error)
+    (define-key map (kbd "RET") #'tide-goto-error)
     map))
 
 (define-derived-mode tide-project-errors-mode special-mode "tide-project-errors"
