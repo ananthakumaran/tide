@@ -1618,12 +1618,12 @@ number."
           ;; file
           (unless (equal last-file-name file-name)
             (setq last-file-name file-name)
-            (insert (propertize file-name 'face 'tide-file))
-            (insert "\n"))
+            (insert (propertize file-name 'face 'tide-file)
+                    "\n"))
 
           ;; line number
-          (insert (propertize (format "%5d" line-number) 'face 'tide-line-number))
-          (insert ":")
+          (insert (propertize (format "%5d" line-number) 'face 'tide-line-number)
+                  ":")
 
           ;; line text
           (tide-annotate-line reference line-text)
@@ -1633,9 +1633,7 @@ number."
                    (and (equal full-file-name0 full-file-name) (eq line-number0 line-number)))
             (tide-annotate-line (cadr references) line-text)
             (pop references))
-          (insert line-text)
-
-          (insert "\n"))
+          (insert line-text "\n"))
         (pop references))
       (goto-char (point-min))
       (current-buffer))))
@@ -2215,13 +2213,11 @@ code-analysis."
 		     (let ((line-number (tide-plist-get diagnostic :start :line)))
 		       (unless (equal last-file-name file-name)
 			 (setq last-file-name file-name)
-			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file))
-			 (insert "\n"))
+			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file)
+                                 "\n"))
 
-		       (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name)))
-		       (insert ": ")
-		       (insert (plist-get diagnostic :text))
-		       (insert "\n")))))
+		       (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name))
+                               ": " (plist-get diagnostic :text) "\n")))))
 	       (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
 		 (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n" syntax-errors semantic-errors suggestion-errors))
 		 (goto-char (point-min))
@@ -2599,11 +2595,11 @@ timeout."
   (with-current-buffer (get-buffer-create "*tide-project-info*")
     (let ((inhibit-read-only t))
       (erase-buffer)
-      (insert "tsserver version: ")
-      (insert (propertize version 'face '(success bold)))
-      (insert "\n\n")
-      (insert "config file path: ")
-      (insert (propertize config-file-name 'face 'success)))
+      (insert "tsserver version: "
+              (propertize version 'face '(success bold))
+              "\n\n"
+              "config file path: "
+              (propertize config-file-name 'face 'success)))
     (special-mode)
     (display-buffer (current-buffer) t)))
 
