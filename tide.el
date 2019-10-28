@@ -866,7 +866,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 
 (defun tide-recenter-p (filespan &optional recenter-pref)
   (when recenter-pref
-    (let* ((new-file-name (plist-get filespan :file)))
+    (let ((new-file-name (plist-get filespan :file)))
       (if (string-equal new-file-name (tide-buffer-file-name))
           (tide-recenter-in-same-buffer-p filespan)
         t))))
@@ -2477,7 +2477,7 @@ timeout."
   "Recompute the list of processes for the buffer displayed by
 `tide-list-servers'."
   (setq tabulated-list-entries nil)
-  (let* ((tsservers (hash-table-values tide-servers)))
+  (let ((tsservers (hash-table-values tide-servers)))
     (dolist (p tsservers)
       (let* ((project-name (process-get p 'project-name))
              (pid (process-id p))
@@ -2515,7 +2515,7 @@ timeout."
 (defun tide--server-list-kill-server ()
   "Kill a tsserver instance."
   (interactive)
-  (let* ((process (tabulated-list-get-id)))
+  (let ((process (tabulated-list-get-id)))
     (delete-process process)
     (revert-buffer)))
 
