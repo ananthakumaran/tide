@@ -2061,6 +2061,7 @@ code-analysis."
       (progn
         (add-hook 'after-save-hook 'tide-sync-buffer-contents nil t)
         (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
+        (add-hook 'after-save-hook 'tide-remove-tmp-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
         (add-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup nil t)
@@ -2069,6 +2070,7 @@ code-analysis."
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
     (remove-hook 'after-save-hook 'tide-auto-compile-file t)
+    (remove-hook 'after-save-hook 'tide-remove-tmp-file t)
     (remove-hook 'after-change-functions 'tide-handle-change t)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer t)
     (remove-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup t)
