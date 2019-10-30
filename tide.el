@@ -737,6 +737,18 @@ in the npm global installation.  If nothing is found use the bundled version."
   (remhash project-name tide-tsserver-unsupported-commands)
   (remhash project-name tide-project-configs))
 
+(defun tide-cleanup-dead-projects* ()
+  (tide-cleanup-dead-projects (current-buffer)))
+(defun tide-cleanup-dead-projects (ignore)
+  (let ((live-projects '()))
+    (dolist (b (-remove-item ignore (buffer-list)))
+      (-when-let (proj (with-current-buffer b
+                         (and (bound-and-true-p tide-mode)
+                              (tide-project-name))))
+        (cl-pushnew proj live-projects)))
+    (dolist (proj (-difference (hash-table-keys tide-servers) live-projects))
+      (tide-cleanup-project proj))))
+
 (defun tide-start-server-if-required ()
   (unless (tide-current-server)
     (tide-start-server)))
@@ -2019,6 +2031,7 @@ code-analysis."
         (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
+        (add-hook 'kill-buffer-hook 'tide-cleanup-dead-projects* nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
@@ -2026,6 +2039,7 @@ code-analysis."
     (remove-hook 'after-save-hook 'tide-auto-compile-file t)
     (remove-hook 'after-change-functions 'tide-handle-change t)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer t)
+    (remove-hook 'kill-buffer-hook 'tide-cleanup-dead-projects* t)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer t)
     (tide-cleanup-buffer)))
 
