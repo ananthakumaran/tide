@@ -289,6 +289,14 @@ errors and tide-project-errors buffer.
 
 CASE will be ignored in completion if set to non-nil.
 
+##### tide-completion-fuzzy `nil`
+
+Allow fuzzy completion.
+
+By default only candidates with exact prefix match are shown. If
+set to non-nil, candidates with match anywhere inside the name
+are shown.
+
 ##### tide-completion-detailed `nil`
 
 Completion dropdown will contain detailed method information if set to non-nil.
