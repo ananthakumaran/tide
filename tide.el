@@ -49,6 +49,7 @@
 (defvar sgml-basic-offset)
 (defvar company-backends)
 
+(declare-function company-grab "company.el" (regexp &optional expression limit))
 (declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
 (declare-function company-begin-backend "company.el" (backend &optional callback))
 (declare-function company-in-string-or-comment "company.el" nil)
@@ -568,8 +569,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-dispatch (response)
   (cl-case (intern (plist-get response :type))
-    ('response (tide-dispatch-response response))
-    ('event (tide-dispatch-event response))))
+    ((response) (tide-dispatch-response response))
+    ((event) (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
   (unless (tide-current-server)
@@ -880,7 +881,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   (let ((file (plist-get filespan :file))
         (should-recenter-p (tide-recenter-p filespan tide-recenter-after-jump)))
     (unless no-marker
-      (ring-insert find-tag-marker-ring (point-marker)))
+      (xref-push-marker-stack))
     (if reuse-window
         (pop-to-buffer (tide-get-file-buffer file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (tide-get-file-buffer file)))
@@ -1040,7 +1041,8 @@ Noise can be anything like braces, reserved keywords, etc."
      (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
-  (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
+  (or (looking-at "[(,]")
+      (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*" nil))))
 
 (defun tide-doc-text (quickinfo-or-completion-detail)
   (or (plist-get quickinfo-or-completion-detail :displayString) ;; old
@@ -1408,7 +1410,8 @@ This function is used for the basic completions sorting."
             (rx (or (and "import" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
                     (and "from" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
                     (and "import(" (or ?\" ?') (0+ (not (any ?\" ?'))))
-                    (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))))
+                    (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))
+            nil))
       (cons (company-grab (rx (or ?/ ?\" ?') (group (0+ (not (any ?\" ?'))))) 1) t)
     (company-grab-symbol-cons "\\." 1)))
 
@@ -1486,7 +1489,7 @@ This function is used for the basic completions sorting."
         (prefix (get-text-property 0 'prefix name)))
 
     (-when-let (insert-text (plist-get completion :insertText))
-      (when (looking-back (rx-to-string name))
+      (when (looking-back (rx-to-string name) nil)
         (backward-delete-char (length name))
         (-if-let (span (plist-get completion :replacementSpan))
             (progn
@@ -1504,26 +1507,23 @@ This function is used for the basic completions sorting."
 (defun company-tide (command &optional arg &rest ignored)
   (interactive (list 'interactive))
   (cl-case command
-    (interactive (company-begin-backend 'company-tide))
-    (prefix (and
-             (bound-and-true-p tide-mode)
-             (-any-p #'derived-mode-p tide-supported-modes)
-             (tide-current-server)
-             (not (nth 4 (syntax-ppss)))
-             (or (tide-completion-prefix) 'stop)))
-    (candidates (cons :async
-                      (lambda (cb)
-                        (tide-command:completions arg cb))))
-    (sorted t)
-    (ignore-case tide-completion-ignore-case)
-    (meta (tide-completion-meta arg))
-    (annotation (tide-completion-annotation arg))
-    (doc-buffer (tide-completion-doc-buffer arg))
-    (post-completion (tide-post-completion arg))))
+    ((interactive) (company-begin-backend 'company-tide))
+    ((prefix) (and
+               (bound-and-true-p tide-mode)
+               (-any-p #'derived-mode-p tide-supported-modes)
+               (tide-current-server)
+               (not (nth 4 (syntax-ppss)))
+               (or (tide-completion-prefix) 'stop)))
+    ((candidates) (cons :async (lambda (cb) (tide-command:completions arg cb))))
+    ((sorted) t)
+    ((ignore-case) tide-completion-ignore-case)
+    ((meta) (tide-completion-meta arg))
+    ((annotation) (tide-completion-annotation arg))
+    ((doc-buffer) (tide-completion-doc-buffer arg))
+    ((post-completion) (tide-post-completion arg))))
 
-(eval-after-load 'company
-  '(progn
-     (cl-pushnew 'company-tide company-backends)))
+(with-eval-after-load 'company
+  (cl-pushnew 'company-tide company-backends))
 
 ;;; References
 
@@ -2379,6 +2379,22 @@ highlights from previously highlighted identifier."
                   (overlay-put overlay 'tide-overlay 'sameid)
                   (overlay-put overlay 'face 'tide-hl-identifier-face))))))))
 
+;;;###autoload
+(define-minor-mode tide-hl-identifier-mode
+  "Highlight instances of the identifier at point after a short
+timeout."
+  :group 'tide
+  (if tide-hl-identifier-mode
+      (progn
+        (tide--hl-set-timer)
+        ;; Unhighlight if point moves off identifier
+        (add-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook nil t)
+        ;; Unhighlight any time the buffer changes
+        (add-hook 'before-change-functions #'tide--hl-identifiers-before-change-function nil t))
+    (remove-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook t)
+    (remove-hook 'before-change-functions #'tide--hl-identifiers-before-change-function t)
+    (tide-unhighlight-identifiers)))
+
 (defun tide--hl-identifiers-function ()
   "Function run after an idle timeout, highlighting the
 identifier at point, if necessary."
@@ -2396,22 +2412,6 @@ identifier at point, if necessary."
                                    tide-hl-identifier-idle-time
                                    t
                                    #'tide--hl-identifiers-function)))
-
-;;;###autoload
-(define-minor-mode tide-hl-identifier-mode
-  "Highlight instances of the identifier at point after a short
-timeout."
-  :group 'tide
-  (if tide-hl-identifier-mode
-      (progn
-        (tide--hl-set-timer)
-        ;; Unhighlight if point moves off identifier
-        (add-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook nil t)
-        ;; Unhighlight any time the buffer changes
-        (add-hook 'before-change-functions #'tide--hl-identifiers-before-change-function nil t))
-    (remove-hook 'post-command-hook #'tide--hl-identifiers-post-command-hook t)
-    (remove-hook 'before-change-functions #'tide--hl-identifiers-before-change-function t)
-    (tide-unhighlight-identifiers)))
 
 (defun tide--on-overlay-p (id)
   "Return whether point is on a tide overlay of type ID."
@@ -2466,6 +2466,8 @@ timeout."
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
+(defvar-local tide--server-list-mode-last-column nil)
+
 (defun tide--list-servers-verify-setup (button)
   "Invoke `tide-verify-setup' on a tsserver displayed in the list of server."
   (tide-first-buffer (button-get button 'project-name) #'tide-verify-setup))
@@ -2504,12 +2506,12 @@ timeout."
                          "--"
                        (number-to-string (round cpu)))
                      (cl-case tide--server-list-mode-last-column
-                       ('project-root
+                       ((project-root)
                         (or (process-get p 'project-root) ""))
-                       ('command
+                       ((command)
                         (mapconcat 'identity (process-command p) " "))
-                       (otherwise (error "unknown column %s"
-                                         tide--server-list-mode-last-column)))))
+                       (t (error "unknown column %s"
+                                 tide--server-list-mode-last-column)))))
               tabulated-list-entries)))))
 
 (defun tide--server-list-kill-server ()
@@ -2559,9 +2561,9 @@ timeout."
                              (string-to-number cpu-b)))))))
          (list
           (cl-case tide--server-list-mode-last-column
-            ('project-root "Project Root")
-            ('command "Project Command")
-            (otherwise (error "unknown column %s" tide--server-list-mode-last-column)))
+            ((project-root) "Project Root")
+            ((command) "Project Command")
+            (t (error "unknown column %s" tide--server-list-mode-last-column)))
           0 t)))
   (setq tabulated-list-sort-key (cons "Project Name" nil))
   (tabulated-list-init-header))
