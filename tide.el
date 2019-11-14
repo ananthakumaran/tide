@@ -200,6 +200,12 @@ errors and tide-project-errors buffer."
   :type 'function
   :group 'tide)
 
+(defcustom tide-project-cleanup-delay 60
+  "The number of idle seconds to wait before cleaning up unused tsservers.
+Use `nil` to disable automatic cleanups.  See also `tide-cleanup-dead-projects`."
+  :type '(choice (const nil) integer)
+  :group 'tide)
+
 (defcustom tide-default-mode "TS"
   "The default mode to open buffers not backed by files (e.g. Org
 source blocks) in."
@@ -737,17 +743,28 @@ in the npm global installation.  If nothing is found use the bundled version."
   (remhash project-name tide-tsserver-unsupported-commands)
   (remhash project-name tide-project-configs))
 
-(defun tide-cleanup-dead-projects* ()
-  (tide-cleanup-dead-projects (current-buffer)))
-(defun tide-cleanup-dead-projects (ignore)
+(defvar tide--project-cleanup-timer nil)
+(defun tide-schedule-dead-projects-cleanup ()
+  (when (and tide-project-cleanup-delay (not tide--project-cleanup-timer))
+    (setq tide--project-cleanup-timer
+          (run-with-idle-timer tide-project-cleanup-delay nil
+                               #'tide-cleanup-dead-projects))))
+(defun tide-cleanup-dead-projects ()
+  "Cleanup projects that don't have any associated live buffers.
+In particular, kill their tsserver processes."
+  (interactive)
+  (setq tide--project-cleanup-timer nil)
   (let ((live-projects '()))
-    (dolist (b (-remove-item ignore (buffer-list)))
+    (dolist (b (buffer-list))
       (-when-let (proj (with-current-buffer b
                          (and (bound-and-true-p tide-mode)
                               (tide-project-name))))
         (cl-pushnew proj live-projects)))
-    (dolist (proj (-difference (hash-table-keys tide-servers) live-projects))
-      (tide-cleanup-project proj))))
+    (-when-let (to-kill (-difference (hash-table-keys tide-servers) live-projects))
+      (message "Cleaning up %d projects..." (length to-kill))
+      (dolist (proj to-kill) (tide-cleanup-project proj))
+      (sit-for 5)
+      (message nil))))
 
 (defun tide-start-server-if-required ()
   (unless (tide-current-server)
@@ -2031,7 +2048,7 @@ code-analysis."
         (add-hook 'after-save-hook 'tide-auto-compile-file nil t)
         (add-hook 'after-change-functions 'tide-handle-change nil t)
         (add-hook 'kill-buffer-hook 'tide-cleanup-buffer nil t)
-        (add-hook 'kill-buffer-hook 'tide-cleanup-dead-projects* nil t)
+        (add-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup nil t)
         (add-hook 'hack-local-variables-hook 'tide-configure-buffer nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
@@ -2039,7 +2056,7 @@ code-analysis."
     (remove-hook 'after-save-hook 'tide-auto-compile-file t)
     (remove-hook 'after-change-functions 'tide-handle-change t)
     (remove-hook 'kill-buffer-hook 'tide-cleanup-buffer t)
-    (remove-hook 'kill-buffer-hook 'tide-cleanup-dead-projects* t)
+    (remove-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup t)
     (remove-hook 'hack-local-variables-hook 'tide-configure-buffer t)
     (tide-cleanup-buffer)))
 
