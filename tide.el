@@ -2440,8 +2440,9 @@ timeout."
   "Compiles the current file if compileOnSave is set"
   (interactive)
   (-when-let (config (tide-project-config))
-    ;; tsc converts compileOnSave to compilerOnSave
-    (when (or (eq (plist-get config :compilerOnSave) t))
+    ;; Pre-v3.6.2 tsc converts compileOnSave to compilerOnSave
+    (when (or (eq (plist-get config :compilerOnSave) t)
+              (eq (plist-get config :compileOnSave) t))
       (tide-command:compileOnSaveEmitFile))))
 
 (defun tide-project-config ()
