@@ -36,6 +36,18 @@
 
 ;; actual tests:
 
+(ert-deftest tide-compose-comparators-tests ()
+  "Tests that confirm the implementation of `tide-compose-comparators'."
+  (let ((<< (tide-compose-comparators (lambda (x y) (< (car  x) (car  y)))
+                                      (lambda (x y) (< (cadr x) (cadr y))))))
+    (should (equal nil (funcall << '(0 1) '(0 1))))
+    (should (equal nil (funcall << '(0 1) '(0 0))))
+    (should (equal t   (funcall << '(0 0) '(0 1))))
+    (should (equal nil (funcall << '(1 0) '(0 0))))
+    (should (equal t   (funcall << '(0 0) '(1 0))))
+    (should (equal nil (funcall << '(1 0) '(0 1))))
+    (should (equal t   (funcall << '(0 1) '(1 0))))))
+
 (ert-deftest strings-get-normalized ()
   "Tests that incoming strings (like in codefixes) get normalized properly."
 

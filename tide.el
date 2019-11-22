@@ -49,6 +49,7 @@
 (defvar sgml-basic-offset)
 (defvar company-backends)
 
+(declare-function company-grab "company.el" (regexp &optional expression limit))
 (declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
 (declare-function company-begin-backend "company.el" (backend &optional callback))
 (declare-function company-in-string-or-comment "company.el" nil)
@@ -107,11 +108,11 @@ paths are resolved against the project root directory."
   :type '(plist :value-type sexp)
   :group 'tide)
 
-(defcustom tide-user-preferences '(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)
+(defcustom tide-user-preferences
+  '(:includeCompletionsForModuleExports t :includeCompletionsWithInsertText t :allowTextChangesInNewFiles t)
   "User preference plist used on the configure request.
 
-Check
-https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
+Check https://github.com/Microsoft/TypeScript/blob/17eaf50b/src/server/protocol.ts#L2684
 for the full list of available options."
   :type '(plist :value-type sexp)
   :group 'tide)
@@ -201,7 +202,7 @@ errors and tide-project-errors buffer."
 
 (defcustom tide-default-mode "TS"
   "The default mode to open buffers not backed by files (e.g. Org
-  source blocks) in."
+source blocks) in."
   :type '(choice (const "TS") (const "TSX") (const "JS")(const  "JSX"))
   :group 'tide)
 
@@ -235,7 +236,8 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
 (defvar tide-project-configs (make-hash-table :test 'equal))
-(defvar tide-max-response-length-error-message "Response length from tsserver is greater than maximum allowed response.")
+(defvar tide-max-response-length-error-message
+  "Response length from tsserver is greater than maximum allowed response.")
 
 (tide-def-permanent-buffer-local tide-project-root nil)
 (tide-def-permanent-buffer-local tide-buffer-dirty nil)
@@ -256,7 +258,9 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
    (let ((root (or (locate-dominating-file default-directory "tsconfig.json")
                    (locate-dominating-file default-directory "jsconfig.json"))))
      (unless root
-       (message (tide-join (list "Couldn't locate project root folder with a tsconfig.json or jsconfig.json file. Using '" default-directory "' as project root.")))
+       (message (tide-join (list "Couldn't locate project root folder with"
+                                 " a tsconfig.json or jsconfig.json file. Using '"
+                                 default-directory "' as project root.")))
        (setq root default-directory))
      (let ((full-path (expand-file-name root)))
        (setq tide-project-root full-path)
@@ -268,8 +272,8 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
 
 (defun tide-buffer-file-name ()
   "Returns the path to either the currently open file or the
-  current buffer's parent. This is needed to support indirect
-  buffers, as they don't set `buffer-file-name' correctly."
+current buffer's parent. This is needed to support indirect
+buffers, as they don't set `buffer-file-name' correctly."
   (buffer-file-name (or (and (bound-and-true-p edit-indirect--overlay)
                              (overlay-buffer edit-indirect--overlay))
                         (and (bound-and-true-p org-src--overlay)
@@ -354,8 +358,8 @@ ones and overrule settings in the other lists."
 
 (defun tide-get-file-buffer (file &optional new-file)
   "Returns a buffer associated with a file. This will return the
-  current buffer if it matches `file'. This way we can support
-  temporary and indirect buffers."
+current buffer if it matches `file'. This way we can support
+temporary and indirect buffers."
   (cond
    ((equal file (tide-buffer-file-name)) (current-buffer))
    ((file-exists-p file) (find-file-noselect file))
@@ -423,9 +427,9 @@ ones and overrule settings in the other lists."
 (defun tide-first-buffer (project-name fn)
   "Callback FN for the first buffer within PROJECT-NAME with tide-mode enabled."
   (-when-let (buffer (-first (lambda (buffer)
-                             (with-current-buffer buffer
-                               (and (bound-and-true-p tide-mode)
-                                    (equal (tide-project-name) project-name))))
+                               (with-current-buffer buffer
+                                 (and (bound-and-true-p tide-mode)
+                                      (equal (tide-project-name) project-name))))
                              (buffer-list)))
     (with-current-buffer buffer
       (funcall fn))))
@@ -442,7 +446,7 @@ ones and overrule settings in the other lists."
 (defun tide-current-offset ()
   "Number of characters present from the begining of line to cursor in current line.
 
-offset is one based."
+Offset is one based."
   (1+ (- (point) (line-beginning-position))))
 
 (defun tide-offset (pos)
@@ -568,8 +572,8 @@ LINE is one based, OFFSET is one based and column is zero based"
 
 (defun tide-dispatch (response)
   (cl-case (intern (plist-get response :type))
-    ('response (tide-dispatch-response response))
-    ('event (tide-dispatch-event response))))
+    ((response) (tide-dispatch-response response))
+    ((event) (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
   (unless (tide-current-server)
@@ -657,7 +661,9 @@ Return a string representing the existing full path or nil."
 
 (defun tide-locate-tscompiler-executable ()
   "Locate the typescript compiler executable.
-If TIDE-TSCOMPILER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation."
+If TIDE-TSCOMPILER-EXECUTABLE is set by the user use it.  Otherwise check in the
+npm local package directory, in the project root as defined by projectile, and
+in the npm global installation."
   (or
    (and tide-tscompiler-executable (expand-file-name tide-tscompiler-executable))
    (tide-tscompiler-locater-npmlocal-projectile-npmglobal)))
@@ -681,7 +687,9 @@ Return a string representing the existing full path or nil."
 
 (defun tide-locate-tsserver-executable ()
   "Locate the typescript server executable.
-If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the npm local package directory, in the project root as defined by projectile, and in the npm global installation.  If nothing is found use the bundled version."
+If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the
+npm local package directory, in the project root as defined by projectile, and
+in the npm global installation.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
    (funcall tide-tsserver-locator-function)
@@ -756,8 +764,10 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
                             (let ((seq (when (re-search-forward "\"request_seq\":\"\\([0-9]+\\)\"" nil t)
                                          (match-string 1))))
                               (forward-line 1)
-                              (when seq
-                                `(:success :json-false :type "response" :message ,tide-max-response-length-error-message :request_seq ,seq)))
+                              (and seq
+                                   `(:success :json-false :type "response"
+                                     :message ,tide-max-response-length-error-message
+                                     :request_seq ,seq)))
                           (json-read-object))))
           (delete-region (point-min) (point))
           (when response
@@ -790,7 +800,10 @@ If TIDE-TSSERVER-EXECUTABLE is set by the user use it.  Otherwise check in the n
     (_ standard-indent)))
 
 (defun tide-command:configure ()
-  (tide-send-command "configure" `(:hostInfo ,(emacs-version) :file ,(tide-buffer-file-name) :formatOptions ,(tide-file-format-options) :preferences ,tide-user-preferences)))
+  (tide-send-command
+   "configure"
+   `(:hostInfo ,(emacs-version) :file ,(tide-buffer-file-name)
+     :formatOptions ,(tide-file-format-options) :preferences ,tide-user-preferences)))
 
 (defun tide-command:projectInfo (cb &optional need-file-name-list)
   (tide-send-command "projectInfo" `(:file ,(tide-buffer-file-name) :needFileNameList ,need-file-name-list) cb))
@@ -880,20 +893,22 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   (let ((file (plist-get filespan :file))
         (should-recenter-p (tide-recenter-p filespan tide-recenter-after-jump)))
     (unless no-marker
-      (ring-insert find-tag-marker-ring (point-marker)))
+      (xref-push-marker-stack))
     (if reuse-window
         (pop-to-buffer (tide-get-file-buffer file) '((display-buffer-reuse-window display-buffer-same-window)))
       (pop-to-buffer (tide-get-file-buffer file)))
     (tide-move-to-location (plist-get filespan :start))
     (when should-recenter-p
-        (recenter))))
+      (recenter))))
 
 (defalias 'tide-jump-back 'pop-tag-mark)
 
 ;;; Jump to implementation
 
 (defun tide-command:implementation ()
-  (tide-send-command-sync "implementation" `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+  (tide-send-command-sync
+   "implementation"
+   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-jump-to-implementation-format-item (item)
   (let* ((file-name (plist-get item :file))
@@ -918,10 +933,13 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
   (let ((response (tide-command:implementation)))
     (tide-on-response-success response
       (let ((impls (plist-get response :body)))
-        (cond ((= 0 (length impls)) (message "No implementations available."))
-              ((= 1 (length impls)) (tide-jump-to-filespan (car impls)))
-              (t (tide-jump-to-filespan
-                  (tide-select-item-from-list "Select implementation: " impls #'tide-jump-to-implementation-format-item (tide-can-use-popup-p 'jump-to-implementation)))))))))
+        (cl-case (length impls)
+          ((0) (message "No implementations available."))
+          ((1) (tide-jump-to-filespan (car impls)))
+          (t (tide-jump-to-filespan
+              (tide-select-item-from-list "Select implementation: " impls
+                                          #'tide-jump-to-implementation-format-item
+                                          (tide-can-use-popup-p 'jump-to-implementation)))))))))
 
 ;;; Navigate to named member
 
@@ -959,7 +977,8 @@ Noise can be anything like braces, reserved keywords, etc."
                           (-map (lambda (navto-item) (plist-get navto-item :name))
                                 navto-items)))))
                   t) nil t default))
-      (let ((navto-item (-find (lambda (navto-item) (string-equal completion (plist-get navto-item :name))) last-completions)))
+      (let ((navto-item (-find (lambda (navto-item) (string-equal completion (plist-get navto-item :name)))
+                               last-completions)))
         (tide-jump-to-filespan navto-item)))))
 
 (defun tide-navto-item-filter-default (navto-items)
@@ -1040,7 +1059,8 @@ Noise can be anything like braces, reserved keywords, etc."
      (funcall cb (tide-annotate-signatures (plist-get response :body))))))
 
 (defun tide-method-call-p ()
-  (or (looking-at "[(,]") (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*"))))
+  (or (looking-at "[(,]")
+      (and (not (looking-at "\\sw")) (looking-back "[(,]\n?\\s-*" nil))))
 
 (defun tide-doc-text (quickinfo-or-completion-detail)
   (or (plist-get quickinfo-or-completion-detail :displayString) ;; old
@@ -1081,10 +1101,15 @@ Noise can be anything like braces, reserved keywords, etc."
                   (list jsdoc)))))))
 
 (defun tide-command:quickinfo-old (cb)
-  (tide-send-command "quickinfo" `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
+  (tide-send-command "quickinfo"
+                     `(:file ,(tide-buffer-file-name)
+                       :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
 
 (defun tide-command:quickinfo-full (cb)
-  (tide-send-command "quickinfo-full" `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) cb))
+  (tide-send-command "quickinfo-full"
+                     `(:file ,(tide-buffer-file-name)
+                       :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
+                     cb))
 
 (defun tide-command:quickinfo (cb)
   (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old cb))
@@ -1166,10 +1191,16 @@ Noise can be anything like braces, reserved keywords, etc."
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
 
 (defun tide-command:getCodeFixes ()
-  (tide-send-command-sync "getCodeFixes" `(:file ,(tide-buffer-file-name) :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset) :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset)) :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+  (tide-send-command-sync
+   "getCodeFixes"
+   `(:file ,(tide-buffer-file-name)
+     :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset)
+     :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset))
+     :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
 
 (defun tide-command:getCombinedCodeFix (fixId)
-  (tide-send-command-sync "getCombinedCodeFix" `(:scope (:type "file" :args (:file ,(tide-buffer-file-name))) :fixId ,fixId)))
+  (tide-send-command-sync "getCombinedCodeFix"
+                          `(:scope (:type "file" :args (:file ,(tide-buffer-file-name))) :fixId ,fixId)))
 
 (defun tide-get-fix-description (fix)
   (plist-get fix :description))
@@ -1190,7 +1221,8 @@ Noise can be anything like braces, reserved keywords, etc."
         ((= 1 (length fixes)) (funcall codefix-fn (car fixes)))
         (t (funcall
             codefix-fn
-            (tide-select-item-from-list "Select fix: " fixes #'tide-get-fix-description (tide-can-use-popup-p 'code-fix))))))
+            (tide-select-item-from-list "Select fix: " fixes
+                                        #'tide-get-fix-description (tide-can-use-popup-p 'code-fix))))))
 
 (defun tide-code-fix (codefix-fn)
   (unless (tide-get-flycheck-errors-ids-at-point)
@@ -1258,7 +1290,8 @@ in the file that are similar to the error at point."
                               :description ,(plist-get refactor-action-info :description)))
                   (plist-get applicable-refactor-info :actions)))
           applicable-refactor-infos)))
-    (tide-select-item-from-list "Select refactor: " available-refactors #'tide-get-refactor-description (tide-can-use-popup-p 'refactor))))
+    (tide-select-item-from-list "Select refactor: " available-refactors
+                                #'tide-get-refactor-description (tide-can-use-popup-p 'refactor))))
 
 (defun tide-apply-refactor (selected)
   (let ((response (tide-command:getEditsForRefactor (plist-get selected :refactor) (plist-get selected :action))))
@@ -1382,9 +1415,9 @@ always be formatted as described above."
 (defun tide-compose-comparators (cmp1 cmp2)
   "A helper function that composes two comparators CMP1 and CMP2."
   (lambda (a b)
-    (or (funcall cmp1 a b)
-        (if (not (funcall cmp1 b a))
-            (funcall cmp2 a b)))))
+    (cond ((funcall cmp1 a b) t)
+          ((funcall cmp1 b a) nil)
+          (t (funcall cmp2 a b)))))
 
 (defun tide-compare-completions-basic (completion-a completion-b)
   "Compare COMPLETION-A and COMPLETION-B based on their `sortText' property.
@@ -1408,7 +1441,8 @@ This function is used for the basic completions sorting."
             (rx (or (and "import" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
                     (and "from" (1+ space) (or ?\" ?') (0+ (not (any ?\" ?'))))
                     (and "import(" (or ?\" ?') (0+ (not (any ?\" ?'))))
-                    (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))))
+                    (and "require(" (or ?\" ?') (0+ (not (any ?\" ?'))))))
+            nil))
       (cons (company-grab (rx (or ?/ ?\" ?') (group (0+ (not (any ?\" ?'))))) 1) t)
     (company-grab-symbol-cons "\\." 1)))
 
@@ -1441,7 +1475,10 @@ This function is used for the basic completions sorting."
 
 (defun tide-command:completions (prefix cb)
   (let ((file-location
-         `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix)) :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions :includeInsertTextCompletions t)))
+         `(:file ,(tide-buffer-file-name)
+           :line ,(tide-line-number-at-pos) :offset ,(- (tide-current-offset) (length prefix))
+           :includeExternalModuleExports ,tide-completion-enable-autoimport-suggestions
+           :includeInsertTextCompletions t)))
     (when (and (not (tide-in-string-p)) (not (tide-member-completion-p prefix)))
       (setq file-location (-concat file-location `(:prefix ,prefix))))
     (tide-send-command
@@ -1486,7 +1523,7 @@ This function is used for the basic completions sorting."
         (prefix (get-text-property 0 'prefix name)))
 
     (-when-let (insert-text (plist-get completion :insertText))
-      (when (looking-back (rx-to-string name))
+      (when (looking-back (rx-to-string name) nil)
         (backward-delete-char (length name))
         (-if-let (span (plist-get completion :replacementSpan))
             (progn
@@ -1504,26 +1541,23 @@ This function is used for the basic completions sorting."
 (defun company-tide (command &optional arg &rest ignored)
   (interactive (list 'interactive))
   (cl-case command
-    (interactive (company-begin-backend 'company-tide))
-    (prefix (and
-             (bound-and-true-p tide-mode)
-             (-any-p #'derived-mode-p tide-supported-modes)
-             (tide-current-server)
-             (not (nth 4 (syntax-ppss)))
-             (or (tide-completion-prefix) 'stop)))
-    (candidates (cons :async
-                      (lambda (cb)
-                        (tide-command:completions arg cb))))
-    (sorted t)
-    (ignore-case tide-completion-ignore-case)
-    (meta (tide-completion-meta arg))
-    (annotation (tide-completion-annotation arg))
-    (doc-buffer (tide-completion-doc-buffer arg))
-    (post-completion (tide-post-completion arg))))
+    ((interactive) (company-begin-backend 'company-tide))
+    ((prefix) (and
+               (bound-and-true-p tide-mode)
+               (-any-p #'derived-mode-p tide-supported-modes)
+               (tide-current-server)
+               (not (nth 4 (syntax-ppss)))
+               (or (tide-completion-prefix) 'stop)))
+    ((candidates) (cons :async (lambda (cb) (tide-command:completions arg cb))))
+    ((sorted) t)
+    ((ignore-case) tide-completion-ignore-case)
+    ((meta) (tide-completion-meta arg))
+    ((annotation) (tide-completion-annotation arg))
+    ((doc-buffer) (tide-completion-doc-buffer arg))
+    ((post-completion) (tide-post-completion arg))))
 
-(eval-after-load 'company
-  '(progn
-     (cl-pushnew 'company-tide company-backends)))
+(with-eval-after-load 'company
+  (cl-pushnew 'company-tide company-backends))
 
 ;;; References
 
@@ -1654,9 +1688,7 @@ number."
             (if (or (eq usage nil) (tide-is-identical-reference usage reference))
                 (setq usage reference)
               (setq multiple t)))))
-    (if (and (not multiple) usage definition)
-        usage
-      nil)))
+    (and (not multiple) definition usage)))
 
 (defun tide-references ()
   "List all references to the symbol at point."
@@ -1708,7 +1740,9 @@ number."
 ;;; Rename
 
 (defun tide-command:rename ()
-  (tide-send-command-sync "rename" `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+  (tide-send-command-sync "rename"
+                          `(:file ,(tide-buffer-file-name)
+                            :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-rename-symbol-at-location (location new-symbol)
   (let ((file (plist-get location :file)))
@@ -1869,7 +1903,9 @@ code-analysis."
 ;;; JSDoc Comment Template
 
 (defun tide-command:docCommentTemplate ()
-  (tide-send-command-sync "docCommentTemplate" `(:file ,buffer-file-name :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+  (tide-send-command-sync "docCommentTemplate"
+                          `(:file ,buffer-file-name
+                            :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
 (defun tide-jsdoc-template ()
   "Insert JSDoc comment template at point"
@@ -1972,18 +2008,15 @@ code-analysis."
   (let* ((result '())
          (resolved nil)
          (err nil))
-    (cl-flet
-        ((resolve ()
-           (unless resolved
-             (if err
-                 (progn
-                   (setq resolved t)
-                   (funcall cb err))
-               (when (and (plist-member result :syntaxDiag)
-                          (plist-member result :semanticDiag)
-                          (plist-member result :suggestionDiag))
-                 (setq resolved t)
-                 (funcall cb `(:body (,result) :success t)))))))
+    (cl-flet ((resolve ()
+                (cond (resolved nil)
+                      (err (setq resolved t)
+                           (funcall cb err))
+                      ((and (plist-member result :syntaxDiag)
+                            (plist-member result :semanticDiag)
+                            (plist-member result :suggestionDiag))
+                       (setq resolved t)
+                       (funcall cb `(:body (,result) :success t))))))
       (tide-send-command
        "syntacticDiagnosticsSync"
        `(:file ,(tide-buffer-file-name))
@@ -2105,7 +2138,9 @@ code-analysis."
     :face (if (bound-and-true-p tide-mode) 'success '(bold warning)))))
 
 (defun tide-flycheck-predicate ()
-  (and (bound-and-true-p tide-mode) (tide-current-server) (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
+  (and (bound-and-true-p tide-mode)
+       (tide-current-server)
+       (not (file-equal-p (tide-project-root) tide-tsserver-directory))))
 
 (defun tide-file-extension-p (ext)
   (and buffer-file-name
@@ -2165,7 +2200,7 @@ code-analysis."
 (defun tide-project-errors-buffer-name ()
   (format "*%s-errors*" (tide-project-name)))
 
-(defun tide-display-erros (file-names)
+(defun tide-display-errors (file-names)
   (with-current-buffer (get-buffer-create (tide-project-errors-buffer-name))
     (tide-project-errors-mode)
     (let ((inhibit-read-only t))
@@ -2189,9 +2224,9 @@ code-analysis."
          (save-excursion
            (goto-char (point-max))
            (let ((inhibit-read-only t)
-		  (file-name (tide-plist-get response :body :file))
-		  (diagnostics (tide-plist-get response :body :diagnostics))
-		  (event-type (plist-get response :event)))
+                 (file-name (tide-plist-get response :body :file))
+                 (diagnostics (tide-plist-get response :body :diagnostics))
+                 (event-type (plist-get response :event)))
 	     (unless (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
 	       (pcase event-type
 		 ("syntaxDiag"
@@ -2213,10 +2248,13 @@ code-analysis."
 			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file)
                                  "\n"))
 
-		       (insert (propertize (format "%5d" line-number) 'face 'tide-line-number 'tide-error (plist-put diagnostic :file file-name))
+		       (insert (propertize (format "%5d" line-number)
+                                           'face 'tide-line-number
+                                           'tide-error (plist-put diagnostic :file file-name))
                                ": " (plist-get diagnostic :text) "\n")))))
 	       (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
-		 (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n" syntax-errors semantic-errors suggestion-errors))
+		 (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n"
+                                 syntax-errors semantic-errors suggestion-errors))
 		 (goto-char (point-min))
 		 (tide-clear-event-listener)))))))))
   (tide-command:geterrForProject))
@@ -2280,7 +2318,7 @@ code-analysis."
   (tide-command:projectInfo
    (lambda (response)
      (tide-on-response-success response
-       (tide-display-erros (tide-plist-get response :body :fileNames))))
+       (tide-display-errors (tide-plist-get response :body :fileNames))))
    t))
 
 ;;; Identifier highlighting
@@ -2288,7 +2326,8 @@ code-analysis."
 (defun tide-command:documentHighlights (cb)
   (tide-send-command
    "documentHighlights"
-   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset) :filesToSearch (,(tide-buffer-file-name)))
+   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)
+     :filesToSearch (,(tide-buffer-file-name)))
    cb))
 
 (defface tide-hl-identifier-face
@@ -2358,44 +2397,25 @@ highlights from previously highlighted identifier."
       (save-restriction
         (widen)
         (goto-char (point-min))
-        (cl-loop for reference in references
-              with current-line = 1
-              do
-              (when (member (plist-get reference :kind) '("reference" "writtenReference"))
-                (let* ((start (plist-get reference :start))
-                       (end (plist-get reference :end))
-                       (start-line (plist-get start :line))
-                       (overlay (make-overlay
-                           (progn (forward-line (- start-line current-line))
-                                  (forward-char (1- (plist-get start :offset)))
-                                  (point))
-                           (progn (unless (= start-line (plist-get end :line))
-                                    ;; Identifiers shouldn't span lines.
-                                    (error "identifier unexpectedly spans lines"))
-                                  (forward-char (- (plist-get end :offset)
-                                                   (plist-get start :offset)))
-                                  (point)))))
-                  (setq current-line start-line)
-                  (overlay-put overlay 'tide-overlay 'sameid)
-                  (overlay-put overlay 'face 'tide-hl-identifier-face))))))))
-
-(defun tide--hl-identifiers-function ()
-  "Function run after an idle timeout, highlighting the
-identifier at point, if necessary."
-  (when tide-hl-identifier-mode
-    (unless (tide--on-overlay-p 'sameid)
-      (tide-hl-identifier))
-    (unless (eq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
-      (tide--hl-set-timer))))
-
-(defun tide--hl-set-timer ()
-  (if tide--hl-identifier-timer
-      (cancel-timer tide--hl-identifier-timer))
-  (setq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
-  (setq tide--hl-identifier-timer (run-with-idle-timer
-                                   tide-hl-identifier-idle-time
-                                   t
-                                   #'tide--hl-identifiers-function)))
+        (let ((current-line 1))
+          (dolist (reference references)
+            (when (member (plist-get reference :kind) '("reference" "writtenReference"))
+              (let* ((start (plist-get reference :start))
+                     (end (plist-get reference :end))
+                     (start-line (plist-get start :line))
+                     (ostart (progn (forward-line (- start-line current-line))
+                                    (forward-char (1- (plist-get start :offset)))
+                                    (point)))
+                     (oend   (progn (unless (= start-line (plist-get end :line))
+                                      ;; Identifiers shouldn't span lines.
+                                      (error "identifier unexpectedly spans lines"))
+                                    (forward-char (- (plist-get end :offset)
+                                                     (plist-get start :offset)))
+                                    (point)))
+                     (overlay (make-overlay ostart oend)))
+                (setq current-line start-line)
+                (overlay-put overlay 'tide-overlay 'sameid)
+                (overlay-put overlay 'face 'tide-hl-identifier-face)))))))))
 
 ;;;###autoload
 (define-minor-mode tide-hl-identifier-mode
@@ -2413,14 +2433,32 @@ timeout."
     (remove-hook 'before-change-functions #'tide--hl-identifiers-before-change-function t)
     (tide-unhighlight-identifiers)))
 
+(defun tide--hl-identifiers-function ()
+  "Function run after an idle timeout, highlighting the
+identifier at point, if necessary."
+  (when tide-hl-identifier-mode
+    (unless (tide--on-overlay-p 'sameid)
+      (tide-hl-identifier))
+    (unless (eq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
+      (tide--hl-set-timer))))
+
+(defun tide--hl-set-timer ()
+  (when tide--hl-identifier-timer
+    (cancel-timer tide--hl-identifier-timer))
+  (setq tide--current-hl-identifier-idle-time tide-hl-identifier-idle-time)
+  (setq tide--hl-identifier-timer (run-with-idle-timer
+                                   tide-hl-identifier-idle-time
+                                   t
+                                   #'tide--hl-identifiers-function)))
+
 (defun tide--on-overlay-p (id)
   "Return whether point is on a tide overlay of type ID."
   (cl-find-if (lambda (el) (eq (overlay-get el 'tide-overlay) id)) (overlays-at (point))))
 
 (defun tide--hl-identifiers-post-command-hook ()
-  (if (and tide-hl-identifier-mode
-           (not (tide--on-overlay-p 'sameid)))
-      (tide-unhighlight-identifiers)))
+  (when (and tide-hl-identifier-mode
+             (not (tide--on-overlay-p 'sameid)))
+    (tide-unhighlight-identifiers)))
 
 (defun tide--hl-identifiers-before-change-function (_beg _end)
   (tide-unhighlight-identifiers))
@@ -2467,6 +2505,8 @@ timeout."
   (tide-start-server)
   (tide-each-buffer (tide-project-name) #'tide-configure-buffer))
 
+(defvar-local tide--server-list-mode-last-column nil)
+
 (defun tide--list-servers-verify-setup (button)
   "Invoke `tide-verify-setup' on a tsserver displayed in the list of server."
   (tide-first-buffer (button-get button 'project-name) #'tide-verify-setup))
@@ -2505,12 +2545,12 @@ timeout."
                          "--"
                        (number-to-string (round cpu)))
                      (cl-case tide--server-list-mode-last-column
-                       ('project-root
+                       ((project-root)
                         (or (process-get p 'project-root) ""))
-                       ('command
+                       ((command)
                         (mapconcat 'identity (process-command p) " "))
-                       (otherwise (error "unknown column %s"
-                                         tide--server-list-mode-last-column)))))
+                       (t (error "unknown column %s"
+                                 tide--server-list-mode-last-column)))))
               tabulated-list-entries)))))
 
 (defun tide--server-list-kill-server ()
@@ -2560,9 +2600,9 @@ timeout."
                              (string-to-number cpu-b)))))))
          (list
           (cl-case tide--server-list-mode-last-column
-            ('project-root "Project Root")
-            ('command "Project Command")
-            (otherwise (error "unknown column %s" tide--server-list-mode-last-column)))
+            ((project-root) "Project Root")
+            ((command) "Project Command")
+            (t (error "unknown column %s" tide--server-list-mode-last-column)))
           0 t)))
   (setq tabulated-list-sort-key (cons "Project Name" nil))
   (tabulated-list-init-header))
@@ -2610,8 +2650,8 @@ timeout."
         (tide-command:projectInfo
          (lambda (response)
            (tide-on-response-success response
-               (let ((config-file-name (tide-plist-get response :body :configFileName)))
-                 (tide-show-project-info version config-file-name)))))))))
+             (let ((config-file-name (tide-plist-get response :body :configFileName)))
+               (tide-show-project-info version config-file-name)))))))))
 
 (provide 'tide)
 
