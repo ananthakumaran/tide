@@ -146,7 +146,7 @@ errors and tide-project-errors buffer."
   :group 'tide)
 
 (defface tide-file
-  '((t (:inherit dired-header)))
+  '((t (:inherit font-lock-type-face)))
   "Face for file names in references output."
   :group 'tide)
 
