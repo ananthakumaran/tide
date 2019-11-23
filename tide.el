@@ -1561,39 +1561,54 @@ This function is used for the basic completions sorting."
 
 ;;; References
 
+(defun tide--next-reference (pos arg &optional cyclep)
+  "Move to the ARG-th next reference from pos, negative values go to previous
+ones.  Cycle around if CYCLEP is non-nil."
+  (let* ((nextp (>= arg 0))
+         (next  (if nextp #'next-single-property-change #'previous-single-property-change))
+         (n     (* 2 (abs arg))))
+    (when (get-text-property pos 'tide-reference)
+      (setq pos (or (funcall next pos 'tide-reference) pos)))
+    (when (or nextp (and (> pos (point-min))
+                         (get-text-property (1- pos) 'tide-reference)))
+      (setq n (1- n)))
+    (dotimes (_i n)
+      (setq pos (funcall next pos 'tide-reference))
+      (unless pos
+        (unless cyclep
+          (error "Moved %s reference" (if nextp "past last" "before first")))
+        (setq pos (funcall next (if nextp (point-min) (point-max))
+                           'tide-reference))))
+    (goto-char pos)))
+
 (defun tide-next-reference-function (n &optional reset)
   "Override for `next-error-function' for use in tide-reference-mode buffers."
   (interactive "p")
-
   (-when-let (buffer (get-buffer "*tide-references*"))
     (with-current-buffer buffer
-      (when reset
-        (goto-char (point-min)))
-      (if (> n 0)
-          (tide-find-next-reference (point) n)
-        (tide-find-previous-reference (point) (- n)))
+      (when reset (goto-char (point-min)))
+      (tide--next-reference (point) (or n 1))
+      (-when-let (window (get-buffer-window buffer))
+        ;; actually move to the point if the refs are shown
+        (set-window-point window (point)))
       (tide-goto-reference))))
 
 (defun tide-find-next-reference (pos arg)
   "Move to next reference."
   (interactive "d\np")
-  (setq arg (* 2 arg))
-  (unless (get-text-property pos 'tide-reference)
-    (setq arg (1- arg)))
-  (dotimes (_i arg)
-    (setq pos (next-single-property-change pos 'tide-reference))
-    (unless pos
-      (error "Moved past last reference")))
-  (goto-char pos))
-
+  (tide--next-reference pos arg))
+(defun tide-cycle-next-reference (pos arg)
+  "Move to next reference, cycling back when reaching the last.
+Move back when used from a shifted key binding."
+  (interactive "d\np")
+  (tide--next-reference pos arg t))
 (defun tide-find-previous-reference (pos arg)
   "Move back to previous reference."
   (interactive "d\np")
-  (dotimes (_i (* 2 arg))
-    (setq pos (previous-single-property-change pos 'tide-reference))
-    (unless pos
-      (error "Moved back before first reference")))
-  (goto-char pos))
+  (tide--next-reference pos (- arg)))
+(defun tide-cycle-previous-reference (pos arg)
+  (interactive "d\np")
+  (tide--next-reference pos (- arg) t))
 
 (defun tide-goto-reference ()
   "Jump to reference location in the file."
@@ -1605,6 +1620,8 @@ This function is used for the basic completions sorting."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'tide-find-next-reference)
     (define-key map (kbd "p") #'tide-find-previous-reference)
+    (define-key map (kbd "TAB") #'tide-cycle-next-reference)
+    (define-key map (kbd "<backtab>") #'tide-cycle-previous-reference)
     (define-key map (kbd "RET") #'tide-goto-reference)
     (define-key map [mouse-1] #'tide-goto-reference)
     ;; taken from grep.el
