@@ -1607,6 +1607,10 @@ This function is used for the basic completions sorting."
     (define-key map (kbd "p") #'tide-find-previous-reference)
     (define-key map (kbd "RET") #'tide-goto-reference)
     (define-key map [mouse-1] #'tide-goto-reference)
+    ;; taken from grep.el
+    (define-key map (kbd "SPC") #'scroll-up-command)
+    (define-key map (kbd "S-SPC") #'scroll-down-command)
+    (define-key map (kbd "DEL") #'scroll-down-command)
     map))
 
 (define-derived-mode tide-references-mode special-mode "tide-references"
