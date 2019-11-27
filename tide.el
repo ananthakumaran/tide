@@ -666,6 +666,7 @@ npm local package directory, in the project root as defined by projectile, and
 in the npm global installation."
   (or
    (and tide-tscompiler-executable (expand-file-name tide-tscompiler-executable))
+   (executable-find "tsc")
    (tide-tscompiler-locater-npmlocal-projectile-npmglobal)))
 
 (defconst tide--tsserver "tsserver.js"
@@ -692,6 +693,7 @@ npm local package directory, in the project root as defined by projectile, and
 in the npm global installation.  If nothing is found use the bundled version."
   (or
    (and tide-tsserver-executable (expand-file-name tide-tsserver-executable))
+   (executable-find "tsserver")
    (funcall tide-tsserver-locator-function)
    (expand-file-name tide--tsserver tide-tsserver-directory)))
 
