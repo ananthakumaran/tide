@@ -1616,13 +1616,21 @@ Move back when used from a shifted key binding."
   (-when-let (reference (get-text-property (point) 'tide-reference))
     (tide-jump-to-filespan reference nil t)))
 
+(defun tide-goto-line-reference ()
+  "Jump to the corresponding location in the referenced file."
+  (interactive)
+  (-when-let* ((ref (get-text-property (point) 'tide-line-reference))
+               (col (- (point) (line-beginning-position))))
+    (tide-jump-to-filespan ref nil t)
+    (goto-char (+ (line-beginning-position) col))))
+
 (defvar tide-references-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'tide-find-next-reference)
     (define-key map (kbd "p") #'tide-find-previous-reference)
     (define-key map (kbd "TAB") #'tide-cycle-next-reference)
     (define-key map (kbd "<backtab>") #'tide-cycle-previous-reference)
-    (define-key map (kbd "RET") #'tide-goto-reference)
+    (define-key map (kbd "RET") #'tide-goto-line-reference)
     (define-key map [mouse-1] #'tide-goto-reference)
     ;; taken from grep.el
     (define-key map (kbd "SPC") #'scroll-up-command)
@@ -1641,56 +1649,55 @@ Move back when used from a shifted key binding."
    "references"
    `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
 
-(defun tide-annotate-line (reference line-text)
-  (let ((start (1- (tide-plist-get reference :start :offset)))
-        (end (1- (tide-plist-get reference :end :offset))))
-    (put-text-property start end 'face 'tide-match line-text)
-    (put-text-property start end 'mouse-face 'highlight line-text)
-    (put-text-property start end 'help-echo "mouse-1: Visit the reference." line-text)
-    (put-text-property start end 'tide-reference reference line-text)))
-
 (defun tide-insert-references (references)
   "Create a buffer with the given REFERENCES.
 
 Assumes references are grouped by file name and sorted by line
 number."
-  (let ((buffer (get-buffer-create "*tide-references*"))
-        (inhibit-read-only t)
-        (width tab-width)
-        (project-root (tide-project-root))
-        (last-file-name nil))
+  (let* ((buffer (get-buffer-create "*tide-references*"))
+         (inhibit-read-only t)
+         (width tab-width)
+         (project-root (tide-project-root))
+         (last-file-name nil)
+         (prefix-len (length (number-to-string
+                              (--reduce (max acc (tide-plist-get it :start :line))
+                                        (cons 0 references)))))
+         (linenum-fmt (format "%%%dd" prefix-len))
+         (wrap-prefix (make-string prefix-len ?\ )))
     (with-current-buffer buffer
       (erase-buffer)
       (tide-references-mode)
-      (setq tab-width width)
+      (setq-local tab-width width)
       (while references
         (let* ((reference (car references))
                (full-file-name (plist-get reference :file))
                (file-name (file-relative-name full-file-name project-root))
                (line-number (tide-plist-get reference :start :line))
-               (line-text (plist-get reference :lineText)))
-
+               (line-text (concat (plist-get reference :lineText) "\n"))
+               (line-prefix (concat (propertize (format linenum-fmt line-number)
+                                                'face 'tide-line-number)
+                                    ": ")))
           ;; file
           (unless (equal last-file-name file-name)
             (setq last-file-name file-name)
-            (insert (propertize file-name 'face 'tide-file)
-                    "\n"))
-
-          ;; line number
-          (insert (propertize (format "%5d" line-number) 'face 'tide-line-number)
-                  ":")
-
+            (insert (propertize "\n" 'line-prefix (propertize file-name 'face 'tide-file))))
           ;; line text
-          (tide-annotate-line reference line-text)
-          (while (-when-let* ((next (cadr references))
-                              (full-file-name0 (plist-get next :file))
-                              (line-number0 (tide-plist-get next :start :line)))
-                   (and (equal full-file-name0 full-file-name) (eq line-number0 line-number)))
-            (tide-annotate-line (cadr references) line-text)
-            (pop references))
-          (insert line-text "\n"))
-        (pop references))
+          (while (and references
+                      (equal full-file-name (plist-get (car references) :file))
+                      (equal line-number    (tide-plist-get (car references) :start :line)))
+            (let* ((reference (pop references))
+                   (start (1- (tide-plist-get reference :start :offset)))
+                   (end   (1- (tide-plist-get reference :end :offset))))
+              (dolist (p `((tide-reference ,reference)
+                           (face tide-match)
+                           (mouse-face highlight)
+                           (help-echo "mouse-1: Visit the reference.")))
+                (put-text-property start end (car p) (cadr p) line-text))))
+          (insert (propertize line-text 'line-prefix line-prefix 'wrap-prefix wrap-prefix
+                                        'tide-line-reference reference))))
       (goto-char (point-min))
+      (forward-line 1)
+      (set-buffer-modified-p nil)
       (current-buffer))))
 
 (defun tide-is-identical-reference (original second)
