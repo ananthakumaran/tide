@@ -211,6 +211,11 @@ source blocks) in."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-jump-to-fallback #'tide-jump-to-fallback-not-given
+  "The fallback jump function to use when implementations aren't available."
+  :type 'function
+  :group 'tide)
+
 (defcustom tide-filter-out-warning-completions nil
   "Completions whose `:kind' property is \"warning\" will be filtered out if set to non-nil.
 This option is useful for Javascript code completion, because tsserver often returns a lot of irrelevant
@@ -905,6 +910,9 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 
 ;;; Jump to implementation
 
+(defun tide-jump-to-fallback-not-given ()
+  (message "No implementations available."))
+
 (defun tide-command:implementation ()
   (tide-send-command-sync
    "implementation"
@@ -934,7 +942,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
     (tide-on-response-success response
       (let ((impls (plist-get response :body)))
         (cl-case (length impls)
-          ((0) (message "No implementations available."))
+          ((0) (funcall tide-jump-to-fallback))
           ((1) (tide-jump-to-filespan (car impls)))
           (t (tide-jump-to-filespan
               (tide-select-item-from-list "Select implementation: " impls
