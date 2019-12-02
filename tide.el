@@ -762,7 +762,9 @@ In particular, kill their tsserver processes."
         (cl-pushnew proj live-projects)))
     (-when-let (to-kill (-difference (hash-table-keys tide-servers) live-projects))
       (message "Cleaning up %d projects..." (length to-kill))
-      (dolist (proj to-kill) (tide-cleanup-project proj))
+      (dolist (proj to-kill)
+        (delete-process (process-buffer (gethash proj tide-servers)))
+        (tide-cleanup-project proj))
       (sit-for 5)
       (message nil))))
 
