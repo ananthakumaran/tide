@@ -784,7 +784,7 @@ in the npm global installation.  If nothing is found use the bundled version."
 
 (defun tide-file-format-options ()
   (tide-combine-plists
-   `(:tabSize ,tab-width :indentSize ,(tide-current-indentsize))
+   `(:TabSize ,tab-width :IndentSize ,(tide-current-indentsize))
    tide-format-options
    (tide-tsfmt-options)))
 
