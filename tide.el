@@ -739,6 +739,9 @@ in the npm global installation.  If nothing is found use the bundled version."
   (tide-each-buffer project-name
                     (lambda ()
                       (tide-cleanup-buffer-callbacks)))
+  (tide-cleanup-project-data project-name))
+
+(defun tide-cleanup-project-data (project-name)
   (remhash project-name tide-servers)
   (remhash project-name tide-tsserver-unsupported-commands)
   (remhash project-name tide-project-configs))
@@ -764,7 +767,7 @@ In particular, kill their tsserver processes."
       (message "Cleaning up %d projects..." (length to-kill))
       (dolist (proj to-kill)
         (delete-process (process-buffer (gethash proj tide-servers)))
-        (tide-cleanup-project proj))
+        (tide-cleanup-project-data proj))
       (sit-for 5)
       (message nil))))
 
