@@ -1212,7 +1212,9 @@ Noise can be anything like braces, reserved keywords, etc."
     (setq tide-buffer-dirty nil)
     (unless tide-buffer-tmp-file
       (setq tide-buffer-tmp-file (make-temp-file "tide")))
-    (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message)
+    (save-restriction
+      (widen)
+      (write-region (point-min) (point-max) tide-buffer-tmp-file nil 'no-message))
     (tide-send-command "reload" `(:file ,(tide-buffer-file-name) :tmpfile ,tide-buffer-tmp-file))))
 
 ;;; Code-fixes
