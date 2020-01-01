@@ -202,7 +202,7 @@ errors and tide-project-errors buffer."
 
 (defcustom tide-project-cleanup-delay 60
   "The number of idle seconds to wait before cleaning up unused tsservers.
-Use `nil` to disable automatic cleanups.  See also `tide-cleanup-dead-projects`."
+Use `nil` to disable automatic cleanups.  See also `tide-do-cleanups`."
   :type '(choice (const nil) integer)
   :group 'tide)
 
@@ -751,28 +751,51 @@ in the npm global installation.  If nothing is found use the bundled version."
   (remhash project-name tide-tsserver-unsupported-commands)
   (remhash project-name tide-project-configs))
 
-(defvar tide--project-cleanup-timer nil)
-(defun tide-schedule-dead-projects-cleanup ()
-  (when (and tide-project-cleanup-delay (not tide--project-cleanup-timer))
-    (setq tide--project-cleanup-timer
+(defvar tide--cleanup-timer nil)
+(defvar tide--cleanup-kinds nil)
+(defun tide-schedule-cleanup (kind)
+  (cl-pushnew kind tide--cleanup-kinds)
+  (when (and tide-project-cleanup-delay (not tide--cleanup-timer))
+    (setq tide--cleanup-timer
           (run-with-idle-timer tide-project-cleanup-delay nil
-                               #'tide-cleanup-dead-projects))))
-(defun tide-cleanup-dead-projects ()
-  "Cleanup projects that don't have any associated live buffers.
-In particular, kill their tsserver processes."
-  (interactive)
-  (setq tide--project-cleanup-timer nil)
-  (let ((live-projects '()))
+                               #'tide-do-cleanups))))
+(defun tide-schedule-dead-projects-cleanup ()
+  (tide-schedule-cleanup 'dead-projects))
+(defun tide-schedule-tmp-file-cleanup ()
+  (tide-schedule-cleanup 'tmp-file))
+(defun tide-do-cleanups (&optional interactivep)
+  "Perform some cleanups.
+
+This function is used when Emacs is idle (see `tide-project-cleanup-delay'),
+and you can also call it interactively (e.g., if you disable the automatic
+behavior).
+
+Currently, two kinds of cleanups are done:
+* Remove projects that don't have any associated live buffers, and kill their
+  tsserver processes.
+* Remove tmp files for buffers that are saved."
+  (interactive '(t))
+  (let ((kinds (if interactivep '(dead-projects tmp-file) tide--cleanup-kinds))
+        (live-projects '())
+        (buffers-w/tmp '()))
     (dolist (b (buffer-list))
-      (-when-let (proj (with-current-buffer b
-                         (and (bound-and-true-p tide-mode)
-                              (tide-project-name))))
-        (cl-pushnew proj live-projects)))
-    (-when-let (to-kill (-difference (hash-table-keys tide-servers) live-projects))
-      (message "Cleaning up %d projects..." (length to-kill))
-      (dolist (proj to-kill)
-        (delete-process (process-buffer (gethash proj tide-servers)))
-        (tide-cleanup-project-data proj))
+      (with-current-buffer b
+        (when (bound-and-true-p tide-mode)
+          (cl-pushnew (tide-project-name) live-projects))
+        (when (bound-and-true-p tide-buffer-tmp-file)
+          (cl-pushnew b buffers-w/tmp))))
+    (setq tide--cleanup-timer nil tide--cleanup-kinds nil)
+    (when (memq 'dead-projects kinds)
+      (-when-let (to-kill (-difference (hash-table-keys tide-servers) live-projects))
+        (message "Cleaning up %d projects..." (length to-kill))
+        (dolist (proj to-kill)
+          (delete-process (process-buffer (gethash proj tide-servers)))
+          (tide-cleanup-project-data proj))))
+    (when (and (consp buffers-w/tmp) (memq 'tmp-file kinds))
+      (message "Cleaning up %d tmp files..." (length buffers-w/tmp))
+      (dolist (b buffers-w/tmp)
+        (with-current-buffer b (tide-remove-tmp-file))))
+    (unless interactivep
       (sit-for 5)
       (message nil))))
 
@@ -1208,6 +1231,8 @@ Noise can be anything like braces, reserved keywords, etc."
   ;; argument for any other command.
   (unless (string-equal tide-active-buffer-file-name (tide-buffer-file-name))
     (tide-configure-buffer))
+  (when (and tide-buffer-tmp-file (not (buffer-modified-p)))
+    (tide-schedule-tmp-file-cleanup))
   (when tide-buffer-dirty
     (setq tide-buffer-dirty nil)
     (unless tide-buffer-tmp-file
