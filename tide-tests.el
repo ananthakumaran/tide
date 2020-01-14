@@ -209,20 +209,28 @@ of `BODY'."
          (tide-kill-server)
          (kill-buffer ,buffer-sym)))))
 
-(defun test-tide-add-tslint-disable-next-line (mock initial goto expected)
+(cl-defun make-linter-error-mock (specs)
+  (-map
+   (-lambda ((checker . errors))
+     `(,(symbol-value
+         (intern (concat "tide--" (symbol-name checker) "-checker"))) .
+       ,(-map (lambda (id) (flycheck-error-new :id id)) errors)))
+   specs))
+
+(defun test-tide-add-linter-disable-next-line (mock initial goto expected)
   (mode-with-temp-buffer
    initial
    (search-forward goto nil t)
    (goto-char (match-beginning 0))
-   (cl-letf (((symbol-function 'tide-get-flycheck-errors-ids-at-point)
+   (cl-letf (((symbol-function 'tide-group-flycheck-errors-at-point-by-checker-type)
               (lambda () mock)))
-     (tide-add-tslint-disable-next-line)
+     (tide-add-linter-disable-next-line)
      (should (string= (buffer-string) expected)))))
 
-(ert-deftest tide-add-tslint-disable-next-line/no-errors ()
+(ert-deftest tide-add-linter-disable-next-line/no-errors ()
   "If there are no flycheck errors at point, it should be a no-op."
   (let ((initial "// tslint:disable-next-line:previous\nconst x = 1;\nconst y = 2;\n"))
-    (test-tide-add-tslint-disable-next-line
+    (test-tide-add-linter-disable-next-line
      ()
      initial
      "const y"
@@ -230,30 +238,75 @@ of `BODY'."
 
 ;; The first line of the buffer consitutes an edge condition. An
 ;; earlier version of the function failed in this case.
-(ert-deftest tide-add-tslint-disable-next-line/first-line ()
+(ert-deftest tide-add-linter-disable-next-line/tslint/first-line ()
   "Create a new tslint flag if needed. (First line of buffer)"
   (let ((initial "const x = 1;\nconst y = 2;\n"))
-    (test-tide-add-tslint-disable-next-line
-     '("err1" "err2")
+    (test-tide-add-linter-disable-next-line
+     (make-linter-error-mock '((tslint . ("err1" "err2"))))
      initial
      "const x"
      (concat "// tslint:disable-next-line:err1 err2\n" initial))))
 
-(ert-deftest tide-add-tslint-disable-next-line/subsequent-lines ()
+(ert-deftest tide-add-linter-disable-next-line/tslint/subsequent-lines ()
   "Create a new tslint flag if needed. (Subsequent lines of buffer)"
-  (test-tide-add-tslint-disable-next-line
-   '("err1" "err2")
+  (test-tide-add-linter-disable-next-line
+   (make-linter-error-mock '((tslint . ("err1" "err2"))))
    "const x = 1;\nconst y = 2;\n"
    "const y"
    "const x = 1;\n// tslint:disable-next-line:err1 err2\nconst y = 2;\n"))
 
-(ert-deftest tide-add-tslint-disable-next-line/adds ()
+(ert-deftest tide-add-linter-disable-next-line/tslint/adds ()
   "If there was already a disable-next-line flag, add to it."
-  (test-tide-add-tslint-disable-next-line
-   '("err1" "err2")
-   "// tslint:disable-next-line:previous\nconst x = 1;\nconst y = 2;\n"
+  (test-tide-add-linter-disable-next-line
+   (make-linter-error-mock '((tslint . ("err1" "err2"))))
+   "// tslint:disable-next-line:previous    previous2\nconst x = 1;\nconst y = 2;\n"
    "const x"
-   "// tslint:disable-next-line:previous err1 err2\nconst x = 1;\nconst y = 2;\n"))
+   "// tslint:disable-next-line:previous previous2 err1 err2\nconst x = 1;\nconst y = 2;\n"))
+
+;; The first line of the buffer consitutes an edge condition. An
+;; earlier version of the function failed in this case.
+(ert-deftest tide-add-linter-disable-next-line/eslint/first-line ()
+  "Create a new eslint flag if needed. (First line of buffer)"
+  (let ((initial "const x = 1;\nconst y = 2;\n"))
+    (test-tide-add-linter-disable-next-line
+     (make-linter-error-mock '((eslint  . ("err1" "err2"))))
+     initial
+     "const x"
+     (concat "// eslint-disable-next-line err1, err2\n" initial))))
+
+(ert-deftest tide-add-linter-disable-next-line/eslint/subsequent-lines ()
+  "Create a new eslint flag if needed. (Subsequent lines of buffer)"
+  (test-tide-add-linter-disable-next-line
+   (make-linter-error-mock '((eslint . ("err1" "err2"))))
+   "const x = 1;\nconst y = 2;\n"
+   "const y"
+   "const x = 1;\n// eslint-disable-next-line err1, err2\nconst y = 2;\n"))
+
+(ert-deftest tide-add-linter-disable-next-line/eslint/adds ()
+  "If there was already a disable-next-line flag, add to it."
+  (test-tide-add-linter-disable-next-line
+   (make-linter-error-mock '((eslint . ("err1" "err2"))))
+   "// eslint-disable-next-line previous,previous2\nconst x = 1;\nconst y = 2;\n"
+   "const x"
+   "// eslint-disable-next-line previous, previous2, err1, err2\nconst x = 1;\nconst y = 2;\n"))
+
+(ert-deftest tide-add-linter-disable-next-line/tsserver ()
+  "Create a new eslint flag if needed. (Subsequent lines of buffer)"
+  (test-tide-add-linter-disable-next-line
+   (make-linter-error-mock '((tsserver . ("err1" "err2"))))
+   "const x = 1;\nconst y = 2;\n"
+   "const y"
+   "const x = 1;\n// @ts-ignore\nconst y = 2;\n"))
+
+(ert-deftest tide-add-linter-disable-next-line/more-than-one-checker ()
+  "Fail when more than one checker produced errors at point."
+  (should-error
+   (test-tide-add-linter-disable-next-line
+    (make-linter-error-mock '((eslint  . ("err1" "err2")) (tslint . ("err3"))))
+    "// eslint-disable-next-line previous,previous2\nconst x = 1;\nconst y = 2;\n"
+    "const x"
+    "// eslint-disable-next-line previous, previous2, err1, err2\nconst x = 1;\nconst y = 2;\n"))
+  :type 'error)
 
 (ert-deftest tide-setup ()
   "Test that tide-setup can be invoked without errors."
