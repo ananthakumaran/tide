@@ -475,18 +475,6 @@ Offset is one based."
       (goto-char pos)
       (tide-current-offset))))
 
-(defun tide-column (line offset)
-  "Return column number corresponds to the LINE and OFFSET.
-
-LINE is one based, OFFSET is one based and column is zero based"
-  (save-excursion
-    (save-restriction
-      (widen)
-      (goto-char (point-min))
-      (forward-line (1- line))
-      (forward-char (1- offset))
-      (1+ (current-column)))))
-
 (defun tide-span-to-position (span)
   (save-excursion
     (save-restriction
@@ -2182,7 +2170,7 @@ current buffer."
    (lambda (diagnostic)
      (let* ((start (plist-get diagnostic :start))
             (line (plist-get start :line))
-            (column (tide-column line (plist-get start :offset)))
+            (column (plist-get start :offset))
             (level (if (string= (plist-get diagnostic :category) "suggestion") 'info 'error))
             (text (plist-get diagnostic :text)))
        (when (plist-get diagnostic :relatedInformation)
