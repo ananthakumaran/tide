@@ -39,6 +39,7 @@
 (require 'thingatpt)
 (require 'tide-lv)
 (require 'tabulated-list)
+(require 'xref)
 
 ;; Silence compiler warnings
 
@@ -2188,6 +2189,7 @@ current buffer."
         (add-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup nil t)
         (add-hook 'hack-local-variables-hook
                   'tide-configure-buffer-if-server-exists nil t)
+        (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t)
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
@@ -2197,6 +2199,7 @@ current buffer."
     (remove-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup t)
     (remove-hook 'hack-local-variables-hook
                  'tide-configure-buffer-if-server-exists t)
+    (remove-hook 'xref-backend-functions #'xref-tide-xref-backend t)
     (tide-cleanup-buffer)))
 
 
@@ -2853,6 +2856,38 @@ identifier at point, if necessary."
            (tide-on-response-success response
              (let ((config-file-name (tide-plist-get response :body :configFileName)))
                (tide-show-project-info version config-file-name)))))))))
+
+
+;; xref integration
+(defun xref-tide-xref-backend ()
+  "Xref-tide backend for xref."
+  'xref-tide)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-tide)))
+  (tide-get-symbol-at-point))
+
+(cl-defmethod xref-backend-references ((_backend (eql xref-tide)) symbol)
+  (tide-xref--find-references))
+
+(defun tide-xref--make-reference (reference)
+  "Make xref object from RERERENCE."
+  (let ((full-file-name (plist-get reference :file))
+        (line-number (tide-plist-get reference :start :line))
+        (line-text (plist-get reference :lineText))
+        (start (1- (tide-plist-get reference :start :offset)))
+        (end   (1- (tide-plist-get reference :end :offset))))
+    (put-text-property start end 'face 'tide-match line-text)
+    (xref-make line-text
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
+(defun tide-xref--find-references ()
+  "Return xref reference objects."
+  (let ((response (tide-command:references)))
+    (tide-on-response-success response
+        (let ((references (tide-plist-get response :body :refs)))
+          (-map #'tide-xref--make-reference references)))))
 
 (provide 'tide)
 
