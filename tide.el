@@ -876,7 +876,7 @@ Currently, two kinds of cleanups are done:
                            :scriptKindName ,tide-default-mode
                            :fileContent ,(buffer-string))
                        (append `(:file ,(tide-buffer-file-name))
-                               (let ((extension (upcase (file-name-extension (tide-buffer-file-name)))))
+                               (let ((extension (upcase (or (file-name-extension (tide-buffer-file-name)) ""))))
                                  (when (member extension '("TS" "JS" "TSX" "JSX"))
                                    `(:scriptKindName ,extension)))))))
 
