@@ -239,6 +239,12 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide
   :safe #'booleanp)
 
+(defcustom tide-convert-checker-name-to-type
+  #'tide-convert-checker-name-to-type-default
+  "The function to use to convert a flycheck checker name to a checker type."
+  :type 'function
+  :group 'tide)
+
 (defconst tide--minimal-emacs
   "24.4"
   "This is the oldest version of Emacs that tide supports.")
@@ -1254,6 +1260,14 @@ Noise can be anything like braces, reserved keywords, etc."
             (basic-save-buffer))
           (run-hooks 'tide-post-code-edit-hook))))))
 
+(defun tide-group-flycheck-errors-at-point-by-checker-type ()
+  "Group the flycheck error at point by checker type.  The resulting object is
+an alist whose keys are checker types and the values are lists of flycheck
+errors associated with that checker name."
+  (-group-by (lambda (err)
+               (funcall tide-convert-checker-name-to-type (flycheck-error-checker err)))
+             (flycheck-overlay-errors-at (point))))
+
 (defun tide-get-flycheck-errors-ids-at-point ()
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
 
@@ -1382,48 +1396,133 @@ in the file that are similar to the error at point."
            (tide-select-refactor body))
         (message "No refactors available.")))))
 
-;;; Disable tslint warnings
+;;; Disable errors and warnings
 
-(defconst tide-tslint-disable-next-line-regexp
-  "\\s *//\\s *tslint\\s *:\\s *disable-next-line\\s *:\\(.*\\)"
-  "Regexp matching a tslint flag disabling rules on the next line.")
+(cl-defstruct tide-checker-type
+  "Structure representing a checker type known to tide.
 
-(defun tide-add-tslint-disable-next-line ()
-  "Add a tslint flag to disable rules generating errors at point.
+The method by which errors can be disabled varies depending on
+the checker. Eslint requires flags formatted in a certain format,
+tslint requires flags formatted differently, etc. Tide has to
+figure out which type of checker it is dealing with in order to
+produce the right flag.
 
-This function adds or modifies a flag of this form to the
-previous line:
+Moreover, application frameworks often produce their own linting
+tools: Angular has \"ng lint\", Vue has \"vue-cli-service lint\",
+etc. These are not really additional checkers but are usually
+wrappers around tslint or eslint. Tide uses
+`tide-convert-checker-name-to-type' to convert a Flycheck checker
+name to a checker type of the structure defined here.
 
-  // tslint:disable-next-line:[rule1] [rule2] [...]
+`pattern'
 
-The line will be indented according to the current indentation
-settings.  This function generates rule1, rule2 to cover all the
-errors present at point.
+  The regular expression pattern to use to determine whether the
+  previous line already holds a flag to modify. If the flag can
+  list error ids, the pattern must have a single capturing group
+  that captures the whole list of ids. If the pattern has no
+  group, then it is assumed that the flag does not allow listing
+  error ids. In this latter case `separator' should also be unset.
 
-If the previous line does not already contain a disable-next-line
-flag, a new line is added to hold the new flag.  If the previous
-line already contains a disable-next-line flag, the rule is added
-to the flag.  Note that this function does not preserve the
-formatting of the already existing flag.  The resulting flag will
-always be formatted as described above."
+
+`new-flag'
+
+  A string that serves as the template for a new flag.
+
+`split-on'
+
+  A regular expression to use to split the group that `pattern'
+  matched so as to get error ids. Note that a value of `nil'
+  means \"split on spaces\". This value is ignored if `pattern'
+  does not contain a group.
+
+`separator'
+
+  A separator to put between each error id when creating the
+  flag. This should be unset for those checkers that do not have
+  flags that allow listing error ids."
+  pattern new-flag split-on separator)
+
+(defconst tide--tslint-checker
+  (make-tide-checker-type
+   :pattern "\\s *//\\s *tslint\\s *:\\s *disable-next-line\\s *:\\(.*\\)"
+   :new-flag "// tslint:disable-next-line:"
+   :split-on nil ;; Split on spaces.
+   :separator " ")
+  "This is the checker type for tslint and all tslint-derived checkers.")
+
+(defconst tide--eslint-checker
+  (make-tide-checker-type
+   :pattern "\\s *//\\s *eslint-disable-next-line\\s +\\(.*\\)"
+   :new-flag "// eslint-disable-next-line "
+   :split-on "\\s *,\\s *"
+   :separator ", ")
+  "This is the checker type for eslint and all eslint-derived checkers.")
+
+(defconst tide--tsserver-checker
+  (make-tide-checker-type
+   :pattern "\\s *//\\s *@ts-ignore"
+   :new-flag "// @ts-ignore")
+  "This checker type handles errors reported by tsserver.")
+
+(defun tide-convert-checker-name-to-type-default (name)
+  "Tide's default function for converting a flycheck checker name to a checker type.
+
+If the name ends with \"-tide\", the checker's type is tsserver.
+
+If the name has the string \"tslint\" in it, the checker's type is tslint.
+
+Otherwise, the type is eslint."
+  (let ((str-name (symbol-name name)))
+    (cond
+     ;; The compilation-based checkers defined by tide all have names that end
+     ;; with "-tide". Skip them.
+     ((string-suffix-p "-tide" str-name) tide--tsserver-checker)
+     ((string-match-p "tslint" str-name) tide--tslint-checker)
+     (t tide--eslint-checker))))
+
+(defun tide-add-linter-disable-next-line ()
+  "Add a linter flag to disable rules generating errors at point.
+
+This function modifies the previous line, or adds a new line to
+disable the errors at point.  The modified or added line will be
+indented according to the current indentation settings.  If the
+checker allows it, this function generates a flag to cover all
+the errors present at point.
+
+If the previous line does not already contain a flag, a new line
+is added to hold the new flag.  If the previous line already
+contains a flag, the rule to be disabled is added to the flag.
+Note that this function does not preserve the formatting of the
+already existing flag.  The resulting flag will always be
+reformatted."
   (interactive)
-  (let ((error-ids (delq nil (tide-get-flycheck-errors-ids-at-point)))
-        (start (point)))
-    (when error-ids
-      (save-excursion
-        (if (and (eq 0 (forward-line -1))
-                 (looking-at tide-tslint-disable-next-line-regexp))
-            ;; We'll update the old flag.
-            (let ((old-list (split-string (match-string 1))))
-              (delete-region (point) (point-at-eol))
-              (setq error-ids (append old-list error-ids)))
-          ;; We'll create a new flag.
-          (goto-char start)
-          (beginning-of-line)
-          (open-line 1))
-        (insert "// tslint:disable-next-line:"
-                (string-join error-ids " "))
-        (typescript-indent-line)))))
+  (-when-let* ((start (point))
+               (groups (tide-group-flycheck-errors-at-point-by-checker-type))
+               (((checker-type . errors)) groups)
+               (error-ids (-map #'flycheck-error-id errors)))
+    (when (nth 1 groups)
+      (error "The function tide-add-linter-disable-next-line cannot process a \
+mixture of errors from different checkers."))
+    (save-excursion
+      (if (and (eq 0 (forward-line -1))
+               (looking-at (tide-checker-type-pattern checker-type)))
+          ;; We'll "update" the old flag. Practically, this means deleting
+          ;; the old and creating a new one.
+          (progn
+            (-when-let (matched (match-string 1))
+              (setq error-ids
+                    (nconc (split-string matched
+                                         (tide-checker-type-split-on checker-type))
+                           error-ids)))
+            (delete-region (point) (point-at-eol)))
+        ;; We'll create a brand new flag. We need a new line for it.
+        (goto-char start)
+        (beginning-of-line)
+        (open-line 1))
+      (insert (tide-checker-type-new-flag checker-type))
+      (-when-let (separator (tide-checker-type-separator checker-type))
+        (insert (string-join error-ids separator)))
+      (typescript-indent-line))))
 
 ;;; Auto completion
 
