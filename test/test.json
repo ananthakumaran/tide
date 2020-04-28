@@ -1,0 +1,40 @@
+{
+    "files": [
+        "./lib/cli.ts",
+        "./lib/index.ts",
+        "./test/indexSpec.ts",
+        "./typings/bundle.d.ts",
+        "./typings/empower/empower.d.ts",
+        "./typings/gulp/gulp.d.ts",
+        "./typings/mocha/mocha.d.ts",
+        "./typings/node/node.d.ts",
+        "./typings/orchestrator/orchestrator.d.ts",
+        "./typings/power-assert-formatter/power-assert-formatter.d.ts",
+        "./typings/power-assert/power-assert.d.ts",
+        "./typings/q/Q.d.ts",
+        "./node_modules/typescript/lib/lib.es6.d.ts"
+    ],
+    "exclude": [],
+    "filesGlob": [
+        "./**/*.ts",
+        "./**/*.tsx",
+        "!./**/*.d.ts",
+        "!./gulpfile.ts",
+        "./typings/**/*.d.ts",
+        "!./node_modules/**/*.ts",
+        "./node_modules/typescript/lib/lib.es6.d.ts"
+    ],
+    "compilerOptions": {
+        "noEmitOnError": true,
+        "newLine": "LF",
+        "listFiles": true,
+        "sourceMap": true,
+        "rootDir": ".",
+        "experimentalDecorators": true,
+        "removeComments": true,
+        "noImplicitAny": true,
+        "declaration": true,
+        "module": "commonjs",
+        "target": "es5"
+    }
+}
