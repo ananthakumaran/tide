@@ -1290,7 +1290,7 @@ Noise can be anything like braces, reserved keywords, etc."
    `(:file ,(tide-buffer-file-name)
      :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset)
      :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset))
-     :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+     :errorCodes ,(vconcat (tide-get-flycheck-errors-ids-at-point)))))
 
 (defun tide-command:getCombinedCodeFix (fixId)
   (tide-send-command-sync "getCombinedCodeFix"
