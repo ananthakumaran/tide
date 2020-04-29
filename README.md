@@ -345,3 +345,6 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 
 How long to wait after user input before highlighting the current identifier.
 
+##### tide-native-json-parsing `nil`
+
+Use the native JSON functions for encoding and decoding.
