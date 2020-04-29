@@ -239,7 +239,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide
   :safe #'booleanp)
 
-(defcustom tide-native-json-parsing (and (<= emacs-major-version 27)
+(defcustom tide-native-json-parsing (and (>= emacs-major-version 27)
                                          (functionp 'json-serialize)
                                          (functionp 'json-parse-buffer)
                                          (functionp 'json-parse-string))
