@@ -432,58 +432,61 @@ file that uses tabs for indentation."
                        "a")))
     (delete-process (tide-current-server))
     (kill-buffer buffer)))
+(when (>= emacs-major-version 27)
+  (ert-deftest test-tide-safe-json-read-file ()
+    "Test that `tide-safe-json-read-file' produces the same output for both json.el and the native json parser"
+    (let ((native-output
+           (let ((tide-native-json-parsing t))
+             (tide-safe-json-read-file "test/test.json")))
+          (elisp-output
+           (let ((tide-native-json-parsing nil))
+             (tide-safe-json-read-file "test/test.json"))))
+      (should (equal native-output elisp-output)))))
 
-(ert-deftest test-tide-safe-json-read-file ()
-  "Test that `tide-safe-json-read-file' produces the same output for both json.el and the native json parser"
-  (let ((native-output
-         (let ((tide-native-json-parsing t))
-           (tide-safe-json-read-file "test/test.json")))
-        (elisp-output
-         (let ((tide-native-json-parsing nil))
-           (tide-safe-json-read-file "test/test.json"))))
-    (should (equal native-output elisp-output))))
-
-(ert-deftest test-tide-safe-json-read-string ()
-  "Test that `tide-safe-json-read-string' produces the same output for both native and elisp JSON libraries"
-  (let* ((test-json
-          (with-temp-buffer
-            (insert-file-contents "test/test.json")
-            (buffer-string)))
-         (native-output
-          (let ((tide-native-json-parsing t))
-            (tide-safe-json-read-string test-json)))
-         (elisp-output
-          (let ((tide-native-json-parsing nil))
-            (tide-safe-json-read-string test-json))))
-    (should (equal native-output elisp-output))))
-
-(ert-deftest test-tide-json-read-object ()
-  "Test that `tide-json-read-object' produces the same output for both native and elisp JSON libraries"
-  (let* ((native-output
-          (with-temp-buffer
-            (insert-file-contents "test/test.json")
+(when (>= emacs-major-version 27)
+  (ert-deftest test-tide-safe-json-read-string ()
+    "Test that `tide-safe-json-read-string' produces the same output for both native and elisp JSON libraries"
+    (let* ((test-json
+            (with-temp-buffer
+              (insert-file-contents "test/test.json")
+              (buffer-string)))
+           (native-output
             (let ((tide-native-json-parsing t))
-              (tide-json-read-object))))
-         (elisp-output
-          (with-temp-buffer 
-            (insert-file-contents "test/test.json")
+              (tide-safe-json-read-string test-json)))
+           (elisp-output
             (let ((tide-native-json-parsing nil))
-              (tide-json-read-object)))))
-    (should (equal native-output elisp-output))))
+              (tide-safe-json-read-string test-json))))
+      (should (equal native-output elisp-output)))))
 
-(ert-deftest test-tide-json-encode ()
-  "Test that `tide-json-read-object' produces the same JSON string for both native and elisp libraries"
-  (let* ((json-obj `(:number 123
-                     :string "string"
-                     :true t
-                     :false ,json-false
-                     :array [(:number 123 :string "string" :true t :false ,json-false)]))
-         (native-string (let ((tide-native-json-parsing t))
-                          (tide-json-encode json-obj)))
-         (elisp-string (let ((tide-native-json-parsing nil))
-                         (tide-json-encode json-obj))))
-    (should (equal native-string elisp-string))))
+(when (>= emacs-major-version 27)
+  (ert-deftest test-tide-json-read-object ()
+    "Test that `tide-json-read-object' produces the same output for both native and elisp JSON libraries"
+    (let* ((native-output
+            (with-temp-buffer
+              (insert-file-contents "test/test.json")
+              (let ((tide-native-json-parsing t))
+                (tide-json-read-object))))
+           (elisp-output
+            (with-temp-buffer
+              (insert-file-contents "test/test.json")
+              (let ((tide-native-json-parsing nil))
+                (tide-json-read-object)))))
+      (should (equal native-output elisp-output)))))
 
-(provide 'tide-tests)
+(when (>= emacs-major-version 27)
+  (ert-deftest test-tide-json-encode ()
+    "Test that `tide-json-read-object' produces the same JSON string for both native and elisp libraries"
+    (let* ((json-obj `(:number 123
+                               :string "string"
+                               :true t
+                               :false ,json-false
+                               :array [(:number 123 :string "string" :true t :false ,json-false)]))
+           (native-string (let ((tide-native-json-parsing t))
+                            (tide-json-encode json-obj)))
+           (elisp-string (let ((tide-native-json-parsing nil))
+                           (tide-json-encode json-obj))))
+      (should (equal native-string elisp-string))))
+
+  (provide 'tide-tests))
 
 ;;; tide-tests.el ends here
