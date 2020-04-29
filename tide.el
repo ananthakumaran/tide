@@ -242,7 +242,8 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
 (defcustom tide-native-json-parsing (and (>= emacs-major-version 27)
                                          (functionp 'json-serialize)
                                          (functionp 'json-parse-buffer)
-                                         (functionp 'json-parse-string))
+                                         (functionp 'json-parse-string)
+                                         nil)
   "Use native JSON parsing (only emacs >= 27)."
   :type 'boolean
   :group 'tide)
