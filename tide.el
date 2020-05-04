@@ -239,6 +239,15 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide
   :safe #'booleanp)
 
+(defcustom tide-native-json-parsing (and (>= emacs-major-version 27)
+                                         (functionp 'json-serialize)
+                                         (functionp 'json-parse-buffer)
+                                         (functionp 'json-parse-string)
+                                         nil)
+  "Use native JSON parsing (only emacs >= 27)."
+  :type 'boolean
+  :group 'tide)
+
 (defconst tide--minimal-emacs
   "24.4"
   "This is the oldest version of Emacs that tide supports.")
@@ -336,15 +345,35 @@ buffers, as they don't set `buffer-file-name' correctly."
 
 (defun tide-safe-json-read-file (filename)
   (condition-case nil
-      (let ((json-object-type 'plist))
-        (json-read-file filename))
+      (if tide-native-json-parsing
+          (with-temp-buffer
+            (insert-file-contents filename)
+            (goto-char (point-min))
+            (json-parse-buffer :object-type 'plist :null-object json-null :false-object json-false))
+        (let ((json-object-type 'plist))
+          (json-read-file filename)))
     (error '())))
 
 (defun tide-safe-json-read-string (string)
   (condition-case nil
-      (let ((json-object-type 'plist))
-        (json-read-from-string string))
+      (if tide-native-json-parsing
+          (json-parse-string string :object-type 'plist :null-object json-null :false-object json-false)
+        (let ((json-object-type 'plist))
+          (json-read-from-string string)))
     (error '())))
+
+(defun tide-json-read-object ()
+  (if tide-native-json-parsing
+      (json-parse-buffer :object-type 'plist :null-object json-null :false-object json-false :array-type 'list)
+    (let ((json-object-type 'plist)
+          (json-array-type 'list))
+      (json-read-object))))
+
+(defun tide-json-encode (obj)
+  "Encode OBJ into a JSON string. JSON arrays must be represented with vectors."
+  (if tide-native-json-parsing
+      (json-serialize obj :null-object json-null :false-object json-false)
+    (json-encode obj)))
 
 (defun tide-plist-get (list &rest args)
   (cl-reduce
@@ -591,7 +620,7 @@ Offset is one based."
   (let* ((request-id (tide-next-request-id))
          (command `(:command ,name :seq ,request-id :arguments ,args))
          (json-encoding-pretty-print nil)
-         (encoded-command (json-encode command))
+         (encoded-command (tide-json-encode command))
          (payload (concat encoded-command "\n")))
     (process-send-string (tide-current-server) payload)
     (when callback
@@ -814,9 +843,7 @@ Currently, two kinds of cleanups are done:
 
 (defun tide-decode-response (process)
   (with-current-buffer (process-buffer process)
-    (let ((length (tide-decode-response-legth))
-          (json-object-type 'plist)
-          (json-array-type 'list))
+    (let ((length (tide-decode-response-legth)))
       (when (and length (tide-enough-response-p length))
         (search-forward "{")
         (backward-char 1)
@@ -828,7 +855,7 @@ Currently, two kinds of cleanups are done:
                                    `(:success :json-false :type "response"
                                      :message ,tide-max-response-length-error-message
                                      :request_seq ,seq)))
-                          (json-read-object))))
+                          (tide-json-read-object))))
           (delete-region (point-min) (point))
           (when response
             (tide-dispatch response)))
@@ -1263,7 +1290,7 @@ Noise can be anything like braces, reserved keywords, etc."
    `(:file ,(tide-buffer-file-name)
      :startLine ,(tide-line-number-at-pos) :startOffset ,(tide-current-offset)
      :endLine ,(tide-line-number-at-pos) :endOffset ,(+ 1 (tide-current-offset))
-     :errorCodes ,(tide-get-flycheck-errors-ids-at-point))))
+     :errorCodes ,(vconcat (tide-get-flycheck-errors-ids-at-point)))))
 
 (defun tide-command:getCombinedCodeFix (fixId)
   (tide-send-command-sync "getCombinedCodeFix"
@@ -1561,7 +1588,7 @@ This function is used for the basic completions sorting."
   (let* ((source (plist-get (get-text-property 0 'completion name) :source))
          (entry-names (if source
                           `(:entryNames [(:name ,name :source ,source)])
-                        `(:entryNames (,name))))
+                        `(:entryNames [,name])))
          (arguments (-concat (get-text-property 0 'file-location name)
                              entry-names)))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
@@ -2439,12 +2466,11 @@ current buffer."
    t))
 
 ;;; Identifier highlighting
-
 (defun tide-command:documentHighlights (cb)
   (tide-send-command
    "documentHighlights"
    `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)
-     :filesToSearch (,(tide-buffer-file-name)))
+     :filesToSearch [,(tide-buffer-file-name)])
    cb))
 
 (defface tide-hl-identifier-face
