@@ -130,6 +130,13 @@ errors and tide-project-errors buffer."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-completion-show-source nil
+  "Completion dropdown will contain completion source if set to non-nil.
+
+Only work when `tide-completion-detailed' not enabled."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-completion-detailed nil
   "Completion dropdown will contain detailed method information if set to non-nil."
   :type 'boolean
@@ -1458,7 +1465,12 @@ always be formatted as described above."
       ;; Get everything before the first newline, if any, because company-mode
       ;; wants single-line annotations.
       (car (split-string meta "\n"))
-    (pcase (plist-get (get-text-property 0 'completion name) :kind)
+    (-if-let (source (and tide-completion-show-source (tide-completion-source name)))
+        (format "%s %s" (tide-completion-annotation-trans-mark name) source)
+      (tide-completion-annotation-trans-mark name))))
+
+(defun tide-completion-annotation-trans-mark (name)
+  (pcase (plist-get (get-text-property 0 'completion name) :kind)
       ("keyword" " k")
       ("module" " M")
       ("class" " C")
@@ -1484,7 +1496,7 @@ always be formatted as described above."
       ("alias" " A")
       ("const" " c")
       ("let" " l")
-      (_ nil))))
+      (_ nil)))
 
 (defun tide-completion-rank (completion)
   "Get the sorting order of a COMPLETION candidate."
@@ -1605,6 +1617,15 @@ This function is used for the basic completions sorting."
   (-when-let* ((response (tide-completion-entry-details name))
                (detail (car (plist-get response :body))))
     (tide-doc-text detail)))
+
+(defun tide-completion-source (name)
+  (-when-let* ((response (tide-completion-entry-details name)))
+    (-> response
+        (plist-get :body)
+        (car)
+        (plist-get :source)
+        (car)
+        (plist-get :text))))
 
 (defun tide-completion-doc-buffer (name)
   (-when-let* ((response (tide-completion-entry-details name))

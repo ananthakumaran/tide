@@ -294,6 +294,12 @@ errors and tide-project-errors buffer.
 
 CASE will be ignored in completion if set to non-nil.
 
+##### tide-completion-show-source `nil`
+
+Completion dropdown will contain completion source if set to non-nil.
+
+Only work when `tide-completion-detailed` not enabled.
+
 ##### tide-completion-detailed `nil`
 
 Completion dropdown will contain detailed method information if set to non-nil.
