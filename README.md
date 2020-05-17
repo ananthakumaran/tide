@@ -274,8 +274,7 @@ Format options plist.
 
 User preference plist used on the configure request.
 
-Check
-https://github.com/Microsoft/TypeScript/blob/17eaf50b73c1355d2fd15bdc3912aa64a73483dd/src/server/protocol.ts#L2684
+Check https://github.com/Microsoft/TypeScript/blob/17eaf50b/src/server/protocol.ts#L2684
 for the full list of available options.
 
 ##### tide-disable-suggestions `nil`
@@ -288,6 +287,12 @@ errors and tide-project-errors buffer.
 ##### tide-completion-ignore-case `nil`
 
 CASE will be ignored in completion if set to non-nil.
+
+##### tide-completion-show-source `nil`
+
+Completion dropdown will contain completion source if set to non-nil.
+
+Only work when `tide-completion-detailed` not enabled.
 
 ##### tide-completion-detailed `nil`
 
@@ -325,14 +330,29 @@ Maximum allowed response length from tsserver. Any response greater than this wo
 
 Function used by tide to locate tsserver.
 
+##### tide-project-cleanup-delay `60`
+
+The number of idle seconds to wait before cleaning up unused tsservers.
+Use `nil` to disable automatic cleanups.  See also `tide-do-cleanups`.
+
+##### tide-tsserver-start-method `'immediate`
+
+The method by which tide starts tsserver. `immediate` causes tide to start a tsserver instance
+as soon as `tide-mode` is turned on. `manual` means that tide will start a tsserver only when the
+user manually starts one.
+
 ##### tide-default-mode `"TS"`
 
 The default mode to open buffers not backed by files (e.g. Org
-  source blocks) in.
+source blocks) in.
 
 ##### tide-recenter-after-jump `t`
 
 Recenter buffer after jumping to definition
+
+##### tide-jump-to-fallback `#'tide-jump-to-fallback-not-given`
+
+The fallback jump function to use when implementations aren't available.
 
 ##### tide-filter-out-warning-completions `nil`
 
@@ -341,10 +361,16 @@ This option is useful for Javascript code completion, because tsserver often ret
 completions whose `:kind` property is "warning" for Javascript code. You can fix this behavior by setting
 this variable to non-nil value for Javascript buffers using `setq-local` macro.
 
+##### tide-native-json-parsing `(and
+ (>= emacs-major-version 27)
+ (functionp 'json-serialize)
+ (functionp 'json-parse-buffer)
+ (functionp 'json-parse-string)
+ nil)`
+
+Use native JSON parsing (only emacs >= 27).
+
 ##### tide-hl-identifier-idle-time `0.5`
 
 How long to wait after user input before highlighting the current identifier.
 
-##### tide-native-json-parsing `nil`
-
-Use the native JSON functions for encoding and decoding.
