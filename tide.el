@@ -1623,7 +1623,7 @@ This function is used for the basic completions sorting."
                  (source (plist-get detail :source)))
           (tide-join (list text " " (tide-annotate-display-parts source)))
         text)
-    (if-let* ((completion (get-text-property 0 'completion name))
+    (-if-let* ((completion (get-text-property 0 'completion name))
               (source (plist-get completion :source)))
         (tide-join (list text " " source))
       text)))
