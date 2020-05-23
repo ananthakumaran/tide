@@ -131,9 +131,7 @@ errors and tide-project-errors buffer."
   :group 'tide)
 
 (defcustom tide-completion-show-source nil
-  "Completion dropdown will contain completion source if set to non-nil.
-
-Only work when `tide-completion-detailed' not enabled."
+  "Completion dropdown will contain completion source if set to non-nil."
   :type 'boolean
   :group 'tide)
 
@@ -1465,8 +1463,8 @@ always be formatted as described above."
       ;; Get everything before the first newline, if any, because company-mode
       ;; wants single-line annotations.
       (car (split-string meta "\n"))
-    (-if-let (source (and tide-completion-show-source (tide-completion-source name)))
-        (format "%s %s" (tide-completion-annotation-trans-mark name) source)
+    (if tide-completion-show-source
+        (tide-completion-append-source (tide-completion-annotation-trans-mark name) name nil)
       (tide-completion-annotation-trans-mark name))))
 
 (defun tide-completion-annotation-trans-mark (name)
@@ -1616,16 +1614,19 @@ This function is used for the basic completions sorting."
 (defun tide-completion-meta (name)
   (-when-let* ((response (tide-completion-entry-details name))
                (detail (car (plist-get response :body))))
-    (tide-doc-text detail)))
+    (tide-completion-append-source (tide-doc-text detail) name t)))
 
-(defun tide-completion-source (name)
-  (-when-let* ((response (tide-completion-entry-details name)))
-    (-> response
-        (plist-get :body)
-        (car)
-        (plist-get :source)
-        (car)
-        (plist-get :text))))
+(defun tide-completion-append-source (text name detailed)
+  (if detailed
+      (-if-let* ((response (tide-completion-entry-details name))
+                 (detail (car (plist-get response :body)))
+                 (source (plist-get detail :source)))
+          (tide-join (list text " " (tide-annotate-display-parts source)))
+        text)
+    (if-let* ((completion (get-text-property 0 'completion name))
+              (source (plist-get completion :source)))
+        (tide-join (list text " " source))
+      text)))
 
 (defun tide-completion-doc-buffer (name)
   (-when-let* ((response (tide-completion-entry-details name))
