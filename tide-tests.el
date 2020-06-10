@@ -174,7 +174,7 @@ a test failure."
 
 (defmacro with-spy (name function-symbol &rest body)
   "Execute `BODY' with `NAME' bound to a spy that spies on `FUNCTION-SYMBOL'."
-  (declare (debug t)
+  (declare (debug (symbolp symbolp body))
            (indent 2))
   ;; Avoid polluting the scope of the code using this macro.
   (let ((orig (make-symbol "orig"))
