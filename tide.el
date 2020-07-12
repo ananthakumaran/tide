@@ -130,6 +130,11 @@ errors and tide-project-errors buffer."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-completion-show-source nil
+  "Completion dropdown will contain completion source if set to non-nil."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-completion-detailed nil
   "Completion dropdown will contain detailed method information if set to non-nil."
   :type 'boolean
@@ -1458,7 +1463,12 @@ always be formatted as described above."
       ;; Get everything before the first newline, if any, because company-mode
       ;; wants single-line annotations.
       (car (split-string meta "\n"))
-    (pcase (plist-get (get-text-property 0 'completion name) :kind)
+    (if tide-completion-show-source
+        (tide-completion-append-source (tide-completion-annotation-trans-mark name) name nil)
+      (tide-completion-annotation-trans-mark name))))
+
+(defun tide-completion-annotation-trans-mark (name)
+  (pcase (plist-get (get-text-property 0 'completion name) :kind)
       ("keyword" " k")
       ("module" " M")
       ("class" " C")
@@ -1484,7 +1494,7 @@ always be formatted as described above."
       ("alias" " A")
       ("const" " c")
       ("let" " l")
-      (_ nil))))
+      (_ nil)))
 
 (defun tide-completion-rank (completion)
   "Get the sorting order of a COMPLETION candidate."
@@ -1604,7 +1614,49 @@ This function is used for the basic completions sorting."
 (defun tide-completion-meta (name)
   (-when-let* ((response (tide-completion-entry-details name))
                (detail (car (plist-get response :body))))
-    (tide-doc-text detail)))
+    (tide-completion-append-source (tide-doc-text detail) name t)))
+
+(defun tide-completion-append-source (text name detailed)
+  (if detailed
+      (-if-let* ((response (tide-completion-entry-details name))
+                 (detail (car (plist-get response :body)))
+                 (raw-source (plist-get detail :source)))
+          (tide-join (list text " " (tide-annotate-display-parts (tide-normalize-source raw-source))))
+        text)
+    (-if-let* ((completion (get-text-property 0 'completion name))
+               (raw-source (plist-get completion :source)))
+        (tide-join (list text " " (tide-normalize-source raw-source)))
+      text)))
+
+(defun tide-normalize-source (source)
+  "Normalize tsserver returned source:
+
+1. Transform to relative path
+2. Cleanup path components before last `/node_modules/`
+3. Cleanup `/index` if it is the last path component
+4. Transform `@types/namespace__pkgname` to `@namespace/pkgname`"
+  (--> source
+
+       (if (file-name-absolute-p it)
+           (file-relative-name it (buffer-file-name))
+         it)
+
+       (if (s-contains? "/node_modules/" it)
+           (->> it
+                (s-split "/node_modules/")
+                (-last-item))
+         it)
+
+       (s-chop-suffix "/index" it)
+
+       (if (s-starts-with? "@types/" it)
+           (-as-> (s-chop-prefix "@types/" it) itt
+                  (if (s-contains? "__" itt)
+                      (->> itt
+                           (s-replace "__" "/")
+                           (s-concat "@"))
+                    itt))
+         it)))
 
 (defun tide-completion-doc-buffer (name)
   (-when-let* ((response (tide-completion-entry-details name))
