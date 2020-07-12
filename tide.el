@@ -1620,13 +1620,43 @@ This function is used for the basic completions sorting."
   (if detailed
       (-if-let* ((response (tide-completion-entry-details name))
                  (detail (car (plist-get response :body)))
-                 (source (plist-get detail :source)))
-          (tide-join (list text " " (tide-annotate-display-parts source)))
+                 (raw-source (plist-get detail :source)))
+          (tide-join (list text " " (tide-annotate-display-parts (tide-normalize-source raw-source))))
         text)
     (-if-let* ((completion (get-text-property 0 'completion name))
-              (source (plist-get completion :source)))
-        (tide-join (list text " " source))
+               (raw-source (plist-get completion :source)))
+        (tide-join (list text " " (tide-normalize-source raw-source)))
       text)))
+
+(defun tide-normalize-source (source)
+  "Normalize tsserver returned source:
+
+1. Transform to relative path
+2. Cleanup path components before last `/node_modules/`
+3. Cleanup `/index` if it is the last path component
+4. Transform `@types/namespace__pkgname` to `@namespace/pkgname`"
+  (--> source
+
+       (if (file-name-absolute-p it)
+           (file-relative-name it (buffer-file-name))
+         it)
+
+       (if (s-contains? "/node_modules/" it)
+           (->> it
+                (s-split "/node_modules/")
+                (-last-item))
+         it)
+
+       (s-chop-suffix "/index" it)
+
+       (if (s-starts-with? "@types/" it)
+           (-as-> (s-chop-prefix "@types/" it) itt
+                  (if (s-contains? "__" itt)
+                      (->> itt
+                           (s-replace "__" "/")
+                           (s-concat "@"))
+                    itt))
+         it)))
 
 (defun tide-completion-doc-buffer (name)
   (-when-let* ((response (tide-completion-entry-details name))
