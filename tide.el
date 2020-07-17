@@ -1621,7 +1621,7 @@ This function is used for the basic completions sorting."
       (-if-let* ((response (tide-completion-entry-details name))
                  (detail (car (plist-get response :body)))
                  (raw-source (plist-get detail :source)))
-          (tide-join (list text " " (tide-annotate-display-parts (tide-normalize-source raw-source))))
+          (tide-join (list text " " (tide-normalize-source (tide-annotate-display-parts raw-source))))
         text)
     (-if-let* ((completion (get-text-property 0 'completion name))
                (raw-source (plist-get completion :source)))
