@@ -252,6 +252,11 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-project-files-ignore-patterns '("node_modules" "tsconfig.*.json$")
+  "List of regular expressions to ignore while displaying errors with `tide-project-errors'."
+  :type '(repeat string)
+  :group 'tide)
+
 (defconst tide--minimal-emacs
   "24.4"
   "This is the oldest version of Emacs that tide supports.")
@@ -2402,8 +2407,8 @@ current buffer."
       (erase-buffer))
     (display-buffer (current-buffer) t)
     (let* ((project-files (-reject (lambda (file-name)
-                                     (or (string-match-p "node_modules" file-name)
-                                         (string-match-p "tsconfig.json$" file-name)))
+                                     (cl-some (lambda (ignore-pat)
+                                                (string-match-p ignore-pat file-name)) tide-project-files-ignore-patterns))
                                    file-names))
            (syntax-remaining-files (cl-copy-list project-files))
            (semantic-remaining-files (cl-copy-list project-files))
