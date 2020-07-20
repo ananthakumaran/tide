@@ -2427,7 +2427,12 @@ current buffer."
                  (file-name (tide-plist-get response :body :file))
                  (diagnostics (tide-plist-get response :body :diagnostics))
                  (event-type (plist-get response :event)))
-	     (unless (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
+       (unless (or
+                  (and (string-equal event-type "suggestionDiag") tide-disable-suggestions)
+                  (not (or
+                         (-contains? syntax-remaining-files file-name)
+                         (-contains? semantic-remaining-files file-name)
+                         (-contains? suggestion-remaining-files file-name))))
 	       (pcase event-type
 		 ("syntaxDiag"
 		  (setq syntax-remaining-files (remove file-name syntax-remaining-files))
