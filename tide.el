@@ -1219,7 +1219,7 @@ Noise can be anything like braces, reserved keywords, etc."
            (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body))))))))
   nil)
 
-(defun tide-eledoc-display-message-p()
+(defun tide-eldoc-display-message-p()
   (if (fboundp #'eldoc-display-message-no-interference-p)
       (eldoc-display-message-no-interference-p)
     (eldoc-display-message-p)))
@@ -1227,7 +1227,7 @@ Noise can be anything like braces, reserved keywords, etc."
 ;;; Copied from eldoc.el
 (defun tide-eldoc-maybe-show (text)
   (with-demoted-errors "eldoc error: %s"
-    (and (or (tide-eledoc-display-message-p)
+    (and (or (tide-eldoc-display-message-p)
              ;; Erase the last message if we won't display a new one.
              (when eldoc-last-message
                (eldoc-message nil)
