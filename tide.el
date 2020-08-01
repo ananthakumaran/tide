@@ -519,6 +519,19 @@ Offset is one based."
       (forward-char (1- (plist-get span :offset)))
       (point))))
 
+(defun tide-file-span-first-line-text (file-span &optional string)
+  (let (end-offset text)
+    (save-excursion
+      (with-current-buffer (tide-get-file-buffer (plist-get file-span :file))
+        (tide-move-to-location (plist-get file-span :start))
+        (when string
+          (search-forward string (tide-location-to-point (plist-get file-span :end)))
+          (setq end-offset (current-column)))
+        (setq text (substring-no-properties (replace-regexp-in-string "\n" "" (thing-at-point 'line))))
+        (when string
+          (put-text-property (- end-offset (length string)) end-offset 'face 'tide-match text))
+        text))))
+
 (defun tide-display-help-buffer (feature body)
   (let ((buffer (tide-make-help-buffer feature body)))
     (display-buffer buffer t)
@@ -1010,10 +1023,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 
 (defun tide-jump-to-implementation-format-item (item)
   (let* ((file-name (plist-get item :file))
-         (line (save-excursion
-                 (with-current-buffer (tide-get-file-buffer file-name)
-                   (tide-move-to-location (plist-get item :start))
-                   (replace-regexp-in-string "\n" "" (thing-at-point 'line)))))
+         (line (tide-file-span-first-line-text item))
          (file-pos (concat
                     (propertize (file-name-nondirectory file-name)
                                 'face 'tide-file)
@@ -2899,6 +2909,9 @@ identifier at point, if necessary."
 (cl-defmethod xref-backend-definitions ((_backend (eql xref-tide)) symbol)
   (tide-xref--find-definitions symbol))
 
+(cl-defmethod xref-backend-apropos ((_backend (eql xref-tide)) pattern)
+  (tide-xref--find-apropos pattern))
+
 (defun tide-xref--make-reference (reference)
   "Make xref object from RERERENCE."
   (let ((full-file-name (plist-get reference :file))
@@ -2916,9 +2929,19 @@ identifier at point, if necessary."
   "Make xref object from DEFINITION."
   (let ((full-file-name (plist-get definition :file))
         (line-number (tide-plist-get definition :start :line))
-        (start (1- (tide-plist-get definition :start :offset)))
-        (end   (1- (tide-plist-get definition :end :offset))))
+        (start (1- (tide-plist-get definition :start :offset))))
     (xref-make symbol
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
+(defun tide-xref--make-navto (pattern navto)
+  "Make xref object from NAVTO."
+  (let ((full-file-name (plist-get navto :file))
+        (line-text (tide-file-span-first-line-text navto pattern))
+        (line-number (tide-plist-get navto :start :line))
+        (start (1- (tide-plist-get navto :start :offset))))
+    (xref-make line-text
                (xref-make-file-location full-file-name
                                         line-number
                                         start))))
@@ -2951,6 +2974,13 @@ identifier at point, if necessary."
     (tide-on-response-success response
         (let ((references (tide-plist-get response :body :refs)))
           (-map #'tide-xref--make-reference references)))))
+
+(defun tide-xref--find-apropos (pattern)
+  "Return xref navto objects."
+  (let ((response (tide-command:navto pattern)))
+    (tide-on-response-success response
+        (-when-let (navto-items (plist-get response :body))
+          (-map (apply-partially #'tide-xref--make-navto pattern) navto-items)))))
 
 (provide 'tide)
 
