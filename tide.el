@@ -917,11 +917,14 @@ Currently, two kinds of cleanups are done:
 
 ;;; Jump to definition
 
-(defun tide-command:definition (cb)
-  (tide-send-command
-   "definition"
-   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
-   cb))
+(defun tide-command:definition (&optional cb location)
+  (let ((location (or location
+                      `(:file ,(tide-buffer-file-name)
+                        :line ,(tide-line-number-at-pos)
+                        :offset ,(tide-current-offset)))))
+    (if cb
+        (tide-send-command "definition" location cb)
+      (tide-send-command-sync "definition" location))))
 
 (defun tide-command:typeDefinition (cb)
   (tide-send-command
@@ -2893,6 +2896,9 @@ identifier at point, if necessary."
 (cl-defmethod xref-backend-references ((_backend (eql xref-tide)) symbol)
   (tide-xref--find-references symbol))
 
+(cl-defmethod xref-backend-definitions ((_backend (eql xref-tide)) symbol)
+  (tide-xref--find-definitions symbol))
+
 (defun tide-xref--make-reference (reference)
   "Make xref object from RERERENCE."
   (let ((full-file-name (plist-get reference :file))
@@ -2906,12 +2912,22 @@ identifier at point, if necessary."
                                         line-number
                                         start))))
 
+(defun tide-xref--make-definition (symbol definition)
+  "Make xref object from DEFINITION."
+  (let ((full-file-name (plist-get definition :file))
+        (line-number (tide-plist-get definition :start :line))
+        (start (1- (tide-plist-get definition :start :offset)))
+        (end   (1- (tide-plist-get definition :end :offset))))
+    (xref-make symbol
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
 (defun tide-xref--symbol-location (symbol)
   (-if-let (location (get-text-property 0 'location symbol))
       location
     (-when-let (navto-item (-find (lambda (navto-item) (string-equal symbol (plist-get navto-item :name)))
                                   tide-xref--last-completion-table))
-
       (save-restriction
         (save-excursion
           (widen)
@@ -2920,6 +2936,14 @@ identifier at point, if necessary."
           `(:file ,(plist-get navto-item :file)
             :line ,(tide-line-number-at-pos)
             :offset ,(tide-current-offset)))))))
+
+
+(defun tide-xref--find-definitions (symbol)
+  "Return xref definition objects."
+  (let ((response (tide-command:definition nil (tide-xref--symbol-location symbol))))
+    (tide-on-response-success response
+        (let ((definitions (tide-plist-get response :body)))
+          (-map (apply-partially #'tide-xref--make-definition symbol) definitions)))))
 
 (defun tide-xref--find-references (symbol)
   "Return xref reference objects."
