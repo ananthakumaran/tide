@@ -1081,8 +1081,8 @@ Noise can be anything like braces, reserved keywords, etc."
    (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
    navto-items))
 
-(defun tide-command:navto (type)
-  (tide-send-command-sync "navto" `(:file ,(tide-buffer-file-name) :searchValue ,type :maxResultCount 100)))
+(defun tide-command:navto (type &optional current-file-only)
+  (tide-send-command-sync "navto" `(:file ,(tide-buffer-file-name) :searchValue ,type :maxResultCount 100 :currentFileOnly ,(or current-file-only :json-false))))
 
 ;;; Eldoc
 
@@ -1793,10 +1793,14 @@ Move back when used from a shifted key binding."
 \\{tide-references-mode-map}"
   (setq next-error-function #'tide-next-reference-function))
 
-(defun tide-command:references ()
-  (tide-send-command-sync
-   "references"
-   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+(defun tide-command:references (&optional location)
+  (let ((location (or location
+                      `(:file ,(tide-buffer-file-name)
+                        :line ,(tide-line-number-at-pos)
+                        :offset ,(tide-current-offset)))))
+    (tide-send-command-sync
+     "references"
+     location)))
 
 (defun tide-insert-references (references)
   "Create a buffer with the given REFERENCES.
@@ -2858,16 +2862,36 @@ identifier at point, if necessary."
                (tide-show-project-info version config-file-name)))))))))
 
 
-;; xref integration
+;;; xref integration
+
 (defun xref-tide-xref-backend ()
   "Xref-tide backend for xref."
   'xref-tide)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-tide)))
-  (tide-get-symbol-at-point))
+  (let ((symbol (tide-get-symbol-at-point)))
+    (when (and symbol
+               (not (string-equal symbol "")))
+      (put-text-property 0 1 'location `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) symbol))
+    symbol))
+
+(defvar tide-xref--last-completion-table '())
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql xref-tide)))
+  (completion-table-dynamic
+   (lambda (prefix)
+     (let ((response (tide-command:navto prefix t)))
+       (tide-on-response-success response
+           (-when-let (navto-items (plist-get response :body))
+             (setq tide-xref--last-completion-table navto-items)
+             (-map (lambda (navto-item) (plist-get navto-item :name)) navto-items)))))
+   t))
+
+(cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql xref-tide)))
+  tide-completion-ignore-case)
 
 (cl-defmethod xref-backend-references ((_backend (eql xref-tide)) symbol)
-  (tide-xref--find-references))
+  (tide-xref--find-references symbol))
 
 (defun tide-xref--make-reference (reference)
   "Make xref object from RERERENCE."
@@ -2882,9 +2906,24 @@ identifier at point, if necessary."
                                         line-number
                                         start))))
 
-(defun tide-xref--find-references ()
+(defun tide-xref--symbol-location (symbol)
+  (-if-let (location (get-text-property 0 'location symbol))
+      location
+    (-when-let (navto-item (-find (lambda (navto-item) (string-equal symbol (plist-get navto-item :name)))
+                                  tide-xref--last-completion-table))
+
+      (save-restriction
+        (save-excursion
+          (widen)
+          (tide-move-to-location (plist-get navto-item :start))
+          (search-forward symbol (tide-location-to-point (plist-get navto-item :end)))
+          `(:file ,(plist-get navto-item :file)
+            :line ,(tide-line-number-at-pos)
+            :offset ,(tide-current-offset)))))))
+
+(defun tide-xref--find-references (symbol)
   "Return xref reference objects."
-  (let ((response (tide-command:references)))
+  (let ((response (tide-command:references (tide-xref--symbol-location symbol))))
     (tide-on-response-success response
         (let ((references (tide-plist-get response :body :refs)))
           (-map #'tide-xref--make-reference references)))))
