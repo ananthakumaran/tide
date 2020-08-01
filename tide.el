@@ -254,7 +254,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide)
 
 (defconst tide--minimal-emacs
-  "24.4"
+  "25.1"
   "This is the oldest version of Emacs that tide supports.")
 
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)

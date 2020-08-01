@@ -275,7 +275,7 @@ of `BODY'."
     (setup-with-temp-buffer
      "const foo = 1;")
     (should (equal seen-type 'tide))
-    (should (equal seen-message "Tide requires Emacs >= 24.4, you are using 1."))
+    (should (equal seen-message "Tide requires Emacs >= 25.1, you are using 1."))
     (should (equal seen-level :error))))
 
 (ert-deftest tide-setup/immediate-server-start ()
