@@ -64,6 +64,11 @@
   :type 'integer
   :group 'tide)
 
+(defcustom tide-tsserver-flags nil
+  "List of additional flags to provide when starting tsserver."
+  :type '(repeat string)
+  :group 'tide)
+
 (defcustom tide-tsserver-process-environment '()
   "List of extra environment variables to use when starting tsserver."
   :type '(repeat string)
@@ -748,7 +753,7 @@ in the npm global installation.  If nothing is found use the bundled version."
          ;; when a >1k message is sent on macOS.
          (process-connection-type nil)
          (process
-          (start-file-process "tsserver" buf tide-node-executable tsserverjs)))
+          (apply #'start-file-process "tsserver" buf tide-node-executable tsserverjs tide-tsserver-flags)))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
