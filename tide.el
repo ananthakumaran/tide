@@ -146,6 +146,11 @@ errors and tide-project-errors buffer."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-enable-xref t
+  "Whether to enable xref integration."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-navto-item-filter #'tide-navto-item-filter-default
   "The filter for items returned by tide-nav. Defaults to class, interface, type, enum"
   :type 'function
@@ -2206,7 +2211,8 @@ current buffer."
         (add-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup nil t)
         (add-hook 'hack-local-variables-hook
                   'tide-configure-buffer-if-server-exists nil t)
-        (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t)
+        (when tide-enable-xref
+          (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t))
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
