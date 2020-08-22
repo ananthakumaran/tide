@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 3.9.3
 ;; Keywords: typescript
-;; Package-Requires: ((dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
+;; Package-Requires: ((emacs "25.1") (dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@
 (require 'thingatpt)
 (require 'tide-lv)
 (require 'tabulated-list)
+(require 'xref)
 
 ;; Silence compiler warnings
 
@@ -150,6 +151,11 @@ errors and tide-project-errors buffer."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-enable-xref t
+  "Whether to enable xref integration."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-navto-item-filter #'tide-navto-item-filter-default
   "The filter for items returned by tide-nav. Defaults to class, interface, type, enum"
   :type 'function
@@ -258,7 +264,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :group 'tide)
 
 (defconst tide--minimal-emacs
-  "24.4"
+  "25.1"
   "This is the oldest version of Emacs that tide supports.")
 
 (defmacro tide-def-permanent-buffer-local (name &optional init-value)
@@ -522,6 +528,19 @@ Offset is one based."
       (beginning-of-line)
       (forward-char (1- (plist-get span :offset)))
       (point))))
+
+(defun tide-file-span-first-line-text (file-span &optional string)
+  (let (end-offset text)
+    (save-excursion
+      (with-current-buffer (tide-get-file-buffer (plist-get file-span :file))
+        (tide-move-to-location (plist-get file-span :start))
+        (when string
+          (search-forward string (tide-location-to-point (plist-get file-span :end)))
+          (setq end-offset (current-column)))
+        (setq text (substring-no-properties (replace-regexp-in-string "\n" "" (thing-at-point 'line))))
+        (when string
+          (put-text-property (- end-offset (length string)) end-offset 'face 'tide-match text))
+        text))))
 
 (defun tide-display-help-buffer (feature body)
   (let ((buffer (tide-make-help-buffer feature body)))
@@ -921,11 +940,14 @@ Currently, two kinds of cleanups are done:
 
 ;;; Jump to definition
 
-(defun tide-command:definition (cb)
-  (tide-send-command
-   "definition"
-   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))
-   cb))
+(defun tide-command:definition (&optional cb location)
+  (let ((location (or location
+                      `(:file ,(tide-buffer-file-name)
+                        :line ,(tide-line-number-at-pos)
+                        :offset ,(tide-current-offset)))))
+    (if cb
+        (tide-send-command "definition" location cb)
+      (tide-send-command-sync "definition" location))))
 
 (defun tide-command:typeDefinition (cb)
   (tide-send-command
@@ -1011,10 +1033,7 @@ implementations.  When invoked with a prefix arg, jump to the type definition."
 
 (defun tide-jump-to-implementation-format-item (item)
   (let* ((file-name (plist-get item :file))
-         (line (save-excursion
-                 (with-current-buffer (tide-get-file-buffer file-name)
-                   (tide-move-to-location (plist-get item :start))
-                   (replace-regexp-in-string "\n" "" (thing-at-point 'line)))))
+         (line (tide-file-span-first-line-text item))
          (file-pos (concat
                     (propertize (file-name-nondirectory file-name)
                                 'face 'tide-file)
@@ -1085,8 +1104,8 @@ Noise can be anything like braces, reserved keywords, etc."
    (lambda (navto-item) (member (plist-get navto-item :kind) '("class" "interface" "type" "enum")))
    navto-items))
 
-(defun tide-command:navto (type)
-  (tide-send-command-sync "navto" `(:file ,(tide-buffer-file-name) :searchValue ,type :maxResultCount 100)))
+(defun tide-command:navto (type &optional current-file-only)
+  (tide-send-command-sync "navto" `(:file ,(tide-buffer-file-name) :searchValue ,type :maxResultCount 100 :currentFileOnly ,(or current-file-only :json-false))))
 
 ;;; Eldoc
 
@@ -1797,10 +1816,14 @@ Move back when used from a shifted key binding."
 \\{tide-references-mode-map}"
   (setq next-error-function #'tide-next-reference-function))
 
-(defun tide-command:references ()
-  (tide-send-command-sync
-   "references"
-   `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset))))
+(defun tide-command:references (&optional location)
+  (let ((location (or location
+                      `(:file ,(tide-buffer-file-name)
+                        :line ,(tide-line-number-at-pos)
+                        :offset ,(tide-current-offset)))))
+    (tide-send-command-sync
+     "references"
+     location)))
 
 (defun tide-insert-references (references)
   "Create a buffer with the given REFERENCES.
@@ -2193,6 +2216,8 @@ current buffer."
         (add-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup nil t)
         (add-hook 'hack-local-variables-hook
                   'tide-configure-buffer-if-server-exists nil t)
+        (when tide-enable-xref
+          (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t))
         (when (commandp 'typescript-insert-and-indent)
           (eldoc-add-command 'typescript-insert-and-indent)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
@@ -2202,6 +2227,7 @@ current buffer."
     (remove-hook 'kill-buffer-hook 'tide-schedule-dead-projects-cleanup t)
     (remove-hook 'hack-local-variables-hook
                  'tide-configure-buffer-if-server-exists t)
+    (remove-hook 'xref-backend-functions #'xref-tide-xref-backend t)
     (tide-cleanup-buffer)))
 
 
@@ -2858,6 +2884,114 @@ identifier at point, if necessary."
            (tide-on-response-success response
              (let ((config-file-name (tide-plist-get response :body :configFileName)))
                (tide-show-project-info version config-file-name)))))))))
+
+
+;;; xref integration
+
+(defun xref-tide-xref-backend ()
+  "Xref-tide backend for xref."
+  'xref-tide)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-tide)))
+  (let ((symbol (tide-get-symbol-at-point)))
+    (when (and symbol
+               (not (string-equal symbol "")))
+      (put-text-property 0 1 'location `(:file ,(tide-buffer-file-name) :line ,(tide-line-number-at-pos) :offset ,(tide-current-offset)) symbol))
+    symbol))
+
+(defvar tide-xref--last-completion-table '())
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql xref-tide)))
+  (completion-table-dynamic
+   (lambda (prefix)
+     (let ((response (tide-command:navto prefix t)))
+       (tide-on-response-success response
+           (-when-let (navto-items (plist-get response :body))
+             (setq tide-xref--last-completion-table navto-items)
+             (-map (lambda (navto-item) (plist-get navto-item :name)) navto-items)))))
+   t))
+
+(cl-defmethod xref-backend-identifier-completion-ignore-case ((_backend (eql xref-tide)))
+  tide-completion-ignore-case)
+
+(cl-defmethod xref-backend-references ((_backend (eql xref-tide)) symbol)
+  (tide-xref--find-references symbol))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql xref-tide)) symbol)
+  (tide-xref--find-definitions symbol))
+
+(cl-defmethod xref-backend-apropos ((_backend (eql xref-tide)) pattern)
+  (tide-xref--find-apropos pattern))
+
+(defun tide-xref--make-reference (reference)
+  "Make xref object from RERERENCE."
+  (let ((full-file-name (plist-get reference :file))
+        (line-number (tide-plist-get reference :start :line))
+        (line-text (plist-get reference :lineText))
+        (start (1- (tide-plist-get reference :start :offset)))
+        (end   (1- (tide-plist-get reference :end :offset))))
+    (put-text-property start end 'face 'tide-match line-text)
+    (xref-make line-text
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
+(defun tide-xref--make-definition (symbol definition)
+  "Make xref object from DEFINITION."
+  (let ((full-file-name (plist-get definition :file))
+        (line-number (tide-plist-get definition :start :line))
+        (start (1- (tide-plist-get definition :start :offset))))
+    (xref-make symbol
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
+(defun tide-xref--make-navto (pattern navto)
+  "Make xref object from NAVTO."
+  (let ((full-file-name (plist-get navto :file))
+        (line-text (tide-file-span-first-line-text navto pattern))
+        (line-number (tide-plist-get navto :start :line))
+        (start (1- (tide-plist-get navto :start :offset))))
+    (xref-make line-text
+               (xref-make-file-location full-file-name
+                                        line-number
+                                        start))))
+
+(defun tide-xref--symbol-location (symbol)
+  (-if-let (location (get-text-property 0 'location symbol))
+      location
+    (-when-let (navto-item (-find (lambda (navto-item) (string-equal symbol (plist-get navto-item :name)))
+                                  tide-xref--last-completion-table))
+      (save-restriction
+        (save-excursion
+          (widen)
+          (tide-move-to-location (plist-get navto-item :start))
+          (search-forward symbol (tide-location-to-point (plist-get navto-item :end)))
+          `(:file ,(plist-get navto-item :file)
+            :line ,(tide-line-number-at-pos)
+            :offset ,(tide-current-offset)))))))
+
+
+(defun tide-xref--find-definitions (symbol)
+  "Return xref definition objects."
+  (let ((response (tide-command:definition nil (tide-xref--symbol-location symbol))))
+    (tide-on-response-success response
+        (let ((definitions (tide-plist-get response :body)))
+          (-map (apply-partially #'tide-xref--make-definition symbol) definitions)))))
+
+(defun tide-xref--find-references (symbol)
+  "Return xref reference objects."
+  (let ((response (tide-command:references (tide-xref--symbol-location symbol))))
+    (tide-on-response-success response
+        (let ((references (tide-plist-get response :body :refs)))
+          (-map #'tide-xref--make-reference references)))))
+
+(defun tide-xref--find-apropos (pattern)
+  "Return xref navto objects."
+  (let ((response (tide-command:navto pattern)))
+    (tide-on-response-success response
+        (-when-let (navto-items (plist-get response :body))
+          (-map (apply-partially #'tide-xref--make-navto pattern) navto-items)))))
 
 (provide 'tide)
 

@@ -8,6 +8,7 @@
 
 ### Installation
 
+* Tide requires Emacs 25 or later. We recommend Emacs 27 or later with native json support.
 * Install [node.js](https://nodejs.org/) v0.12.0 or greater.
 * Make sure
   [tsconfig.json](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)
@@ -190,6 +191,7 @@ tide.
 
 ### Features
 
+* Xref
 * ElDoc
 * Auto complete
 * Flycheck
@@ -305,6 +307,10 @@ Completion dropdown will contain detailed method information if set to non-nil.
 ##### tide-completion-enable-autoimport-suggestions `t`
 
 Whether to include external module exports in completions.
+
+##### tide-enable-xref `t`
+
+Whether to enable xref integration.
 
 ##### tide-navto-item-filter `#'tide-navto-item-filter-default`
 
