@@ -1726,8 +1726,15 @@ This function is used for the basic completions sorting."
     ((meta) (tide-completion-meta arg))
     ((annotation) (tide-completion-annotation arg))
     ((doc-buffer) (tide-completion-doc-buffer arg))
-    ((post-completion) (tide-post-completion arg))))
-
+    ((post-completion) (tide-post-completion arg))
+    ((pre-render) (let ((name arg)
+                        (annotation-p (car ignored)))
+                    (if (and (not annotation-p)
+                             (s-contains? "deprecated"
+                                          (or (plist-get (get-text-property 0 'completion name) :kindModifiers)
+                                              "")))
+                        (propertize name 'face '(:strike-through t))
+                      name)))))
 (with-eval-after-load 'company
   (cl-pushnew 'company-tide company-backends))
 
