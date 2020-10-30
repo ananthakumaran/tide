@@ -1735,6 +1735,7 @@ This function is used for the basic completions sorting."
                                               "")))
                         (propertize name 'face '(:strike-through t))
                       name)))))
+
 (with-eval-after-load 'company
   (cl-pushnew 'company-tide company-backends))
 
