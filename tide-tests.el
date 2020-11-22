@@ -352,7 +352,7 @@ opened in the same project in manual mode, all buffers are configured."
 ;; column shows the project directory (which is the default when the buffer
 ;; is created).
 (setq directory-server-buffer-pattern (concat  common-server-buffer-pattern default-directory "$"))
-
+(setq tide-tsserver-executable (concat default-directory "tsserver/tsserver.js"))
 (setq path-server-buffer-pattern (concat common-server-buffer-pattern "node " default-directory
                                   "tsserver/tsserver.js$"))
 

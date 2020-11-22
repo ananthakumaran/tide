@@ -32,6 +32,8 @@ cask:
 	cask build
 
 test: cask
+	emacs --version
+	node --version
 	mkdir $(WORKDIR) || echo Already has workdir.
 	+ $(EMACS) -l tide-tests.el -f ert-run-tests-batch-and-exit
 

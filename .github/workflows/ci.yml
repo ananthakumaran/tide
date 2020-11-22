@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    paths-ignore:
+    - '**.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs_version:
+          - 25.1
+          - 25.2
+          - 25.3
+          - 26.1
+          - 26.2
+          - 26.3
+          - 27.1
+          - snapshot
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '12'
+    - uses: actions/setup-python@v2
+    - uses: purcell/setup-emacs@master
+      with:
+        version: ${{ matrix.emacs_version }}
+    - uses: conao3/setup-cask@master
+
+    - name: Run tests
+      run: make test

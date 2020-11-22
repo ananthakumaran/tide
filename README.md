@@ -1,6 +1,6 @@
 # Tide
 
-[![Build Status](https://api.travis-ci.org/ananthakumaran/tide.svg?branch=master)](https://travis-ci.org/ananthakumaran/tide)
+![Build Status](https://github.com/ananthakumaran/tide/workflows/CI/badge.svg)
 
 *TypeScript Interactive Development Environment for Emacs*
 
