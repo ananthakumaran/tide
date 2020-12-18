@@ -2019,6 +2019,20 @@ number."
 (defun tide-command:getEditsForFileRename (old new)
   (tide-send-command-sync "getEditsForFileRename" `(:oldFilePath ,old :newFilePath ,new :file ,old)))
 
+(defun tide-do-rename-file (old new edits)
+  (let* ((code-edit-for-old-p (lambda (code-edit) (string= (plist-get code-edit :fileName) old)))
+         (before-rename-edits (-select code-edit-for-old-p edits))
+         (after-rename-edits (-reject code-edit-for-old-p edits)))
+    (tide-apply-code-edits before-rename-edits)
+    (tide-cleanup-buffer)
+    (mkdir (file-name-directory new) t)
+    (rename-file old new)
+    (rename-buffer (file-name-nondirectory new))
+    (set-visited-file-name new)
+    (set-buffer-modified-p nil)
+    (tide-apply-code-edits after-rename-edits)
+    (revert-buffer t t t)))
+
 (defun tide-rename-file ()
   "Rename current file and all it's references in other files."
   (interactive)
@@ -2032,19 +2046,12 @@ number."
         (error "A buffer named '%s' already exists." new))
       (when (file-exists-p new)
         (error "A file named '%s' already exists." new))
-      (let* ((response (tide-command:getEditsForFileRename (expand-file-name old) (expand-file-name new)))
-             (edits (tide-on-response-success response (:min-version "2.9")
-                      (plist-get response :body))))
-        (tide-cleanup-buffer)
-        (mkdir (file-name-directory new) t)
-        (rename-file old new)
-        (rename-buffer new)
-        (set-visited-file-name new)
-        (set-buffer-modified-p nil)
-        (when edits
-          (tide-apply-code-edits edits))
-        (tide-configure-buffer)
-        (message "Renamed '%s' to '%s'." name (file-name-nondirectory new))))))
+      (let* ((old (expand-file-name old))
+             (new (expand-file-name new))
+             (response (tide-command:getEditsForFileRename old new)))
+        (tide-on-response-success response (:min-version "2.9")
+          (tide-do-rename-file old new (plist-get response :body))
+          (message "Renamed '%s' to '%s'." name (file-name-nondirectory new)))))))
 
 ;;; Format
 
