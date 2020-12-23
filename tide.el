@@ -2027,7 +2027,7 @@ number."
     (tide-cleanup-buffer)
     (mkdir (file-name-directory new) t)
     (rename-file old new)
-    (rename-buffer (file-name-nondirectory new))
+    (rename-buffer (file-name-nondirectory new) t)
     (set-visited-file-name new)
     (set-buffer-modified-p nil)
     (tide-apply-code-edits after-rename-edits)
