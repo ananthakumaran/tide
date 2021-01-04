@@ -266,6 +266,13 @@ paths are resolved against the project root directory.
 
 Name or path of the node executable binary file.
 
+### tide-node-flags nil `nil`
+
+List of flags to provide to node when starting tsserver.
+
+Useful for large TypeScript codebases which need to set
+max-old-space-size to a higher value."
+
 ##### tide-post-code-edit-hook `nil`
 
 Hook run after code edits are applied in a buffer.

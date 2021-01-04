@@ -99,6 +99,14 @@ paths are resolved against the project root directory."
   :type '(choice (const nil) string)
   :group 'tide)
 
+(defcustom tide-node-flags nil
+  "List of flags to provide to node when starting tsserver.
+
+Useful for large TypeScript codebases which need to set
+max-old-space-size to a higher value."
+  :type '(repeat string)
+  :group 'tide)
+
 (defcustom tide-post-code-edit-hook nil
   "Hook run after code edits are applied in a buffer."
   :type 'hook
@@ -771,8 +779,9 @@ in the npm global installation.  If nothing is found use the bundled version."
          ;; Use a pipe to communicate with the subprocess. This fixes a hang
          ;; when a >1k message is sent on macOS.
          (process-connection-type nil)
+         (node-process-arguments (append tide-node-flags (list tsserverjs) tide-tsserver-flags))
          (process
-          (apply #'start-file-process "tsserver" buf tide-node-executable tsserverjs tide-tsserver-flags)))
+          (apply #'start-file-process "tsserver" buf tide-node-executable node-process-arguments)))
     (set-process-coding-system process 'utf-8-unix 'utf-8-unix)
     (set-process-filter process #'tide-net-filter)
     (set-process-sentinel process #'tide-net-sentinel)
