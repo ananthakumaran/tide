@@ -241,6 +241,10 @@ locally and checkout the old version though.
 
 The number of seconds to wait for a sync response.
 
+##### tide-tsserver-flags `nil`
+
+List of additional flags to provide when starting tsserver.
+
 ##### tide-tsserver-process-environment `'nil`
 
 List of extra environment variables to use when starting tsserver.
@@ -266,12 +270,12 @@ paths are resolved against the project root directory.
 
 Name or path of the node executable binary file.
 
-### tide-node-flags nil `nil`
+##### tide-node-flags `nil`
 
 List of flags to provide to node when starting tsserver.
 
 Useful for large TypeScript codebases which need to set
-max-old-space-size to a higher value."
+max-old-space-size to a higher value.
 
 ##### tide-post-code-edit-hook `nil`
 
