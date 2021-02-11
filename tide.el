@@ -2407,7 +2407,6 @@ current buffer."
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
-(flycheck-add-next-checker 'typescript-tide '(warning . typescript-tslint) 'append)
 
 (flycheck-define-generic-checker 'javascript-tide
   "A Javascript syntax checker using tsserver."
@@ -2441,7 +2440,6 @@ current buffer."
                 (tide-flycheck-predicate))))
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
-(flycheck-add-next-checker 'tsx-tide '(warning . typescript-tslint) 'append)
 
 ;;; Project errors
 
