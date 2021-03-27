@@ -139,6 +139,11 @@ errors and tide-project-errors buffer."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-completion-setup-company-backend t
+  "Add `company-tide' to `company-backends'."
+  :type 'boolean
+  :group 'tide)
+
 (defcustom tide-completion-ignore-case nil
   "CASE will be ignored in completion if set to non-nil."
   :type 'boolean
@@ -1788,7 +1793,8 @@ This function is used for the basic completions sorting."
                       name)))))
 
 (with-eval-after-load 'company
-  (cl-pushnew 'company-tide company-backends))
+  (when tide-completion-setup-company-backend
+    (cl-pushnew 'company-tide company-backends)))
 
 ;;; References
 
