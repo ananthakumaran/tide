@@ -1579,6 +1579,24 @@ always be formatted as described above."
       ("let" " l")
       (_ nil)))
 
+(defun tide-completion-kind (name)
+  (pcase (plist-get (get-text-property 0 'completion name) :kind)
+    ((or "primitive type" "keyword") 'keyword)
+    ((or "const" "let" "var" "local var" "alias" "parameter") 'variable)
+    ((or "property" "getter" "setter") 'field)
+    ((or "function" "local function") 'function)
+    ((or "method" "construct" "call" "index") 'method)
+    ("enum" 'enum)
+    ("enum member" 'enum-member)
+    ((or "module" "external module name") 'module)
+    ((or "class" "type") 'class)
+    ("interface" 'interface)
+    ("warning" 'text)
+    ("script" 'file)
+    ("directory" 'folder)
+    ("string" 'constant)
+    (_ 'property)))
+
 (defun tide-completion-rank (completion)
   "Get the sorting order of a COMPLETION candidate."
   (or
@@ -1781,6 +1799,7 @@ This function is used for the basic completions sorting."
     ((ignore-case) tide-completion-ignore-case)
     ((meta) (tide-completion-meta arg))
     ((annotation) (tide-completion-annotation arg))
+    ((kind) (tide-completion-kind arg))
     ((doc-buffer) (tide-completion-doc-buffer arg))
     ((post-completion) (tide-post-completion arg))
     ((pre-render) (let ((name arg)
