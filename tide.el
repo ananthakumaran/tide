@@ -1258,7 +1258,7 @@ Noise can be anything like braces, reserved keywords, etc."
   nil)
 
 (defun tide-eldoc-display-message-p()
-  (if (fboundp #'eldoc-display-message-no-interference-p)
+  (if (fboundp 'eldoc-display-message-no-interference-p)
       (eldoc-display-message-no-interference-p)
     (eldoc-display-message-p)))
 
@@ -2172,10 +2172,16 @@ code-analysis."
     (tide-insert (plist-get edit :newText))
     (cons start (point-marker))))
 
-(defun tide-apply-edits (edits)
+(defun tide-do-apply-edits (edits)
   (save-excursion
     (-map (lambda (edit) (tide-apply-edit edit))
           (nreverse edits))))
+
+(defun tide-apply-edits (edits)
+  (if (and (fboundp 'combine-change-calls)
+           (> (length edits) 2))
+      (combine-change-calls (point-min) (point-max) (tide-do-apply-edits edits))
+    (tide-do-apply-edits edits)))
 
 (defun tide-format-region (start end)
   (let ((response (tide-send-command-sync
