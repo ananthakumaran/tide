@@ -1316,15 +1316,19 @@ Noise can be anything like braces, reserved keywords, etc."
 
 (defun tide-apply-code-edits (file-code-edits)
   (save-excursion
-    (dolist (file-code-edit file-code-edits)
-      (let ((file (plist-get file-code-edit :fileName)))
-        (with-current-buffer (tide-get-file-buffer file t)
-          (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
-          ;; Saving won't work if the current buffer is temporary or an indirect
-          ;; buffer
-          (when (equal buffer-file-name file)
-            (basic-save-buffer))
-          (run-hooks 'tide-post-code-edit-hook))))))
+    (->>
+     file-code-edits
+     (-group-by (lambda (file-code-edit) (plist-get file-code-edit :fileName)))
+     (-map
+      (-lambda ((file . file-code-edits))
+        (let ((changes (-mapcat (lambda (x) (plist-get x :textChanges)) file-code-edits)))
+          (with-current-buffer (tide-get-file-buffer file t)
+            (tide-apply-edits changes)
+            ;; Saving won't work if the current buffer is temporary or an indirect
+            ;; buffer
+            (when (equal buffer-file-name file)
+              (basic-save-buffer))
+            (run-hooks 'tide-post-code-edit-hook))))))))
 
 (defun tide-get-flycheck-errors-ids-at-point ()
   (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
@@ -2175,7 +2179,13 @@ code-analysis."
 (defun tide-do-apply-edits (edits)
   (save-excursion
     (-map (lambda (edit) (tide-apply-edit edit))
-          (nreverse edits))))
+          (-sort
+           (tide-compose-comparators
+            (lambda (a b)
+              (< (tide-plist-get b :start :line) (tide-plist-get a :start :line)))
+            (lambda (a b)
+              (< (tide-plist-get b :start :offset) (tide-plist-get a :start :offset))))
+           (nreverse edits)))))
 
 (defun tide-apply-edits (edits)
   (if (and (fboundp 'combine-change-calls)
@@ -2193,13 +2203,6 @@ code-analysis."
                            :endOffset ,(tide-offset end)))))
     (tide-on-response-success response
       (tide-apply-edits (plist-get response :body)))))
-
-(defun tide-format-regions (ranges)
-  (let ((positions (->>
-                    ranges
-                    (-mapcat (lambda (range) (list (marker-position (car range)) (marker-position (cdr range)))))
-                    (-sort '<))))
-    (tide-format-region (-min positions) (-max positions))))
 
 ;;; JSDoc Comment Template
 
