@@ -235,6 +235,13 @@ For TypeScript 2.0 and above, you can customize the
 Sadly, this won't work for TypeScript < 2.0. You can clone the repo
 locally and checkout the old version though.
 
+**How do I copy the type information shown in minibuffer?**
+
+Tide has `tide-documentation-at-point` command to show the
+documentation for the symbol at point. By default, it will not show
+the buffer if only type information is available. This behavior can be
+overridden by setting `(setq tide-always-show-documentation t)`
+
 ### Custom Variables
 
 ##### tide-sync-request-timeout `2`
