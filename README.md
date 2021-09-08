@@ -131,12 +131,6 @@ true.
          (before-save . tide-format-before-save)))
 ```
 
-
-#### Deno
-
-To use `tide` to work on TypeScript projects targeted towards [Deno](https://deno.land/),
-you can follow the [instructions in their official documentation](https://deno.land/manual/getting_started/setup_your_environment#emacs).
-
 ### Commands
 
 Keyboard shortcuts                  | Description
