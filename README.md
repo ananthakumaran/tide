@@ -401,3 +401,6 @@ Use native JSON parsing (only emacs >= 27).
 
 How long to wait after user input before highlighting the current identifier.
 
+##### tide-save-buffer-after-code-edit `t`
+
+Save the buffer after applying code edits.
