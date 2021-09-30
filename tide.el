@@ -276,6 +276,11 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
   :type 'boolean
   :group 'tide)
 
+(defcustom tide-save-buffer-after-code-edit t
+  "Save the buffer after applying code edits."
+  :type 'boolean
+  :group 'tide)
+
 (defconst tide--minimal-emacs
   "25.1"
   "This is the oldest version of Emacs that tide supports.")
@@ -1322,7 +1327,7 @@ Noise can be anything like braces, reserved keywords, etc."
           (tide-format-regions (tide-apply-edits (plist-get file-code-edit :textChanges)))
           ;; Saving won't work if the current buffer is temporary or an indirect
           ;; buffer
-          (when (equal buffer-file-name file)
+          (when (and tide-save-buffer-after-code-edit (equal buffer-file-name file))
             (basic-save-buffer))
           (run-hooks 'tide-post-code-edit-hook))))))
 
