@@ -939,8 +939,8 @@ Currently, two kinds of cleanups are done:
    `(:hostInfo ,(emacs-version) :file ,(tide-buffer-file-name)
      :formatOptions ,(tide-file-format-options) :preferences ,tide-user-preferences)))
 
-(defun tide-command:projectInfo (cb &optional need-file-name-list)
-  (tide-send-command "projectInfo" `(:file ,(tide-buffer-file-name) :needFileNameList ,need-file-name-list) cb))
+(defun tide-command:projectInfo (cb &optional need-file-name-list file)
+  (tide-send-command "projectInfo" `(:file ,(or file (tide-buffer-file-name)) :needFileNameList ,need-file-name-list) cb))
 
 (defun tide-command:openfile ()
   (tide-send-command "open"
@@ -2521,74 +2521,77 @@ current buffer."
 
 ;;; Project errors
 
-(defun tide-command:geterrForProject ()
+(defun tide-command:geterrForProject (file)
   (tide-send-command
    "geterrForProject"
-   `(:file ,(tide-buffer-file-name) :delay 0)))
+   `(:file ,file :delay 0)))
 
 (defun tide-project-errors-buffer-name ()
   (format "*%s-errors*" (tide-project-name)))
 
-(defun tide-display-errors (file-names)
-  (with-current-buffer (get-buffer-create (tide-project-errors-buffer-name))
-    (tide-project-errors-mode)
-    (let ((inhibit-read-only t))
-      (erase-buffer))
-    (display-buffer (current-buffer) t)
-    (let* ((project-files (-reject (lambda (file-name)
-                                     (or (string-match-p "node_modules" file-name)
-                                         (string-match-p "tsconfig.json$" file-name)))
-                                   file-names))
-           (syntax-remaining-files (cl-copy-list project-files))
-           (semantic-remaining-files (cl-copy-list project-files))
-           (suggestion-remaining-files (if tide-disable-suggestions
-                                           '()
-                                         (cl-copy-list project-files)))
-           (syntax-errors 0)
-           (semantic-errors 0)
-           (suggestion-errors 0)
-           (last-file-name nil))
-      (tide-set-event-listener
-       (lambda (response)
-         (save-excursion
-           (goto-char (point-max))
-           (let ((inhibit-read-only t)
-                 (file-name (tide-plist-get response :body :file))
-                 (diagnostics (tide-plist-get response :body :diagnostics))
-                 (event-type (plist-get response :event)))
-	     (when (and
-                    (not (and (string-equal event-type "suggestionDiag") tide-disable-suggestions))
-                    (member file-name project-files))
-	       (pcase event-type
-		 ("syntaxDiag"
-		  (setq syntax-remaining-files (remove file-name syntax-remaining-files))
-		  (cl-incf syntax-errors (length diagnostics)))
-		 ("semanticDiag"
-		  (setq semantic-remaining-files (remove file-name semantic-remaining-files))
-		  (cl-incf semantic-errors (length diagnostics)))
-		 ("suggestionDiag"
-                  (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
-                  (cl-incf suggestion-errors (length diagnostics))))
+(defun tide-display-errors (file-names origin-buffer-file-name)
+  (let ((origin-buffer (current-buffer)))
+    (with-current-buffer (get-buffer-create (tide-project-errors-buffer-name))
+      (tide-project-errors-mode)
+      (setq-local tide-origin-buffer-file-name origin-buffer-file-name)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (when (not (equal origin-buffer (current-buffer)))
+        (display-buffer (current-buffer) t))
+      (let* ((project-files (-reject (lambda (file-name)
+                                       (or (string-match-p "node_modules" file-name)
+                                           (string-match-p "tsconfig.json$" file-name)))
+                                     file-names))
+             (syntax-remaining-files (cl-copy-list project-files))
+             (semantic-remaining-files (cl-copy-list project-files))
+             (suggestion-remaining-files (if tide-disable-suggestions
+                                             '()
+                                           (cl-copy-list project-files)))
+             (syntax-errors 0)
+             (semantic-errors 0)
+             (suggestion-errors 0)
+             (last-file-name nil))
+        (tide-set-event-listener
+         (lambda (response)
+           (save-excursion
+             (goto-char (point-max))
+             (let ((inhibit-read-only t)
+                   (file-name (tide-plist-get response :body :file))
+                   (diagnostics (tide-plist-get response :body :diagnostics))
+                   (event-type (plist-get response :event)))
+	       (when (and
+                      (not (and (string-equal event-type "suggestionDiag") tide-disable-suggestions))
+                      (member file-name project-files))
+	         (pcase event-type
+		   ("syntaxDiag"
+		    (setq syntax-remaining-files (remove file-name syntax-remaining-files))
+		    (cl-incf syntax-errors (length diagnostics)))
+		   ("semanticDiag"
+		    (setq semantic-remaining-files (remove file-name semantic-remaining-files))
+		    (cl-incf semantic-errors (length diagnostics)))
+		   ("suggestionDiag"
+                    (setq suggestion-remaining-files (remove file-name suggestion-remaining-files))
+                    (cl-incf suggestion-errors (length diagnostics))))
 
-	       (when diagnostics
-		 (-each diagnostics
-		   (lambda (diagnostic)
-		     (let ((line-number (tide-plist-get diagnostic :start :line)))
-		       (unless (equal last-file-name file-name)
-			 (setq last-file-name file-name)
-			 (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file)
-                                 "\n"))
+	         (when diagnostics
+		   (-each diagnostics
+		     (lambda (diagnostic)
+		       (let ((line-number (tide-plist-get diagnostic :start :line)))
+		         (unless (equal last-file-name file-name)
+			   (setq last-file-name file-name)
+			   (insert (propertize (file-relative-name file-name (tide-project-root)) 'face 'tide-file)
+                                   "\n"))
 
-		       (insert (propertize (format "%5d" line-number)
-                                           'face 'tide-line-number
-                                           'tide-error (plist-put diagnostic :file file-name))
-                               ": " (plist-get diagnostic :text) "\n")))))
-	       (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
-		 (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n"
-                                 syntax-errors semantic-errors suggestion-errors))
-		 (goto-char (point-min))
-		 (tide-clear-event-listener)))))))))
-  (tide-command:geterrForProject))
+		         (insert (propertize (format "%5d" line-number)
+                                             'face 'tide-line-number
+                                             'tide-error (plist-put diagnostic :file file-name))
+                                 ": " (plist-get diagnostic :text) "\n")))))
+	         (when (and (null syntax-remaining-files) (null semantic-remaining-files) (null suggestion-remaining-files))
+		   (insert (format "\n%d syntax error(s), %d semantic error(s), %d suggestion error(s)\n"
+                                   syntax-errors semantic-errors suggestion-errors))
+		   (goto-char (point-min))
+		   (tide-clear-event-listener))))))))))
+  (tide-command:geterrForProject origin-buffer-file-name))
 
 (defun tide-next-error-function (n &optional reset)
   "Override for `next-error-function' for use in tide-project-errors-mode buffers."
@@ -2634,6 +2637,7 @@ current buffer."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'tide-find-next-error)
     (define-key map (kbd "p") #'tide-find-previous-error)
+    (define-key map (kbd "g") #'tide-project-errors)
     (define-key map (kbd "RET") #'tide-goto-error)
     map))
 
@@ -2646,11 +2650,15 @@ current buffer."
 ;;;###autoload
 (defun tide-project-errors ()
   (interactive)
-  (tide-command:projectInfo
-   (lambda (response)
-     (tide-on-response-success response
-       (tide-display-errors (tide-plist-get response :body :fileNames))))
-   t))
+  (let ((file (if (string= major-mode "tide-project-errors-mode")
+                  tide-origin-buffer-file-name
+                (tide-buffer-file-name))))
+    (tide-command:projectInfo
+     (lambda (response)
+       (tide-on-response-success response
+           (tide-display-errors (tide-plist-get response :body :fileNames) file)))
+     t
+     file)))
 
 ;;; Identifier highlighting
 (defun tide-command:documentHighlights (cb)
