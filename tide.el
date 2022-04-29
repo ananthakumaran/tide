@@ -678,7 +678,7 @@ Offset is one based."
     (tide-send-command name args (lambda (resp) (setq response resp)))
     (while (not response)
       (accept-process-output nil 0.01)
-      (when (> (cadr (time-subtract (current-time) start-time))
+      (when (> (time-to-seconds (time-subtract (current-time) start-time))
                tide-sync-request-timeout)
         (error "Sync request timed out %s" name)))
     response))
