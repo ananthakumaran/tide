@@ -122,6 +122,12 @@
   (should (tide-plist-equal '(:a 1 :b (:nest 1 :nest2 2)) '(:a 1 :b (:nest2 2 :nest 1))))
   (should-not (tide-plist-equal '(:a 1 :b (:nest 1)) '(:a 1 :b (:nest 2)))))
 
+(ert-deftest seconds-elapsed-gets-calculated ()
+  (let ((start-time (current-time)))
+    (sleep-for 5)
+    (let ((elapsed (tide-seconds-elapsed-since start-time)))
+      (should (and (> elapsed 5) (< elapsed 5.1))))))
+
 ;; Adapted from jdee-mode's test suite.
 (defmacro mode-with-temp-buffer (content &rest body)
   "Fill a temporary buffer with `CONTENT', turn on `tide-mode' and eval `BODY' in it."
