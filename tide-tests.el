@@ -125,7 +125,7 @@
 (ert-deftest seconds-elapsed-gets-calculated ()
   (let ((start-time (current-time)))
     (sleep-for 5)
-    (let ((elapsed (seconds-elapsed-since start-time)))
+    (let ((elapsed (tide-seconds-elapsed-since start-time)))
       (should (and (> elapsed 5) (< elapsed 5.1))))))
 
 ;; Adapted from jdee-mode's test suite.

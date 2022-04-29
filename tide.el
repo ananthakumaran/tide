@@ -672,7 +672,7 @@ Offset is one based."
     (when callback
       (puthash request-id (cons (current-buffer) callback) tide-response-callbacks))))
 
-(defun seconds-elapsed-since (time)
+(defun tide-seconds-elapsed-since (time)
   (time-to-seconds (time-subtract (current-time) time)))
 
 (defun tide-send-command-sync (name args)
@@ -681,7 +681,7 @@ Offset is one based."
     (tide-send-command name args (lambda (resp) (setq response resp)))
     (while (not response)
       (accept-process-output nil 0.01)
-      (when (> (seconds-elapsed-since start-time) tide-sync-request-timeout)
+      (when (> (tide-seconds-elapsed-since start-time) tide-sync-request-timeout)
         (error "Sync request timed out %s" name)))
     response))
 
