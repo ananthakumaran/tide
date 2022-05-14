@@ -1676,7 +1676,8 @@ This function is used for the basic completions sorting."
   (-filter (lambda (completion)
              (and
               (if tide-completion-fuzzy
-                  (string-match-p (regexp-quote prefix) (plist-get completion :name))
+                  (let ((case-fold-search tide-completion-ignore-case))
+                    (string-match-p (regexp-quote prefix) (plist-get completion :name)))
                 (string-prefix-p prefix (plist-get completion :name) tide-completion-ignore-case))
               (or (not tide-filter-out-warning-completions)
                   (not (equal (plist-get completion :kind) "warning")))))
@@ -1825,7 +1826,8 @@ This function is used for the basic completions sorting."
      (let* ((completion (get-text-property 0 'completion arg))
             (prefix (get-text-property 0 'prefix arg))
             (start (if tide-completion-fuzzy
-                       (string-match-p (regexp-quote prefix) (plist-get completion :name))
+                       (let ((case-fold-search tide-completion-ignore-case))
+                         (string-match-p (regexp-quote prefix) (plist-get completion :name)))
                      0)))
        `((,start . ,(+ start (length prefix))))))
     ((annotation) (tide-completion-annotation arg))
