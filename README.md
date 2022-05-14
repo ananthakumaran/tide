@@ -403,10 +403,11 @@ this variable to non-nil value for Javascript buffers using `setq-local` macro.
 
 Use native JSON parsing (only emacs >= 27).
 
+##### tide-save-buffer-after-code-edit `t`
+
+Save the buffer after applying code edits.
+
 ##### tide-hl-identifier-idle-time `0.5`
 
 How long to wait after user input before highlighting the current identifier.
 
-##### tide-save-buffer-after-code-edit `t`
-
-Save the buffer after applying code edits.
