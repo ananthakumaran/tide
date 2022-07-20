@@ -141,8 +141,8 @@ Keyboard shortcuts                  | Description
 <kbd>M-x tide-restart-server</kbd> Restart tsserver. This would come
 in handy after you edit tsconfig.json or checkout a different branch.
 
-<kbd>M-x tide-documentation-at-point</kbd> Show documentation for the
-symbol at point.
+<kbd>M-x tide-documentation-at-point</kbd> Load the documentation for the
+symbol at point to buffer `*tide-documentation*`.
 
 <kbd>M-x tide-references</kbd> List all references to the symbol
 at point in a buffer. References can be navigated using <kbd>n</kbd>
@@ -152,7 +152,8 @@ and <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 project. Errors can be navigated using <kbd>n</kbd> and
 <kbd>p</kbd>. Press <kbd>enter</kbd> to open the file.
 
-<kbd>M-x tide-error-at-point</kbd> Show the details of the error at point.
+<kbd>M-x tide-error-at-point</kbd> Load the details of the error at point
+to buffer `*tide-error*`.
 
 <kbd>M-x tide-rename-symbol</kbd> Rename all occurrences of the symbol
 at point.
@@ -229,11 +230,12 @@ For TypeScript 2.0 and above, you can customize the
 Sadly, this won't work for TypeScript < 2.0. You can clone the repo
 locally and checkout the old version though.
 
-**How do I copy the type information shown in minibuffer?**
+**How do I copy the type information shown in the minibuffer?**
 
-Tide has `tide-documentation-at-point` command to show the
-documentation for the symbol at point. By default, it will not show
-the buffer if only type information is available. This behavior can be
+Tide has the command `tide-documentation-at-point` to load the
+documentation for the symbol at point to buffer `*tide-documentation*`
+from where it can be copied. By default, tide will not open this buffer
+if only type information is available. This behavior can be
 overridden by setting `(setq tide-always-show-documentation t)`
 
 ### Custom Variables
