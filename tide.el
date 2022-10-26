@@ -1263,14 +1263,14 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old cb))
 
 
-(defun tide-eldoc-function ()
+(defun tide-eldoc-function (cb)
   (unless (member last-command '(next-error previous-error))
     (if (tide-method-call-p)
-        (tide-command:signatureHelp #'tide-eldoc-maybe-show)
+        (tide-command:signatureHelp (lambda (text) (funcall #'tide-eldoc-maybe-show text cb)))
       (when (looking-at "\\s_\\|\\sw")
         (tide-command:quickinfo
          (tide-on-response-success-callback response (:ignore-empty t)
-           (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body))))))))
+           (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body)) cb))))))
   nil)
 
 (defun tide-eldoc-display-message-p()
@@ -1279,14 +1279,14 @@ Noise can be anything like braces, reserved keywords, etc."
     (eldoc-display-message-p)))
 
 ;;; Copied from eldoc.el
-(defun tide-eldoc-maybe-show (text)
+(defun tide-eldoc-maybe-show (text cb)
   (with-demoted-errors "eldoc error: %s"
     (and (or (tide-eldoc-display-message-p)
              ;; Erase the last message if we won't display a new one.
              (when eldoc-last-message
-               (eldoc-message nil)
+               (funcall cb nil)
                nil))
-         (eldoc-message text))))
+         (funcall cb text))))
 
 (defun tide-documentation-at-point ()
   "Show documentation of the symbol at point."
@@ -2307,8 +2307,7 @@ current buffer."
   (unless (stringp buffer-file-name)
     (setq tide-require-manual-setup t))
 
-  (set (make-local-variable 'eldoc-documentation-function)
-       'tide-eldoc-function)
+  (add-hook 'eldoc-documentation-functions #'tide-eldoc-function nil t)
   (set (make-local-variable 'imenu-auto-rescan) t)
   (set (make-local-variable 'imenu-create-index-function)
        'tide-imenu-index)
