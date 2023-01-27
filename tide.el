@@ -1263,7 +1263,7 @@ Noise can be anything like braces, reserved keywords, etc."
   (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old cb))
 
 
-(defun tide-eldoc-function (cb)
+(defun tide-eldoc-function (&optional cb)
   (unless (member last-command '(next-error previous-error))
     (if (tide-method-call-p)
         (tide-command:signatureHelp (lambda (text) (funcall #'tide-eldoc-maybe-show text cb)))
@@ -1279,14 +1279,18 @@ Noise can be anything like braces, reserved keywords, etc."
     (eldoc-display-message-p)))
 
 ;;; Copied from eldoc.el
-(defun tide-eldoc-maybe-show (text cb)
+(defun tide-eldoc-maybe-show (text &optional cb)
   (with-demoted-errors "eldoc error: %s"
     (and (or (tide-eldoc-display-message-p)
              ;; Erase the last message if we won't display a new one.
              (when eldoc-last-message
-               (funcall cb nil)
+               (if (version< emacs-version "28.1")
+                   (eldoc-message nil)
+                 (funcall cb nil))
                nil))
-         (funcall cb text))))
+         (if (version< emacs-version "28.1")
+             (eldoc-message text)
+           (funcall cb text)))))
 
 (defun tide-documentation-at-point ()
   "Show documentation of the symbol at point."
@@ -2307,7 +2311,10 @@ current buffer."
   (unless (stringp buffer-file-name)
     (setq tide-require-manual-setup t))
 
-  (add-hook 'eldoc-documentation-functions #'tide-eldoc-function nil t)
+  (if (version< emacs-version "28.1")
+      (set (make-local-variable 'eldoc-documentation-function)
+           'tide-eldoc-function)
+    (add-hook 'eldoc-documentation-functions #'tide-eldoc-function nil t))
   (set (make-local-variable 'imenu-auto-rescan) t)
   (set (make-local-variable 'imenu-create-index-function)
        'tide-imenu-index)
