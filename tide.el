@@ -300,7 +300,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
+(defvar tide-supported-modes '(typescript-mode typescript-ts-base-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
@@ -2505,7 +2505,7 @@ current buffer."
   "A TypeScript syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(typescript-mode)
+  :modes '(typescript-mode typescript-ts-base-mode)
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
@@ -2535,7 +2535,7 @@ current buffer."
   "A TSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode)
+  :modes '(web-mode typescript-ts-base-mode)
   :predicate (lambda ()
                (and
                 (tide-file-extension-p "tsx")
