@@ -40,7 +40,10 @@
 ;; formats the buffer before saving
 (add-hook 'before-save-hook 'tide-format-before-save)
 
+;; if you use typescript-mode
 (add-hook 'typescript-mode-hook #'setup-tide-mode)
+;; if you use treesitter based typescript-ts-mode (emacs 29+)
+(add-hook 'typescript-ts-mode-hook #'setup-tide-mode)
 ```
 
 #### Format options
@@ -66,7 +69,7 @@ Format options can be specified in multiple ways.
 Check [here][format_options] for the full list of supported format options.
 
 
-#### TSX
+#### TSX without treesitter
 ```elisp
 (require 'web-mode)
 (add-to-list 'auto-mode-alist '("\\.tsx\\'" . web-mode))
@@ -76,6 +79,11 @@ Check [here][format_options] for the full list of supported format options.
               (setup-tide-mode))))
 ;; enable typescript-tslint checker
 (flycheck-add-mode 'typescript-tslint 'web-mode)
+```
+#### TSX with treesitter
+Treesitter comes with tsx major mode built in.
+```elisp
+(add-hook 'tsx-ts-mode-hook #'setup-tide-mode)
 ```
 
 Tide also provides support for editing js & jsx files. Tide checkers
@@ -123,11 +131,21 @@ true.
 
 #### Use Package
 ```elisp
+;; if you use typescript-mode
 (use-package tide
   :ensure t
   :after (typescript-mode company flycheck)
   :hook ((typescript-mode . tide-setup)
          (typescript-mode . tide-hl-identifier-mode)
+         (before-save . tide-format-before-save)))
+         
+;; if you use treesitter based typescript-ts-mode (emacs 29+)
+(use-package tide
+  :ensure t
+  :after (company flycheck)
+  :hook ((typescript-ts-mode . tide-setup)
+         (tsx-ts-mode . tide-setup)
+         (typescript-ts-mode . tide-hl-identifier-mode)
          (before-save . tide-format-before-save)))
 ```
 

@@ -14,8 +14,7 @@
 (package-initialize)
 (add-to-list 'package-archives '("melpa" . "https://stable.melpa.org/packages/"))
 
-;; tide depends on typescript-mode
-(dolist (p '(dash s flycheck typescript-mode))
+(dolist (p '(dash s flycheck))
   (when (not (package-installed-p p))
     (package-refresh-contents)
     (package-install p)))

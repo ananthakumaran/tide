@@ -6,7 +6,7 @@
 ;; URL: http://github.com/ananthakumaran/tide
 ;; Version: 4.5.4
 ;; Keywords: typescript
-;; Package-Requires: ((emacs "25.1") (dash "2.10.0") (s "1.11.0") (flycheck "27") (typescript-mode "0.1") (cl-lib "0.5"))
+;; Package-Requires: ((emacs "25.1") (dash "2.10.0") (s "1.11.0") (flycheck "27") (cl-lib "0.5"))
 
 ;; This program is free software: you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@
 
 ;;; Code:
 
-(require 'typescript-mode)
 (require 'etags)
 (require 'json)
 (require 'cl-lib)
@@ -301,7 +300,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
+(defvar tide-supported-modes '(typescript-mode typescript-ts-base-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
@@ -1511,7 +1510,7 @@ always be formatted as described above."
           (open-line 1))
         (insert "// tslint:disable-next-line:"
                 (string-join error-ids " "))
-        (typescript-indent-line)))))
+        (indent-according-to-mode)))))
 
 ;;; Disable Eslint Warnings
 
@@ -1553,7 +1552,7 @@ always be formatted as described above."
           (open-line 1))
         (insert "// eslint-disable-next-line "
                 (string-join error-ids ", "))
-        (typescript-indent-line)))))
+        (indent-according-to-mode)))))
 
 ;;; Auto completion
 
@@ -2346,9 +2345,7 @@ current buffer."
         (add-hook 'hack-local-variables-hook
                   'tide-configure-buffer-if-server-exists nil t)
         (when tide-enable-xref
-          (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t))
-        (when (commandp 'typescript-insert-and-indent)
-          (eldoc-add-command 'typescript-insert-and-indent)))
+          (add-hook 'xref-backend-functions #'xref-tide-xref-backend nil t)))
     (remove-hook 'after-save-hook 'tide-sync-buffer-contents t)
     (remove-hook 'after-save-hook 'tide-auto-compile-file t)
     (remove-hook 'after-change-functions 'tide-handle-change t)
@@ -2508,7 +2505,7 @@ current buffer."
   "A TypeScript syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(typescript-mode)
+  :modes '(typescript-mode typescript-ts-base-mode)
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
@@ -2538,7 +2535,7 @@ current buffer."
   "A TSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode)
+  :modes '(web-mode typescript-ts-base-mode)
   :predicate (lambda ()
                (and
                 (tide-file-extension-p "tsx")
