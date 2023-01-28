@@ -1341,8 +1341,17 @@ Noise can be anything like braces, reserved keywords, etc."
             (basic-save-buffer))
           (run-hooks 'tide-post-code-edit-hook))))))
 
-(defun tide-get-flycheck-errors-ids-at-point ()
-  (-map #'flycheck-error-id (flycheck-overlay-errors-at (point))))
+(defun tide-get-flycheck-errors-ids-at-point (&optional checker)
+  "Return flycheck errors at point.
+
+If CHECKER is non-nil, it is expected to be a symbol specifying
+the checker whose errors we want to return."
+  (let* ((errors (flycheck-overlay-errors-at (point)))
+         (filtered-errors
+          (if checker
+              (--filter (eq (flycheck-error-checker it) checker) errors)
+            errors)))
+    (-map #'flycheck-error-id filtered-errors)))
 
 (defun tide-command:getCodeFixes ()
   (tide-send-command-sync
@@ -1536,7 +1545,8 @@ to the flag.  Note that this function does not preserve the
 formatting of the already existing flag.  The resulting flag will
 always be formatted as described above."
   (interactive)
-  (let ((error-ids (delq nil (tide-get-flycheck-errors-ids-at-point)))
+  (let ((error-ids
+         (delq nil (tide-get-flycheck-errors-ids-at-point 'javascript-eslint)))
         (start (point)))
     (when error-ids
       (save-excursion
