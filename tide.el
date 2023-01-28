@@ -1262,16 +1262,19 @@ Noise can be anything like braces, reserved keywords, etc."
 (defun tide-command:quickinfo (cb)
   (tide-fallback-if-not-supported "quickinfo-full" tide-command:quickinfo-full tide-command:quickinfo-old cb))
 
-
 (defun tide-eldoc-function (&optional cb)
-  (unless (member last-command '(next-error previous-error))
-    (if (tide-method-call-p)
-        (tide-command:signatureHelp (lambda (text) (funcall #'tide-eldoc-maybe-show text cb)))
-      (when (looking-at "\\s_\\|\\sw")
-        (tide-command:quickinfo
-         (tide-on-response-success-callback response (:ignore-empty t)
-           (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body)) cb))))))
-  nil)
+  (cond ((member last-command '(next-error previous-error))
+         nil)
+        ((tide-method-call-p)
+         (tide-command:signatureHelp (lambda (text) (tide-eldoc-maybe-show text cb)))
+         t)
+        ((looking-at "\\s_\\|\\sw")
+         (tide-command:quickinfo
+          (tide-on-response-success-callback response (:ignore-empty t)
+            (tide-eldoc-maybe-show (tide-doc-text (plist-get response :body)) cb)))
+         t)
+        (t
+         nil)))
 
 (defun tide-eldoc-display-message-p()
   (if (fboundp 'eldoc-display-message-no-interference-p)
