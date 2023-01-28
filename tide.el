@@ -2308,6 +2308,15 @@ current buffer."
                                    tide--minimal-emacs emacs-version)
                      :error))
 
+  ;; When a user uses magit to extract old commits of files, magit creates
+  ;; buffers for those commits. These buffers are not backed by actual
+  ;; files. However, magit "cheats" and sets `buffer-file-name' when it turns on
+  ;; the modes on the file. So when this code runs in such a buffer,
+  ;; `buffer-file-name' is set, even though the buffer is not backed by a file
+  ;; on disk. So we need this check to handle such cases.
+  (when (bound-and-true-p magit-buffer-file-name)
+    (error "Cannot run tide in a buffer created by magit"))
+
   ;; Indirect buffers embedded in other major modes such as those in org-mode or
   ;; template languages have to be manually synchronized to tsserver. This might
   ;; cause problems in files with lots of small blocks of TypeScript. In that
@@ -2315,6 +2324,7 @@ current buffer."
   ;; there are more than a certain amount of snippets.
   (unless (stringp buffer-file-name)
     (setq tide-require-manual-setup t))
+
 
   (set (make-local-variable 'eldoc-documentation-function)
        'tide-eldoc-function)
