@@ -2524,7 +2524,7 @@ current buffer."
   "A TypeScript syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(typescript-mode typescript-ts-base-mode)
+  :modes '(typescript-mode typescript-ts-mode)
   :predicate #'tide-flycheck-predicate)
 
 (add-to-list 'flycheck-checkers 'typescript-tide)
@@ -2554,7 +2554,7 @@ current buffer."
   "A TSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode typescript-ts-mode tsx-ts-mode)
+  :modes '(web-mode tsx-ts-mode)
   :predicate (lambda ()
                (and
                 (tide-file-extension-p "tsx")
