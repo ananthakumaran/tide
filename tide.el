@@ -300,7 +300,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode typescript-ts-base-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
+(defvar tide-supported-modes '(typescript-mode typescript-ts-mode tsx-ts-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
