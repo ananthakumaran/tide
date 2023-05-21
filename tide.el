@@ -2545,7 +2545,7 @@ current buffer."
   :modes '(web-mode js2-jsx-mode rjsx-mode)
   :predicate (lambda ()
                (and
-                (tide-file-extension-p "jsx")
+                (or (tide-file-extension-p "jsx") (tide-file-extension-p "js"))
                 (tide-flycheck-predicate))))
 
 (add-to-list 'flycheck-checkers 'jsx-tide t)
@@ -2557,7 +2557,7 @@ current buffer."
   :modes '(web-mode tsx-ts-mode)
   :predicate (lambda ()
                (and
-                (tide-file-extension-p "tsx")
+                (or (tide-file-extension-p "tsx") (tide-file-extension-p "ts"))
                 (tide-flycheck-predicate))))
 
 (add-to-list 'flycheck-checkers 'tsx-tide)
