@@ -14,9 +14,10 @@ and limitations under the License.
 ***************************************************************************** */
 
 
-
 /// <reference no-default-lib="true"/>
 
+/// <reference lib="decorators" />
+/// <reference lib="decorators.legacy" />
 
 /////////////////////////////
 /// ECMAScript APIs
@@ -72,13 +73,13 @@ declare function decodeURIComponent(encodedURIComponent: string): string;
 
 /**
  * Encodes a text string as a valid Uniform Resource Identifier (URI)
- * @param uri A value representing an encoded URI.
+ * @param uri A value representing an unencoded URI.
  */
 declare function encodeURI(uri: string): string;
 
 /**
  * Encodes a text string as a valid component of a Uniform Resource Identifier (URI).
- * @param uriComponent A value representing an encoded URI component.
+ * @param uriComponent A value representing an unencoded URI component.
  */
 declare function encodeURIComponent(uriComponent: string | number | boolean): string;
 
@@ -116,7 +117,7 @@ interface PropertyDescriptor {
 }
 
 interface PropertyDescriptorMap {
-    [s: string]: PropertyDescriptor;
+    [key: PropertyKey]: PropertyDescriptor;
 }
 
 interface Object {
@@ -216,15 +217,15 @@ interface ObjectConstructor {
 
     /**
      * Prevents the modification of existing property attributes and values, and prevents the addition of new properties.
-     * @param a Object on which to lock the attributes.
-     */
-    freeze<T>(a: T[]): readonly T[];
-
-    /**
-     * Prevents the modification of existing property attributes and values, and prevents the addition of new properties.
      * @param f Object on which to lock the attributes.
      */
     freeze<T extends Function>(f: T): T;
+
+    /**
+     * Prevents the modification of existing property attributes and values, and prevents the addition of new properties.
+     * @param o Object on which to lock the attributes.
+     */
+    freeze<T extends {[idx: string]: U | null | undefined | object}, U extends string | bigint | number | boolean | symbol>(o: T): Readonly<T>;
 
     /**
      * Prevents the modification of existing property attributes and values, and prevents the addition of new properties.
@@ -320,7 +321,7 @@ declare var Function: FunctionConstructor;
 /**
  * Extracts the type of the 'this' parameter of a function type, or 'unknown' if the function type has no 'this' parameter.
  */
-type ThisParameterType<T> = T extends (this: infer U, ...args: any[]) => any ? U : unknown;
+type ThisParameterType<T> = T extends (this: infer U, ...args: never) => any ? U : unknown;
 
 /**
  * Removes the 'this' parameter from a function type.
@@ -331,9 +332,14 @@ interface CallableFunction extends Function {
     /**
      * Calls the function with the specified object as the this value and the elements of specified array as the arguments.
      * @param thisArg The object to be used as the this object.
-     * @param args An array of argument values to be passed to the function.
      */
     apply<T, R>(this: (this: T) => R, thisArg: T): R;
+
+    /**
+     * Calls the function with the specified object as the this value and the elements of specified array as the arguments.
+     * @param thisArg The object to be used as the this object.
+     * @param args An array of argument values to be passed to the function.
+     */
     apply<T, A extends any[], R>(this: (this: T, ...args: A) => R, thisArg: T, args: A): R;
 
     /**
@@ -347,23 +353,29 @@ interface CallableFunction extends Function {
      * For a given function, creates a bound function that has the same body as the original function.
      * The this object of the bound function is associated with the specified object, and has the specified initial parameters.
      * @param thisArg The object to be used as the this object.
-     * @param args Arguments to bind to the parameters of the function.
      */
     bind<T>(this: T, thisArg: ThisParameterType<T>): OmitThisParameter<T>;
-    bind<T, A0, A extends any[], R>(this: (this: T, arg0: A0, ...args: A) => R, thisArg: T, arg0: A0): (...args: A) => R;
-    bind<T, A0, A1, A extends any[], R>(this: (this: T, arg0: A0, arg1: A1, ...args: A) => R, thisArg: T, arg0: A0, arg1: A1): (...args: A) => R;
-    bind<T, A0, A1, A2, A extends any[], R>(this: (this: T, arg0: A0, arg1: A1, arg2: A2, ...args: A) => R, thisArg: T, arg0: A0, arg1: A1, arg2: A2): (...args: A) => R;
-    bind<T, A0, A1, A2, A3, A extends any[], R>(this: (this: T, arg0: A0, arg1: A1, arg2: A2, arg3: A3, ...args: A) => R, thisArg: T, arg0: A0, arg1: A1, arg2: A2, arg3: A3): (...args: A) => R;
-    bind<T, AX, R>(this: (this: T, ...args: AX[]) => R, thisArg: T, ...args: AX[]): (...args: AX[]) => R;
+
+    /**
+     * For a given function, creates a bound function that has the same body as the original function.
+     * The this object of the bound function is associated with the specified object, and has the specified initial parameters.
+     * @param thisArg The object to be used as the this object.
+     * @param args Arguments to bind to the parameters of the function.
+     */
+    bind<T, A extends any[], B extends any[], R>(this: (this: T, ...args: [...A, ...B]) => R, thisArg: T, ...args: A): (...args: B) => R;
 }
 
 interface NewableFunction extends Function {
     /**
      * Calls the function with the specified object as the this value and the elements of specified array as the arguments.
      * @param thisArg The object to be used as the this object.
-     * @param args An array of argument values to be passed to the function.
      */
     apply<T>(this: new () => T, thisArg: T): void;
+    /**
+     * Calls the function with the specified object as the this value and the elements of specified array as the arguments.
+     * @param thisArg The object to be used as the this object.
+     * @param args An array of argument values to be passed to the function.
+     */
     apply<T, A extends any[]>(this: new (...args: A) => T, thisArg: T, args: A): void;
 
     /**
@@ -377,14 +389,16 @@ interface NewableFunction extends Function {
      * For a given function, creates a bound function that has the same body as the original function.
      * The this object of the bound function is associated with the specified object, and has the specified initial parameters.
      * @param thisArg The object to be used as the this object.
-     * @param args Arguments to bind to the parameters of the function.
      */
     bind<T>(this: T, thisArg: any): T;
-    bind<A0, A extends any[], R>(this: new (arg0: A0, ...args: A) => R, thisArg: any, arg0: A0): new (...args: A) => R;
-    bind<A0, A1, A extends any[], R>(this: new (arg0: A0, arg1: A1, ...args: A) => R, thisArg: any, arg0: A0, arg1: A1): new (...args: A) => R;
-    bind<A0, A1, A2, A extends any[], R>(this: new (arg0: A0, arg1: A1, arg2: A2, ...args: A) => R, thisArg: any, arg0: A0, arg1: A1, arg2: A2): new (...args: A) => R;
-    bind<A0, A1, A2, A3, A extends any[], R>(this: new (arg0: A0, arg1: A1, arg2: A2, arg3: A3, ...args: A) => R, thisArg: any, arg0: A0, arg1: A1, arg2: A2, arg3: A3): new (...args: A) => R;
-    bind<AX, R>(this: new (...args: AX[]) => R, thisArg: any, ...args: AX[]): new (...args: AX[]) => R;
+
+    /**
+     * For a given function, creates a bound function that has the same body as the original function.
+     * The this object of the bound function is associated with the specified object, and has the specified initial parameters.
+     * @param thisArg The object to be used as the this object.
+     * @param args Arguments to bind to the parameters of the function.
+     */
+    bind<A extends any[], B extends any[], R>(this: new (...args: [...A, ...B]) => R, thisArg: any, ...args: A): new (...args: B) => R;
 }
 
 interface IArguments {
@@ -443,8 +457,8 @@ interface String {
 
     /**
      * Replaces text in a string, using a regular expression or search string.
-     * @param searchValue A string to search for.
-     * @param replaceValue A string containing the text to replace for every successful match of searchValue in this string.
+     * @param searchValue A string or regular expression to search for.
+     * @param replaceValue A string containing the text to replace. When the {@linkcode searchValue} is a `RegExp`, all matches are replaced if the `g` flag is set (or only those matches at the beginning, if the `y` flag is also present). Otherwise, only the first match of {@linkcode searchValue} is replaced.
      */
     replace(searchValue: string | RegExp, replaceValue: string): string;
 
@@ -761,7 +775,7 @@ interface Date {
     toLocaleTimeString(): string;
     /** Returns the stored time value in milliseconds since midnight, January 1, 1970 UTC. */
     valueOf(): number;
-    /** Gets the time value in milliseconds. */
+    /** Returns the stored time value in milliseconds since midnight, January 1, 1970 UTC. */
     getTime(): number;
     /** Gets the year, using local time. */
     getFullYear(): number;
@@ -902,7 +916,17 @@ interface Date {
 interface DateConstructor {
     new(): Date;
     new(value: number | string): Date;
-    new(year: number, month: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): Date;
+    /**
+     * Creates a new Date.
+     * @param year The full year designation is required for cross-century date accuracy. If year is between 0 and 99 is used, then year is assumed to be 1900 + year.
+     * @param monthIndex The month as a number between 0 and 11 (January to December).
+     * @param date The date as a number between 1 and 31.
+     * @param hours Must be supplied if minutes is supplied. A number from 0 to 23 (midnight to 11pm) that specifies the hour.
+     * @param minutes Must be supplied if seconds is supplied. A number from 0 to 59 that specifies the minutes.
+     * @param seconds Must be supplied if milliseconds is supplied. A number from 0 to 59 that specifies the seconds.
+     * @param ms A number from 0 to 999 that specifies the milliseconds.
+     */
+    new(year: number, monthIndex: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): Date;
     (): string;
     readonly prototype: Date;
     /**
@@ -913,27 +937,48 @@ interface DateConstructor {
     /**
      * Returns the number of milliseconds between midnight, January 1, 1970 Universal Coordinated Time (UTC) (or GMT) and the specified date.
      * @param year The full year designation is required for cross-century date accuracy. If year is between 0 and 99 is used, then year is assumed to be 1900 + year.
-     * @param month The month as a number between 0 and 11 (January to December).
+     * @param monthIndex The month as a number between 0 and 11 (January to December).
      * @param date The date as a number between 1 and 31.
      * @param hours Must be supplied if minutes is supplied. A number from 0 to 23 (midnight to 11pm) that specifies the hour.
      * @param minutes Must be supplied if seconds is supplied. A number from 0 to 59 that specifies the minutes.
      * @param seconds Must be supplied if milliseconds is supplied. A number from 0 to 59 that specifies the seconds.
      * @param ms A number from 0 to 999 that specifies the milliseconds.
      */
-    UTC(year: number, month: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
+    UTC(year: number, monthIndex: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number): number;
+    /** Returns the number of milliseconds elapsed since midnight, January 1, 1970 Universal Coordinated Time (UTC). */
     now(): number;
 }
 
 declare var Date: DateConstructor;
 
 interface RegExpMatchArray extends Array<string> {
+    /**
+     * The index of the search at which the result was found.
+     */
     index?: number;
+    /**
+     * A copy of the search string.
+     */
     input?: string;
+    /**
+     * The first match. This will always be present because `null` will be returned if there are no matches.
+     */
+    0: string;
 }
 
 interface RegExpExecArray extends Array<string> {
+    /**
+     * The index of the search at which the result was found.
+     */
     index: number;
+    /**
+     * A copy of the search string.
+     */
     input: string;
+    /**
+     * The first match. This will always be present because `null` will be returned if there are no matches.
+     */
+    0: string;
 }
 
 interface RegExp {
@@ -1472,11 +1517,6 @@ interface TypedPropertyDescriptor<T> {
     set?: (value: T) => void;
 }
 
-declare type ClassDecorator = <TFunction extends Function>(target: TFunction) => TFunction | void;
-declare type PropertyDecorator = (target: Object, propertyKey: string | symbol) => void;
-declare type MethodDecorator = <T>(target: Object, propertyKey: string | symbol, descriptor: TypedPropertyDescriptor<T>) => TypedPropertyDescriptor<T> | void;
-declare type ParameterDecorator = (target: Object, propertyKey: string | symbol, parameterIndex: number) => void;
-
 declare type PromiseConstructorLike = new <T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void) => PromiseLike<T>;
 
 interface PromiseLike<T> {
@@ -1514,8 +1554,8 @@ interface Promise<T> {
  */
 type Awaited<T> =
     T extends null | undefined ? T : // special case for `null | undefined` when not in `--strictNullChecks` mode
-        T extends object & { then(onfulfilled: infer F): any } ? // `await` only unwraps object types with a callable `then`. Non-object types are not unwrapped
-            F extends ((value: infer V, ...args: any) => any) ? // if the argument to `then` is callable, extracts the first argument
+        T extends object & { then(onfulfilled: infer F, ...args: infer _): any } ? // `await` only unwraps object types with a callable `then`. Non-object types are not unwrapped
+            F extends ((value: infer V, ...args: infer _) => any) ? // if the argument to `then` is callable, extracts the first argument
                 Awaited<V> : // recursively unwrap the value
                 never : // the argument to `then` was not callable
         T; // non-object or non-thenable
@@ -1578,7 +1618,7 @@ type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
 /**
  * Exclude null and undefined from T
  */
-type NonNullable<T> = T extends null | undefined ? never : T;
+type NonNullable<T> = T & {};
 
 /**
  * Obtain the parameters of a function type in a tuple
@@ -1683,6 +1723,7 @@ interface DataView {
      * Gets the Float32 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getFloat32(byteOffset: number, littleEndian?: boolean): number;
 
@@ -1690,6 +1731,7 @@ interface DataView {
      * Gets the Float64 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getFloat64(byteOffset: number, littleEndian?: boolean): number;
 
@@ -1704,12 +1746,14 @@ interface DataView {
      * Gets the Int16 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getInt16(byteOffset: number, littleEndian?: boolean): number;
     /**
      * Gets the Int32 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getInt32(byteOffset: number, littleEndian?: boolean): number;
 
@@ -1724,6 +1768,7 @@ interface DataView {
      * Gets the Uint16 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getUint16(byteOffset: number, littleEndian?: boolean): number;
 
@@ -1731,6 +1776,7 @@ interface DataView {
      * Gets the Uint32 value at the specified byte offset from the start of the view. There is
      * no alignment constraint; multi-byte values may be fetched from any offset.
      * @param byteOffset The place in the buffer at which the value should be retrieved.
+     * @param littleEndian If false or undefined, a big-endian value should be read.
      */
     getUint32(byteOffset: number, littleEndian?: boolean): number;
 
@@ -1738,8 +1784,7 @@ interface DataView {
      * Stores an Float32 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setFloat32(byteOffset: number, value: number, littleEndian?: boolean): void;
 
@@ -1747,8 +1792,7 @@ interface DataView {
      * Stores an Float64 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setFloat64(byteOffset: number, value: number, littleEndian?: boolean): void;
 
@@ -1763,8 +1807,7 @@ interface DataView {
      * Stores an Int16 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setInt16(byteOffset: number, value: number, littleEndian?: boolean): void;
 
@@ -1772,8 +1815,7 @@ interface DataView {
      * Stores an Int32 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setInt32(byteOffset: number, value: number, littleEndian?: boolean): void;
 
@@ -1788,8 +1830,7 @@ interface DataView {
      * Stores an Uint16 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setUint16(byteOffset: number, value: number, littleEndian?: boolean): void;
 
@@ -1797,15 +1838,14 @@ interface DataView {
      * Stores an Uint32 value at the specified byte offset from the start of the view.
      * @param byteOffset The place in the buffer at which the value should be set.
      * @param value The value to set.
-     * @param littleEndian If false or undefined, a big-endian value should be written,
-     * otherwise a little-endian value should be written.
+     * @param littleEndian If false or undefined, a big-endian value should be written.
      */
     setUint32(byteOffset: number, value: number, littleEndian?: boolean): void;
 }
 
 interface DataViewConstructor {
     readonly prototype: DataView;
-    new(buffer: ArrayBufferLike, byteOffset?: number, byteLength?: number): DataView;
+    new(buffer: ArrayBufferLike & { BYTES_PER_ELEMENT?: never }, byteOffset?: number, byteLength?: number): DataView;
 }
 declare var DataView: DataViewConstructor;
 
@@ -1840,10 +1880,10 @@ interface Int8Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -2122,10 +2162,10 @@ interface Uint8Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -2404,10 +2444,10 @@ interface Uint8ClampedArray {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -2685,10 +2725,10 @@ interface Int16Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -2967,10 +3007,10 @@ interface Uint16Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -3249,10 +3289,10 @@ interface Int32Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -3531,10 +3571,10 @@ interface Uint32Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -3812,10 +3852,10 @@ interface Float32Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -4095,10 +4135,10 @@ interface Float64Array {
      * @param target If target is negative, it is treated as length+target where length is the
      * length of the array.
      * @param start If start is negative, it is treated as length+start. If end is negative, it
-     * is treated as length+end.
+     * is treated as length+end. If start is omitted, `0` is used.
      * @param end If not specified, length of the this object is used as its default value.
      */
-    copyWithin(target: number, start: number, end?: number): this;
+    copyWithin(target: number, start?: number, end?: number): this;
 
     /**
      * Determines whether all the members of an array satisfy the specified test.
@@ -4289,12 +4329,21 @@ interface Float64Array {
     sort(compareFn?: (a: number, b: number) => number): this;
 
     /**
+     * Gets a new Float64Array view of the ArrayBuffer store for this array, referencing the elements
      * at begin, inclusive, up to end, exclusive.
      * @param begin The index of the beginning of the array.
      * @param end The index of the end of the array.
      */
     subarray(begin?: number, end?: number): Float64Array;
 
+    /**
+     * Converts a number to a string by using the current locale.
+     */
+    toLocaleString(): string;
+
+    /**
+     * Returns a string representation of an array.
+     */
     toString(): string;
 
     /** Returns the primitive value of the specified object. */
@@ -4343,11 +4392,12 @@ declare var Float64Array: Float64ArrayConstructor;
 
 declare namespace Intl {
     interface CollatorOptions {
-        usage?: string | undefined;
-        localeMatcher?: string | undefined;
+        usage?: "sort" | "search" | undefined;
+        localeMatcher?: "lookup" | "best fit" | undefined;
         numeric?: boolean | undefined;
-        caseFirst?: string | undefined;
-        sensitivity?: string | undefined;
+        caseFirst?: "upper" | "lower" | "false" | undefined;
+        sensitivity?: "base" | "accent" | "case" | "variant" | undefined;
+        collation?: "big5han" | "compat" | "dict" | "direct" | "ducet" | "emoji" | "eor" | "gb2312" | "phonebk" | "phonetic" | "pinyin" | "reformed" | "searchjl" | "stroke" | "trad" | "unihan" | "zhuyin" | undefined;
         ignorePunctuation?: boolean | undefined;
     }
 
@@ -4375,7 +4425,6 @@ declare namespace Intl {
         localeMatcher?: string | undefined;
         style?: string | undefined;
         currency?: string | undefined;
-        currencyDisplay?: string | undefined;
         currencySign?: string | undefined;
         useGrouping?: boolean | undefined;
         minimumIntegerDigits?: number | undefined;
@@ -4390,7 +4439,6 @@ declare namespace Intl {
         numberingSystem: string;
         style: string;
         currency?: string;
-        currencyDisplay?: string;
         minimumIntegerDigits: number;
         minimumFractionDigits: number;
         maximumFractionDigits: number;
@@ -4407,6 +4455,7 @@ declare namespace Intl {
         new(locales?: string | string[], options?: NumberFormatOptions): NumberFormat;
         (locales?: string | string[], options?: NumberFormatOptions): NumberFormat;
         supportedLocalesOf(locales: string | string[], options?: NumberFormatOptions): string[];
+        readonly prototype: NumberFormat;
     };
 
     interface DateTimeFormatOptions {
@@ -4419,7 +4468,7 @@ declare namespace Intl {
         hour?: "numeric" | "2-digit" | undefined;
         minute?: "numeric" | "2-digit" | undefined;
         second?: "numeric" | "2-digit" | undefined;
-        timeZoneName?: "long" | "short" | undefined;
+        timeZoneName?: "short" | "long" | "shortOffset" | "longOffset" | "shortGeneric" | "longGeneric" | undefined;
         formatMatcher?: "best fit" | "basic" | undefined;
         hour12?: boolean | undefined;
         timeZone?: string | undefined;
@@ -4450,6 +4499,7 @@ declare namespace Intl {
         new(locales?: string | string[], options?: DateTimeFormatOptions): DateTimeFormat;
         (locales?: string | string[], options?: DateTimeFormatOptions): DateTimeFormat;
         supportedLocalesOf(locales: string | string[], options?: DateTimeFormatOptions): string[];
+        readonly prototype: DateTimeFormat;
     };
 }
 
