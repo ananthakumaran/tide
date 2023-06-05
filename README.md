@@ -9,7 +9,7 @@
 ### Installation
 
 * Tide requires Emacs 25 or later. We recommend Emacs 27 or later with native json support.
-* Install [node.js](https://nodejs.org/) v0.12.0 or greater.
+* Install [node.js](https://nodejs.org/) v0.14.0 or greater.
 * Make sure
   [tsconfig.json](http://www.typescriptlang.org/docs/handbook/tsconfig-json.html)
   or
