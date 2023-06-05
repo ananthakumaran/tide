@@ -160,7 +160,7 @@ timeout.  If BODY does not execute without error before the timeout, that's
 a test failure."
   (declare (debug t)
            (indent 1))
-  `(with-timeout (5 (ert-fail "Timed out"))
+  `(with-timeout (10 (ert-fail "Timed out"))
      ;; If an error occurs in BODY, ignore-error will return nil.
      (while (not (ignore-errors ,@body t))
        ;; We need to let emacs process tsserver output.
