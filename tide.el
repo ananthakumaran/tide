@@ -1739,7 +1739,7 @@ This function is used for the basic completions sorting."
                              `(:entryNames [(:name ,name :source ,source :data ,data)]))
                             (source
                              `(:entryNames [(:name ,name :source ,source)]))
-                            (t `(:entryNames (,name)))))
+                            (t `(:entryNames [,name]))))
          (arguments (-concat (get-text-property 0 'file-location name)
                              entry-names)))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
