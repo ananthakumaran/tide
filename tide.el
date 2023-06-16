@@ -1734,9 +1734,12 @@ This function is used for the basic completions sorting."
 
 (defun tide-command:completionEntryDetails (name)
   (let* ((source (plist-get (get-text-property 0 'completion name) :source))
-         (entry-names (if source
-                          `(:entryNames [(:name ,name :source ,source)])
-                        `(:entryNames [,name])))
+         (data (plist-get (get-text-property 0 'completion name) :data))
+         (entry-names (cond ((and source data)
+                             `(:entryNames [(:name ,name :source ,source :data ,data)]))
+                            (source
+                             `(:entryNames [(:name ,name :source ,source)]))
+                            (t `(:entryNames (,name)))))
          (arguments (-concat (get-text-property 0 'file-location name)
                              entry-names)))
     (-when-let (response (tide-send-command-sync "completionEntryDetails" arguments))
