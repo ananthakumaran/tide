@@ -666,19 +666,25 @@ Offset is one based."
     ((event) (tide-dispatch-event response))))
 
 (defun tide-send-command (name args &optional callback)
-  (unless (tide-current-server)
-    (error "Server does not exist. Run M-x tide-restart-server to start it again"))
+  (if (not (tide-current-server))
+    (let* ((message "Server does not exist, run M-x tide-restart-server to start it again")
+           (already-barfed
+            (with-current-buffer (messages-buffer)
+              (save-excursion (goto-char (point-max))
+                              (forward-line -1)
+                              (save-match-data (re-search-forward message nil t))))))
+      (unless already-barfed (error "%s" message)))
 
-  (tide-sync-buffer-contents)
+    (tide-sync-buffer-contents)
 
-  (let* ((request-id (tide-next-request-id))
-         (command `(:command ,name :seq ,request-id :arguments ,args))
-         (json-encoding-pretty-print nil)
-         (encoded-command (tide-json-encode command))
-         (payload (concat encoded-command "\n")))
-    (process-send-string (tide-current-server) payload)
-    (when callback
-      (puthash request-id (cons (current-buffer) callback) tide-response-callbacks))))
+    (let* ((request-id (tide-next-request-id))
+           (command `(:command ,name :seq ,request-id :arguments ,args))
+           (json-encoding-pretty-print nil)
+           (encoded-command (tide-json-encode command))
+           (payload (concat encoded-command "\n")))
+      (process-send-string (tide-current-server) payload)
+      (when callback
+        (puthash request-id (cons (current-buffer) callback) tide-response-callbacks)))))
 
 (defun tide-seconds-elapsed-since (time)
   (time-to-seconds (time-subtract (current-time) time)))
@@ -789,7 +795,7 @@ in the npm global installation.  If nothing is found use the bundled version."
 
 (defun tide-start-server ()
   (when (tide-current-server)
-    (error "Server already exist"))
+    (error "Server already exists"))
 
   (message "(%s) Starting tsserver..." (tide-project-name))
   (let* ((default-directory (tide-project-root))
