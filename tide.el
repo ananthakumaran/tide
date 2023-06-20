@@ -1739,6 +1739,8 @@ This function is used for the basic completions sorting."
                              `(:entryNames [(:name ,name :source ,source :data ,data)]))
                             (source
                              `(:entryNames [(:name ,name :source ,source)]))
+                            (data
+                             `(:entryNames [(:name ,name :data ,data)]))
                             (t `(:entryNames [,name]))))
          (arguments (-concat (get-text-property 0 'file-location name)
                              entry-names)))
