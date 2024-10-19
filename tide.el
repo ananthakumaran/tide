@@ -935,6 +935,7 @@ Currently, two kinds of cleanups are done:
 (defun tide-current-indentsize ()
   (pcase major-mode
     (`typescript-mode typescript-indent-level)
+    (`typescript-ts-mode typescript-ts-mode-indent-offset)
     (`js2-mode js2-basic-offset)
     (`js-mode js-indent-level)
     (`js3-mode js3-indent-level)
