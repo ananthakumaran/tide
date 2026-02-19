@@ -48,6 +48,8 @@
 (defvar web-mode-code-indent-offset)
 (defvar sgml-basic-offset)
 (defvar company-backends)
+(defvar typescript-ts-mode-indent-offset)
+(defvar typescript-indent-level)
 
 (declare-function company-grab "company.el" (regexp &optional expression limit))
 (declare-function company-grab-symbol-cons "company.el" (idle-begin-after-re &optional max-len))
@@ -300,7 +302,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
      (make-variable-buffer-local ',name)
      (put ',name 'permanent-local t)))
 
-(defvar tide-supported-modes '(typescript-mode typescript-ts-mode tsx-ts-mode web-mode js-mode js2-mode js2-jsx-mode js3-mode rjsx-mode))
+(defvar tide-supported-modes '(typescript-mode typescript-ts-mode tsx-ts-mode jtsx-tsx-mode web-mode js-mode js2-mode js2-jsx-mode jtsx-jsx-mode js3-mode rjsx-mode))
 
 (defvar tide-server-buffer-name "*tide-server*")
 (defvar tide-request-counter 0)
@@ -313,6 +315,7 @@ this variable to non-nil value for Javascript buffers using `setq-local' macro."
 (tide-def-permanent-buffer-local tide-buffer-tmp-file nil)
 (tide-def-permanent-buffer-local tide-active-buffer-file-name nil)
 (tide-def-permanent-buffer-local tide-require-manual-setup nil)
+(tide-def-permanent-buffer-local tide-origin-buffer-file-name nil)
 
 (defvar tide-servers (make-hash-table :test 'equal))
 (defvar tide-response-callbacks (make-hash-table :test 'equal))
@@ -942,6 +945,8 @@ Currently, two kinds of cleanups are done:
     (`web-mode web-mode-code-indent-offset)
     (`js2-jsx-mode sgml-basic-offset)
     (`rjsx-mode sgml-basic-offset)
+    (`jtsx-jsx-mode js-indent-level)
+    (`jtsx-tsx-mode typescript-ts-mode-indent-offset)
     (_ standard-indent)))
 
 (defun tide-command:configure ()
@@ -2548,7 +2553,7 @@ current buffer."
   "A JSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode js2-jsx-mode rjsx-mode)
+  :modes '(web-mode js2-jsx-mode jtsx-jsx-mode rjsx-mode)
   :predicate (lambda ()
                (and
                 (tide-file-extension-p "jsx")
@@ -2560,7 +2565,7 @@ current buffer."
   "A TSX syntax checker using tsserver."
   :start #'tide-flycheck-start
   :verify #'tide-flycheck-verify
-  :modes '(web-mode tsx-ts-mode)
+  :modes '(web-mode tsx-ts-mode jtsx-tsx-mode)
   :predicate (lambda ()
                (and
                 (tide-file-extension-p "tsx")
